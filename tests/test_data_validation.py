@@ -5,6 +5,7 @@ Ağa çıkılmaz; tüm veri sentetiktir.
 """
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -17,6 +18,7 @@ from src.data.validate import (
     check_symbol_survivorship,
     check_utc,
     validate_ohlcv,
+    zero_volume_ratio,
 )
 
 
@@ -78,6 +80,25 @@ def test_ohlc_sanity():
     assert check_ohlc_sanity(bad2) == [bad2.ts[1]]
 
 
+def noisy_frame(n=300, seed=0, sigma=0.001, price=100.0):
+    """Gerçekçi oynaklığa sahip seri — sabit eşik yerine sigma katı test edilebilsin."""
+    rng = np.random.default_rng(seed)
+    close = price * np.exp(np.cumsum(rng.normal(0, sigma, n)))
+    ts = pd.date_range("2026-01-01", periods=n, freq="1min", tz="UTC")
+    return pd.DataFrame({"ts": ts, "open": close, "high": close * 1.001,
+                         "low": close * 0.999, "close": close, "volume": 5.0})
+
+
+def test_no_zero_volume_runs_varsayilan_esik_10():
+    """§3.1: düşük likiditede birkaç sıfır hacimli mum normaldir, eşik 10."""
+    df = frame(30)
+    df.loc[list(range(4, 14)), "volume"] = 0.0  # 10 ardışık: eşiğe eşit, ihlal değil
+    assert check_no_zero_volume_runs(df) == []
+
+    df.loc[14, "volume"] = 0.0  # 11 ardışık: uyarı
+    assert check_no_zero_volume_runs(df) == [(df.ts[4], 11)]
+
+
 def test_no_zero_volume_runs():
     df = frame(10)
     assert check_no_zero_volume_runs(df, max_run=3) == []
@@ -91,16 +112,43 @@ def test_no_zero_volume_runs():
     assert check_no_zero_volume_runs(df, max_run=3) == [(df.ts[4], 4)]
 
 
-def test_price_jumps():
-    df = frame(5)
-    assert check_price_jumps(df, max_pct=10.0) == []
+def test_zero_volume_ratio_metrik_olarak_doner():
+    """§3.1: oran ihlal değil, sembol eleme metriğidir."""
+    df = frame(10)
+    assert zero_volume_ratio(df) == 0.0
+    df.loc[[1, 3], "volume"] = 0.0
+    assert zero_volume_ratio(df) == pytest.approx(0.2)
 
-    # Tek mumluk kötü tick: hem sıçrama hem geri dönüş yakalanır
-    df.loc[3, ["open", "high", "low", "close"]] = 200.0
-    assert check_price_jumps(df, max_pct=10.0) == [
-        (df.ts[3], pytest.approx(100.0)),
-        (df.ts[4], pytest.approx(50.0)),
-    ]
+
+def test_price_jumps_kotu_tick_yakalanir_gercek_hareket_yakalanmaz():
+    """§3.1: ayırt edici olan büyüklük değil kalıcılık."""
+    df = noisy_frame()
+    assert check_price_jumps(df) == []
+
+    # Kötü tick: tek mum sıçrar, hemen geri döner
+    tick = df.copy()
+    tick.loc[200, ["open", "high", "low", "close"]] *= 1.15
+    flagged = check_price_jumps(tick)
+    assert [ts for ts, _, _ in flagged] == [tick.ts[200]]
+    _, pct, z = flagged[0]
+    assert pct == pytest.approx(15.0, abs=0.1) and z > 10
+
+    # Aynı büyüklükte gerçek hareket: yeni seviyede kalır, ihlal değil
+    real = df.copy()
+    real.loc[200:, ["open", "high", "low", "close"]] *= 1.15
+    assert check_price_jumps(real) == []
+
+
+def test_price_jumps_esik_sembolun_kendi_oynakligina_gore():
+    """§3.1: BTC ile memecoin aynı eşikle ölçülmez — sabit yüzde yok."""
+    # %2'lik kötü tick: sakin seride ihlal, oynak seride gürültü
+    calm = noisy_frame(sigma=0.0005)
+    calm.loc[200, ["open", "high", "low", "close"]] *= 1.02
+    assert len(check_price_jumps(calm)) == 1
+
+    wild = noisy_frame(sigma=0.01)
+    wild.loc[200, ["open", "high", "low", "close"]] *= 1.02
+    assert check_price_jumps(wild) == []
 
 
 def test_symbol_survivorship():
@@ -120,9 +168,15 @@ def test_symbol_survivorship():
     ]
 
 
-def test_validate_ohlcv_toplar_tum_ihlalleri():
-    df = frame(10)
+def test_validate_ohlcv_hata_uyari_metrik_ayrisir():
+    """§3.1: sıfır hacim veriyi kullanılamaz yapmaz, hata listesine girmez."""
+    df = frame(30)
     df.loc[3, "low"] = 999.0
+    df.loc[list(range(10, 25)), "volume"] = 0.0
     result = validate_ohlcv(df.drop(index=[6]).reset_index(drop=True), "1m")
-    assert result["ohlc_sanity"] and result["no_gaps"]
-    assert result["utc"] == [] and result["no_duplicates"] == []
+
+    assert result["errors"]["ohlc_sanity"] and result["errors"]["no_gaps"]
+    assert result["errors"]["utc"] == [] and result["errors"]["no_duplicates"] == []
+    assert result["warnings"]["zero_volume_runs"]  # uyarı, hata değil
+    assert "zero_volume_runs" not in result["errors"]
+    assert result["metrics"]["zero_volume_ratio"] == pytest.approx(15 / 29)
