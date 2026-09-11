@@ -12,11 +12,17 @@ giden bir miktar değil (CLAUDE.md #4). Decimal'e çevirme `execution` sınırı
 **Temas tanımı:** mumun aralığı seviyeyi içeriyorsa temas vardır (`low <= seviye <= high`).
 Mum *içi* sıra bilinmez — bunun iki sonucu var, ikisi de kötümser tarafta:
 
-  1. Bir mumda hem ilerleme hem geçersizlik koşulu oluşursa **geçersizlik kazanır**.
+  1. Bir mumda hem ilerleme hem çapa teması oluşursa **öldürme kazanır**.
   2. Bir mumda en fazla **bir** ilerleme yapılır (0.50 ve 0.70'i aynı mumda gören zone
      yalnızca PRIMED olur; giriş için bir sonraki temas beklenir).
 
-Daha ince sıra çözümü isteniyorsa girdi 30m yerine 1m mum olmalı; model değişmez.
+R-ZONE-09: `on_bar` **1m mumlarla** beslenir, zone'un `timeframe` alanı ne olursa olsun.
+`timeframe` yalnızca geometrinin (leg, çapalar, seviyeler) geldiği zaman dilimidir;
+durum geçişleriyle ilgisi yoktur. Her iki kötümser kararın kaç kez tetiklendiği
+`kill_wins` / `skipped_progress` sayaçlarında tutulur (R-ZONE-09).
+
+Besleme `watch_from`'dan önce başlayamaz (R-ZONE-09); daha erken bir mum look-ahead'dir
+ve `ValueError` yükseltir.
 """
 from __future__ import annotations
 
@@ -24,6 +30,14 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+
+import pandas as pd  # yalnızca timeframe -> Timedelta ayrıştırması ("30m", "4h")
+
+HYSTERESIS = 0.25
+"""R-ZONE-01 · banttan "belirgin çıkış" eşiği, bant genişliğinin oranı olarak.
+
+Zone başına `Zone.hysteresis` ile değiştirilebilir. 0 = histerezis kapalı.
+"""
 
 
 class ZoneState(str, Enum):
@@ -42,16 +56,16 @@ class ZoneState(str, Enum):
 S = ZoneState
 TERMINAL = frozenset({S.CLOSED, S.INVALIDATED})
 
-# R-ZONE-04. ENTERED -> CLOSED, diyagramda çizilmemiş ama R-ZONE-04 tablosu CLOSED'ı
-# "nihai TP (0) veya stop (1)" diye tanımlıyor ve R-ZONE-05 ENTERED'de 1 temasını
-# "nihai stop" sayıyor. Bkz. OPEN-ZONE-01.
+# R-ZONE-04. INVALIDATED yalnızca pozisyon açılmadan önce geçerlidir: ENTERED ve
+# TP1_HIT durumunda çapa teması bir geçersizlik değil, işlem sonucudur (0 = nihai TP,
+# 1 = nihai stop) → CLOSED. Bu yüzden o iki durumdan INVALIDATED'a kenar yoktur.
 TRANSITIONS: dict[ZoneState, frozenset[ZoneState]] = {
     S.CREATED: frozenset({S.ACTIVE}),
     S.ACTIVE: frozenset({S.PRIMED, S.INVALIDATED}),
     S.PRIMED: frozenset({S.TOUCHED, S.INVALIDATED}),
     S.TOUCHED: frozenset({S.ENTERED, S.INVALIDATED}),
-    S.ENTERED: frozenset({S.TP1_HIT, S.CLOSED, S.INVALIDATED}),
-    S.TP1_HIT: frozenset({S.CLOSED, S.INVALIDATED}),
+    S.ENTERED: frozenset({S.TP1_HIT, S.CLOSED}),
+    S.TP1_HIT: frozenset({S.CLOSED}),
     S.CLOSED: frozenset(),
     S.INVALIDATED: frozenset(),
 }
@@ -87,6 +101,12 @@ class Zone:
     primed_at: datetime | None = None
     touch_count: int = 0
     quality_score: float | None = None  # R-ZONE-08 TASARLANACAK — kod hesaplamaz
+    # Spec alan listesi yukarıda biter. Aşağıdakiler uygulama durumu:
+    pivot_confirmed_at: datetime | None = None  # R-ZONE-09 · dışarıdan verilir (R-ZONE-02 yok)
+    hysteresis: float = HYSTERESIS  # R-ZONE-01 · bant genişliğinin oranı
+    in_band: bool = False  # önceki mum giriş bandında mıydı — olay bazlı sayım (R-ZONE-01)
+    kill_wins: int = 0  # R-ZONE-09 · öldürme ilerlemeye baskın geldi
+    skipped_progress: int = 0  # R-ZONE-09 · aynı mumdaki ikinci ilerleme atlandı
 
     @classmethod
     def create(
@@ -97,6 +117,8 @@ class Zone:
         anchor_0_time: datetime,
         anchor_1_price: float,
         anchor_1_time: datetime,
+        pivot_confirmed_at: datetime | None = None,
+        hysteresis: float = HYSTERESIS,
         zone_id: str | None = None,
     ) -> Zone:
         """Çapalardan zone kurar: seviyeler R-ZONE-03, bias §0 tablosu.
@@ -104,7 +126,13 @@ class Zone:
         `created_at` çapa zamanından gelir, duvar saatinden değil — backtest ve canlı
         aynı zone'u üretsin diye.
         """
-        for name, t in (("anchor_0_time", anchor_0_time), ("anchor_1_time", anchor_1_time)):
+        for name, t in (
+            ("anchor_0_time", anchor_0_time),
+            ("anchor_1_time", anchor_1_time),
+            ("pivot_confirmed_at", pivot_confirmed_at),
+        ):
+            if t is None:
+                continue
             if t.tzinfo is None or t.utcoffset() is None:
                 raise ValueError(f"{name} tz-naive; UTC olmalı (ARCHITECTURE.md §3)")
         if anchor_0_price == anchor_1_price:
@@ -127,7 +155,23 @@ class Zone:
             state=S.CREATED,
             created_at=created_at,
             state_changed_at=created_at,
+            pivot_confirmed_at=pivot_confirmed_at,
+            hysteresis=hysteresis,
         )
+
+    @property
+    def watch_from(self) -> datetime:
+        """R-ZONE-09 · `max(anchor_1 HTF mumunun kapanışı, pivot teyit zamanı)`.
+
+        Çapa, kendi HTF mumunun *içinde* oluşur; o mumun 1m'lerini beslemek çapaya
+        dokunur ve zone'u doğduğu anda öldürür. Pivot teyidi (`R-ZONE-02`, `IMPL-01`)
+        henüz yok, dışarıdan verilir; verilmezse ilk terim taban olarak iş görür.
+        Leg tespiti otomatikleştiğinde ikinci terim asıl kısıt olur.
+        """
+        htf_close = self.anchor_1_time + pd.Timedelta(self.timeframe)
+        if self.pivot_confirmed_at is None:
+            return htf_close
+        return max(htf_close, self.pivot_confirmed_at)
 
     # --- durum geçişleri -----------------------------------------------------
 
@@ -143,9 +187,13 @@ class Zone:
             self.primed_at = ts
         return new_state
 
-    def activate(self, ts: datetime) -> ZoneState:
-        """CREATED → ACTIVE. Zone izlemeye alındı, 0.50 teması bekleniyor (R-ZONE-06)."""
-        return self.transition(S.ACTIVE, ts)
+    def activate(self) -> ZoneState:
+        """CREATED → ACTIVE. Zone izlemeye alındı, 0.50 teması bekleniyor (R-ZONE-06).
+
+        İzleme her zaman `watch_from`'dan başlar (R-ZONE-09); zaman dışarıdan
+        verilmez, çünkü erken bir başlangıç doğrudan look-ahead bias üretir.
+        """
+        return self.transition(S.ACTIVE, self.watch_from)
 
     def enter(self, ts: datetime) -> ZoneState:
         """TOUCHED → ENTERED. Kararı strateji + risk katmanı verir, fiyat değil.
@@ -155,31 +203,65 @@ class Zone:
         """
         return self.transition(S.ENTERED, ts)
 
+    def _progress(self, high: float, low: float) -> ZoneState | None:
+        """Bu mumun tetiklediği *tek* ilerleme; yoksa None (R-ZONE-04).
+
+        TOUCHED → ENTERED burada yok: girişi strateji verir, fiyat değil (bkz. `enter`).
+        """
+        if self.state is S.ACTIVE and touches(self.level_050, high, low):
+            return S.PRIMED  # ön koşul karşılandı, zone silahlandı
+        if self.state is S.PRIMED and touches(self.level_070, high, low):
+            return S.TOUCHED
+        if self.state is S.ENTERED and touches(self.level_050, high, low):
+            return S.TP1_HIT  # ilk TP; stop maliyete = R-EXIT işi
+        return None
+
     def on_bar(self, high: float, low: float, ts: datetime) -> ZoneState:
         """Kapanmış bir mumu uygular ve yeni durumu döner.
 
-        Spec: R-ZONE-04 (ilerleme), R-ZONE-05 (geçersizlik).
+        Spec: R-ZONE-04 (ilerleme), R-ZONE-05 (geçersizlik), R-ZONE-09 (1m mum,
+        mum içi çakışma sayaçları).
 
-        Sıra önemlidir: önce çapa teması (öldürür), sonra ilerleme. CREATED ve terminal
-        durumlar fiyat işlemez.
+        Mum 1m'dir (R-ZONE-09); `self.timeframe` geometrinin TF'si, buraya karışmaz.
+        Sıra önemlidir: önce çapa teması (öldürür), sonra tek bir ilerleme. CREATED ve
+        terminal durumlar fiyat işlemez.
         """
         if self.state is S.CREATED or self.state in TERMINAL:
             return self.state
 
+        if ts < self.watch_from:
+            raise ValueError(
+                f"{self.zone_id}: {ts} < WATCH_FROM {self.watch_from} — look-ahead (R-ZONE-09)"
+            )
+
         if touches(self.anchor_0_price, high, low) or touches(self.anchor_1_price, high, low):
+            if self._progress(high, low) is not None:
+                self.kill_wins += 1  # aynı mumda ilerleme de vardı, öldürme kazandı
             # R-ZONE-05: giriş öncesi sıra bozuldu → zone ölür. Pozisyon varken aynı temas
             # tanımlı sonuçtur: 0 = nihai TP, 1 = nihai stop → CLOSED.
             return self.transition(
                 S.CLOSED if self.state in (S.ENTERED, S.TP1_HIT) else S.INVALIDATED, ts
             )
 
-        if self.state in (S.PRIMED, S.TOUCHED) and touches(self.level_070, high, low):
-            self.touch_count += 1  # giriş bandına kaç kez gelindi (R-ZONE-01)
+        # R-ZONE-01: temas = giriş bandına (0.70–0.79) bant *dışından* giriş. Bant içinde
+        # geçen ardışık mumlar sayacı artırmaz — sayılan mum değil, olay.
+        band_low, band_high = sorted((self.level_070, self.level_079))
+        margin = self.hysteresis * (band_high - band_low)
+        if low <= band_high and high >= band_low:
+            # Yalnızca PRIMED'den itibaren sayılır: fiyat 1'den 0.50'ye inerken banttan
+            # zorunlu olarak geçer, o temas her zone'da vardır ve bilgi taşımaz.
+            if not self.in_band and self.primed_at is not None:
+                self.touch_count += 1
+            self.in_band = True
+        elif high < band_low - margin or low > band_high + margin:
+            # Histerezis: yeni temas için bandı genişliğinin `hysteresis` katı kadar
+            # aşarak terk etmek gerekir. Aksi hâlde 1m'de sınırdaki titreşim sayacı şişirir.
+            self.in_band = False
 
-        if self.state is S.ACTIVE and touches(self.level_050, high, low):
-            return self.transition(S.PRIMED, ts)  # ön koşul karşılandı, zone silahlandı
-        if self.state is S.PRIMED and touches(self.level_070, high, low):
-            return self.transition(S.TOUCHED, ts)
-        if self.state is S.ENTERED and touches(self.level_050, high, low):
-            return self.transition(S.TP1_HIT, ts)  # ilk TP; stop maliyete = R-EXIT işi
+        nxt = self._progress(high, low)
+        if nxt is None:
+            return self.state
+        self.transition(nxt, ts)
+        if self._progress(high, low) is not None:
+            self.skipped_progress += 1  # mum içi sıra bilinmez → ikinci ilerleme atlandı
         return self.state
