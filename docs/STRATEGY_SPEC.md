@@ -61,6 +61,25 @@ Fiyat 1'den düştü, 0.50'ye (2.445) temas etti, 0.70'e (2.527) geri döndü �
 
 ---
 
+## 0.1 Sözlük
+
+Terimler burada tek anlama sabitlenir. Kod aynı isimleri kullanır.
+
+| Terim | Tanım |
+|---|---|
+| **Leg (Bacak)** | Bir swing low'dan swing high'a (veya tersi) uzanan hareket. Fib'in çizildiği aralık. Uç tespiti `R-ZONE-02`. |
+| **Likidite bölgesi** | Leg'in başladığı/bittiği, önceki swing'in aşıldığı bölge. |
+| **İmpuls** | Normalden belirgin büyük gövdeli, tek yönlü hareket mumu. Ölçüt: gövde > `IMPULSE_MULT` × son 20 mumun **medyan** gövdesi. **`IMPULSE_MULT = 4.0`** (`OPEN-21` kapandı). OB tanımı buna dayanır. |
+| **OB (Order Block)** | İmpuls hareketi öncesindeki **son ters yönlü mumun gövdesi**. İki zaman damgası taşır: `created_at` (gövdenin zamanı) ve `impulse_at` (OB'nin bilinebilir olduğu an). Değerlendirme `impulse_at`'ten önceye bakamaz. |
+| **FVG** | Üç mumluk yapıda 1. mumun high'ı ile 3. mumun low'u arasındaki dokunulmamış boşluk (ters yön için simetrik). `created_at` = 3. mumun zamanı — boşluk ancak o mum kapanınca bilinir. |
+| **Mitigasyon** | Fiyatın bir FVG/OB bölgesine ilk temas etmesi. **Dolum** ise karşı sınırın geçilmesidir; ikisi ayrı kaydedilir. |
+| **"OB içinde FVG"** | Kesişim yeterlidir, tam kapsama aranmaz (`R-ADD-05`). |
+| **Delinme** | OB'nin impuls mumlarıyla tamamen geçilmesi. Mum kapanışı beklenmez. Geçişin geçersiz sayılması için fiyatın OB'yi **tamamen geri alması** gerekir; yalnızca dokunmak yetmez — aksi hâlde "kapanış beklenmez" kuralıyla çelişir (`R-ADD-06`). |
+| **Equity** | Bakiye + tüm açık pozisyonların gerçekleşmemiş PnL'i. Tüm risk hesapları buna göre. |
+| **Zone object** | Kalıcı seviye nesnesi. Bir kez oluşturulur, durum makinesiyle takip edilir, her mumda yeniden hesaplanmaz. |
+
+---
+
 ## 1. Zone modeli
 
 ### R-ZONE-01 · Zone bir nesnedir `SETTLED`
@@ -70,6 +89,28 @@ Kalıcı kayıt, durum makinesiyle takip edilir, her mumda yeniden hesaplanmaz.
 Alanlar: `zone_id, symbol, timeframe, bias, anchor_0_price, anchor_0_time,
 anchor_1_price, anchor_1_time, level_050, level_070, level_079, state,
 created_at, state_changed_at, primed_at, touch_count, quality_score`
+
+**`touch_count` tanımı:** fiyatın giriş bandına (`0.70–0.79`) **bant dışından her girişi**
+bir temastır. Bant içinde geçen ardışık mumlar sayacı artırmaz — sayılan mum değil, olaydır.
+
+İki kısıt:
+
+- **Yalnızca `PRIMED`'den itibaren sayılır.** Fiyat `1`'den `0.50`'ye inerken bandın
+  içinden zorunlu olarak geçer; bu temas her zone'da yapısı gereği vardır, bilgi taşımaz.
+- **Histerezis zorunlu.** Yeni bir temas sayılması için fiyatın banttan belirgin şekilde
+  çıkmış olması gerekir. Varsayılan pay: bant genişliğinin **%25**'i. Aksi hâlde 1m
+  çözünürlükte bant sınırındaki titreşim sayacı şişirir.
+
+**Ölçüm (NEAR §0 referans zone'u):** 30m = 3 · 1m histerezissiz = 13 · 1m histerezis 0.25 = **8**
+
+> 30m sayısı doğru cevap değil, farklı çözünürlükte bir ölçüm. 30m'de bir "temas", yarım
+> saatlik mumun aralığının bandı kesmesidir; fiyat o mum içinde üç kez girip çıksa bile
+> tek sayılır. Kalibrasyon çapası 30m değil, **elle etiketlenmiş gözlem** olacak.
+> Sabit `R-ZONE-08` tasarlanırken etiketli veriyle ayarlanır; o zamana kadar hem ham hem
+> histerezisli sayı kaydedilir.
+
+Amacı "bu zone kaç kez denendi" bilgisidir; tekrar tekrar denenen zone zayıflar.
+`R-ZONE-08` kalite skorunun girdisidir.
 
 ### R-ZONE-02 · Uç tespiti `SETTLED`
 
@@ -95,9 +136,12 @@ Fib hesabı **lineer** (log scale kapalı).
 
 ```
 CREATED ──► ACTIVE ──► PRIMED ──► TOUCHED ──► ENTERED ──► TP1_HIT ──► CLOSED
-               │          │           │           │           │
-               └──────────┴───────────┴───────────┴───────────┴──► INVALIDATED
+               │          │           │
+               └──────────┴───────────┴──► INVALIDATED
 ```
+
+`INVALIDATED` yalnızca **pozisyon açılmadan önce** geçerlidir. `ENTERED` veya `TP1_HIT`
+durumundayken `1`'e temas bir geçersizlik değil, bir **işlem sonucudur** (stop) → `CLOSED`.
 
 | Durum | Giriş koşulu |
 |---|---|
@@ -149,6 +193,43 @@ Sabit ana zaman dilimi yok.
 | Scalp | 1m, 5m, bazen 15m |
 
 Coinin genel yönü 4h+ ile belirlenir. **Yöne ters açılan işlemde uzun beklenmez.**
+
+### R-ZONE-09 · Geometri HTF'den, temas 1m'den `SETTLED`
+
+Zone'un **geometrisi** (leg, çapalar, seviyeler) tespit edildiği zaman diliminden gelir.
+Zone'un **durum geçişleri** (0.50 teması, 0.70 teması, çapa teması) **1m mumlarla**
+değerlendirilir.
+
+Gerekçe: `R-ENTRY-02` "temas anında girilir, mum kapanışı beklenmez" diyor. Durum makinesi
+30m mumla beslenirse temas tespiti yarım saat gecikir ve bu kural fiilen ölür.
+
+**Mum içi belirsizlik.** Bir mumda hem ilerleme hem çapa teması varsa öldürme kazanır;
+bir mumda birden fazla ilerleme varsa yalnızca ilki uygulanır. 1m'de bu durumlar nadirdir,
+ama **kaç kez tetiklendiği sayaçta tutulur** — oran yüksek çıkarsa kural yeniden ele alınır.
+
+**İzleme başlangıcı (`WATCH_FROM`).** Zone, kendi geçmişiyle beslenmez. HTF çapasının
+tepesi HTF mumunun *içindedir*; o mumun 1m'lerini beslemek çapanın kendisine dokunur ve
+zone'u doğduğu anda öldürür. Ayrıca bir swing'in uç olduğu ancak pivot teyidiyle bilinir
+(`R-ZONE-02`, `IMPL-01`).
+
+```
+WATCH_FROM = max(anchor_1 HTF mumunun kapanışı, pivot teyit zamanı)
+```
+
+Leg tespiti elle yapıldığı sürece ilk terim taban olarak iş görür. **Tespit
+otomatikleştiğinde ikinci terim asıl kısıt olur** ve atlanırsa doğrudan look-ahead bias
+üretir.
+
+**Tespit zaman dilimi.** 1m yalnızca **durum geçişleri** içindir. OB, FVG ve impuls
+tespiti **5m ve üstünde** çalışır (`R-ZONE-07`'deki alt TF listesi: 4h, 30m, 15m, 5m).
+Gerekçe: 1m'de gövde büyüklükleri tick sınırlarına oturduğu için gövde/medyan oranı
+ayrık değerler alıyor ve eşik okuması kırılganlaşıyor — özellikle düşük fiyatlı
+sembollerde.
+
+**Ölçüm (NEAR, 2026-09):** aynı zone 30m yerine 1m ile beslendiğinde giriş teması
+**25 dakika önce** yakalanıyor. Kazanç daha iyi fiyat değil — seviye aynı. Kazanç
+**kaçırılmayan giriş**: 30m'de fiyat bant içine girip mum kapanmadan çıkarsa temas hiç
+görünmez.
 
 ### R-ZONE-08 · Aday sıralaması `TASARLANACAK`
 
@@ -377,11 +458,54 @@ Varsayılan: hepsi açık.
 
 | ID | Konu | Not |
 |---|---|---|
+| `OPEN-23` | **OB/FVG anlamlılık ölçütü** | **Öncelikli** — aşağıya bakın |
 | `OPEN-13` | "Garantici mod" tetikleyicisi | Açık — v1'de kapalı, sonra eklenir |
 | `OPEN-16` | Günlük yeni-pozisyon durdurma eşiği | Backtest'le kalibre (başlangıç %10) |
 | `OPEN-17` | Likidasyon tamponu eşikleri | Backtest'le kalibre (başlangıç %50 / %15) |
 | `OPEN-12` | Harmonik oran tablosu + stop kanadı | v2 modülü |
 | `OPEN-14` | Yeni listelenen coin stratejisi | Ayrı model, v2 |
+
+### OPEN-23 — OB/FVG anlamlılık ölçütü
+
+**Ölçüm (NEAR 30m, 09-08 13:30 → 09-10 12:00, ≈92 mum):** 17 OB, 21 FVG tespit edildi.
+Giriş bandında (2.527–2.563) 3 OB ve 2 FVG.
+
+Ortalama her 5 mumda bir OB, mevcut tanımın fazla geçirgen olduğunu gösteriyor.
+Sonucu şu: `R-ENTRY-02`'nin "bantta OB varsa OB'den gir" kuralı neredeyse her zaman
+tetikleniyor — OB bir **filtre** olmaktan çıkıp sabit davranışa dönüşüyor.
+
+İnsan pratiği bu sorunu zaten biliyor: *"OB'ler ardı ardına olunca çalışma oranları düşer"*
+(`R-ADD-05`). Trader görsel olarak anlamlı olanı seçiyor; motor hepsini buluyor.
+
+**Kapatma yöntemi:** NEAR listesi grafikte elle karşılaştırılır — bu 17'nin kaçı gerçekten
+OB sayılırdı? Aradaki fark anlamlılık ölçütünü verir. Aday girdiler: impuls büyüklüğü,
+OB sonrası hareketin menzili, kümelenme cezası, HTF yön uyumu.
+
+**`OPEN-21` kapandı, ama sorunu çözmüyor.** Ölçüm (tüm NEAR verisi, 30m 30.240 mum /
+1m 585.495 mum): gövde/medyan oranı `2.0` = p78 (mumların %22'si), `3.0` = p91,
+`4.0` = p95. Eşik **4.0**'a çıkarıldı — %4.5'lik oran "normalden kat kat büyük"
+tanımına uyan tek seviye. Dağılım iki TF'de neredeyse aynı; medyan normalizasyonu
+sembol ve TF başına ayrı eşik gerektirmiyor.
+
+**Ama eşik anlamlılığı seçmiyor.** Ölçüm: impuls büyüklüğü, OB sonrası menzili
+öngörmüyor — 2.2x impuls %1.3 menzil üretirken 4.1x %15.6, 3.6x ise %5.6 üretiyor.
+Eşiği yükseltmek yoğunluğu azaltır, iyi OB'yi seçmez.
+
+**Test edilecek hipotezler** (hepsi mevcut kurallardan):
+
+| Hipotez | Kaynak |
+|---|---|
+| İçinde dolmamış FVG olan OB daha geniş menzil üretir | `R-ADD-05` |
+| Ters yönlü OB varlığı menzili düşürür | `R-ADD-05` |
+| Ardışık OB serisi menzili düşürür | `R-ADD-05` |
+| 4h+ yön ile uyumlu OB daha geniş menzil üretir | `R-ZONE-07` |
+| Likidite süpürmesi sonrası oluşan OB daha güçlüdür | `R-ZONE-02` |
+
+**Aşırı uyum koruması:** ölçüt çok sembolde ve geniş dönemde aranır; verinin en yeni
+**%20'si ayrılır ve dokunulmaz**. Bulunan ölçüt ancak ayrılmış bölümde de çalışırsa
+geçerli sayılır.
+
+---
 
 ### Harmonik — erteleme gerekçesi (düzeltildi)
 
