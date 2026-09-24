@@ -341,6 +341,19 @@ Risk ayarı gerekiyorsa notional (`K`) üzerinden yapılır, kaldıraç üzerind
 
 ## 3. Ekleme
 
+> **v1'de ekleme kapalıdır.** `R-ADD-*` kuralları yerinde kalır ve kodda çalışır
+> durumdadır; v1 **varsayılan yapılandırması** `max_adds = 0`'dır
+> (`src/backtest/engine.py · MAX_ADDS`). Bu bir yapılandırma kararıdır, kural silme
+> değildir.
+>
+> **Gerekçe** (`docs/measurements/f_kollari.md`, taban E3B, 20 sembol): ekleme işlemin
+> **sonucunu değiştirmiyor**, yalnızca kaybedeni büyütüyor. Ekleme kapatıldığında nihai
+> TP 414 → 412, stop 756 → 766 — dağılım aynı; net **−134 → +2.376**, maks drawdown
+> %23,7 → %11,9. Ekleme, dönmeyen pozisyonu büyütüyor.
+>
+> **Yeniden ölçüm koşulu:** `ADD-REJECT-A` sayısallaştığında ("fiyatın gideceği tahmin
+> edilen nokta", `OPEN-27`) ekleme yeniden ölçülür.
+
 ### R-ADD-01 · İzin koşulları `SETTLED`
 1. Fiyat giriş bandının ötesinde (pozisyon eksi bölgede)
 2. Alt TF'lerin birinde yöne uygun **OB** tespit edildi
@@ -610,6 +623,7 @@ Varsayılan: hepsi açık.
 | `OPEN-27` | Ekleme çarpanı seçim kuralı (`R-ADD-03`) | **Basitleştirildi** — ilk backtest daima 1-1 ekliyor. "Fiyatın gideceği tahmin edilen nokta" hiç sayısallaşmadı; `ADD-REJECT-A` ile birlikte açık. |
 | `OPEN-29` | Pozisyon sonlandırma kuralı | **Açık** — `R-EXIT-03` zaman sınırı tanımıyor. `R-ADD-04` küçültmesinden sonra bir pozisyonun tek sonlandırıcısı nihai stop/TP; ölçümde 202 gün açık kalan pozisyon var. Üç aday `scripts/terminate.py` ile ölçülüyor; kod varsayılanı `none` (spec'in hâli). |
 | `OPEN-35` | `R-EXIT-01` breakeven'in "maliyet"i ücret dahil mi | **Kapandı** — ücret dahil (gidiş-dönüş komisyonu, slippage hariç). `R-EXIT-01`. Ölçüm `docs/measurements/robustness.md`. |
+| `OPEN-36` | Maker doluş varsayımı: limit emrin taker'a düşme oranı | Ölçüldü, açık — `docs/measurements/maker_stres.md`. Başabaş ~%48,5 taker'a düşme; en pahalı tür giriş (tek başına net −902). Gerçek oran defter verisi (`OPEN-32`) olmadan bilinmez. Girişin post-only / kovalanmaz olması tanımsız. |
 | `OPEN-33` | Ekleme merdiveninin boyut tavanı | **Kapandı** — `ADD-REJECT-E` (`R-ADD-02`). Tavan notional'da değil, stopta realize olacak kayıpta. |
 | `OPEN-13` | "Garantici mod" tetikleyicisi | Açık — v1'de kapalı, sonra eklenir |
 | `OPEN-16` | Günlük yeni-pozisyon durdurma eşiği | Backtest'le kalibre (başlangıç %10) |
@@ -634,6 +648,8 @@ Kurallar bu dosyada, onları üreten ölçümler ayrı dosyalarda:
 | `ADD-REJECT-E` stop kaybı tavanı (`L`) · dayanıklılık (maliyet ×1.5) | `docs/measurements/add_reject_e.md` |
 | Breakeven komisyonu (`OPEN-35`) · komisyonun sonuç dağılımı · `R-ZONE-08` bölünmüş iç validasyon | `docs/measurements/robustness.md` |
 | F1 ekleme kapalı · F2 asgari leg eşiği · dayanıklılık (taban E3B) | `docs/measurements/f_kollari.md` |
+| `OPEN-32` slippage stresi (komisyon sabit, ×1/×2/×3) · defter kaydı durumu | `docs/measurements/slippage.md` |
+| `OPEN-36` maker doluş stresi (rastgele / 1m hacim vekili / emir türü) | `docs/measurements/maker_stres.md` |
 
 **Aşırı uyum koruması:** verinin en yeni **%20'si ayrılmıştır ve okunmaz**. Ölçüm
 betikleri bu tarih aralığını reddeder. Bulunan her ölçüt ancak ayrılmış bölümde de

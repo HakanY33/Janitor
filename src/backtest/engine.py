@@ -51,6 +51,7 @@ işlem `ambiguous` işaretlenir, **stop önce** varsayılır ve ayrı sayaçta r
 """
 from __future__ import annotations
 
+import hashlib
 import sys
 import time
 from dataclasses import dataclass, field
@@ -122,6 +123,15 @@ KALEM = {"TP1": "tp1", "FINAL_TP": "tp_nihai", "REDUCE": "kucultme",
 """Kapanış nedeni → maliyet defteri kalemi. Listede olmayan (RUN_END, LIQUIDATION,
 sonlandırma) `cikis` kalemine düşer. Kalemler ayrı çünkü limit kolunda aynı `cikis`
 içinde maker (TP) ve taker (stop) komisyonu karışıyordu."""
+
+MAX_ADDS: int | None = 0
+"""v1 varsayilan yapilandirmasi · **ekleme kapali** (spec §3 "v1'de ekleme kapalidir").
+`R-ADD-*` kurallari silinmedi; `None` verilince aynen calisirlar. Gerekce:
+`docs/measurements/f_kollari.md` — ekleme sonucu degistirmiyor, kaybedeni buyutuyor.
+Kurulus aninda okunur (`STOP_LOSS_CAP` gibi): testler ekleme yolunu sinamak icin
+sabiti gecici olarak `None` yapar."""
+
+_VARSAYILAN = object()
 
 STOP_LOSS_CAP = Decimal("0.03")
 """`ADD-REJECT-E` · pozisyonun nihai stopa giderse kaybedeceği tutarın equity'ye oranı
@@ -251,7 +261,7 @@ class Backtest:
         max_hold_bars: int = MAX_HOLD_BARS,
         funding_cap_ratio: Decimal = FUNDING_CAP_RATIO,
         require_indicator: bool = False,
-        max_adds: int | None = None,
+        max_adds=_VARSAYILAN,
         reduce_once: bool = False,
         limit_orders: bool = False,
         tp_offset: float = 0.0,
@@ -259,6 +269,9 @@ class Backtest:
         stop_loss_cap: Decimal | None = None,
         breakeven_fees: bool = True,
         min_leg_pct: float = 0.0,
+        taker_frac: float = 0.0,
+        taker_vol_frac: float = 0.0,
+        taker_kinds: frozenset[str] = frozenset({"giris", "tp1", "tp_nihai"}),
     ):
         if terminate not in TERMINATION_RULES:
             raise ValueError(f"bilinmeyen sonlandirma kurali: {terminate}")
@@ -291,11 +304,23 @@ class Backtest:
         # `max_adds`: pozisyon omru boyunca en fazla bu kadar ekleme; `None` = sinir
         # yok, `0` = ekleme hic yok (F1 kolu). R-ADD-01/03 ekleme sayisina sinir
         # koymuyor; salinimin maliyeti olculdugu icin var.
-        self.max_adds = max_adds
+        self.max_adds = MAX_ADDS if max_adds is _VARSAYILAN else max_adds
         # F2 kolu · asgari leg esigi: `|capa_1 - capa_0| / capa_0` bu degerin **altinda
         # veya esit** olan zone giris uretmez. Spec'te yok, olcmek icin; `0` = kapali.
         # Leg geometrisi zone tespitinde sabitlenir — karar aninda bilinir (CLAUDE.md #3).
         self.min_leg_pct = min_leg_pct
+        # OPEN-36 · maker dolus stresi (spec'te yok, olcmek icin; ikisi de `0` = kapali).
+        # Taker'a dusen limit emri **ayni mumda** dolar ama taker komisyonu ve slippage
+        # oder; dolum zamanlamasi degismez (iyimser taraf: gercekte kacan emir de olur).
+        # `taker_frac`: emrin (zone, tur) hash'i bu oranin altindaysa duser —
+        # deterministik ve ic ice: %10'da dusen %25'te de duser.
+        # `taker_vol_frac`: emir miktari dolum mumunun 1m hacminin bu oranini asarsa
+        # duser. 1m hacim, defterdeki kuyrugun **vekili**dir (defter verisi yok).
+        # `taker_kinds`: hangi emir turleri dusebilir (KALEM adlari; `giris` dahil).
+        self.taker_frac = taker_frac
+        self.taker_vol_frac = taker_vol_frac
+        self.taker_kinds = taker_kinds
+        self._vol: dict[str, float] = {}
         # `reduce_once`: R-ADD-04 kucultmesi pozisyon basina bir kez tetiklenir ve
         # sonraki eklemeler tetigi **yeniden kurmaz**.
         self.reduce_once = reduce_once
@@ -363,6 +388,8 @@ class Backtest:
             # `unfilled` (giris hedefine hic dokunulmadi) bundan ayridir.
             "limit_miss_giris": 0, "limit_miss_ekleme": 0,
             "limit_miss_kucultme": 0, "limit_miss_tp": 0,
+            # OPEN-36 · taker'a dusen limit emri, tur basina
+            "taker_giris": 0, "taker_tp1": 0, "taker_tp_nihai": 0, "taker_kucultme": 0,
         }
         self._day_start_equity = float(start_balance)
         self._day_blocked = False
@@ -381,6 +408,21 @@ class Backtest:
             return low <= level <= high
         t = self.ticks[symbol]
         return high >= level + t if sell else low <= level - t
+
+    def _taker_mi(self, symbol: str, zone_id: str, tur: str, qty: Decimal) -> bool:
+        """OPEN-36 · bu limit emri taker'a dustu mu. Duserse sayaci artirir."""
+        if tur not in self.taker_kinds:
+            return False
+        dus = False
+        if self.taker_frac:
+            h = hashlib.blake2b(f"{zone_id}|{tur}".encode(), digest_size=8).digest()
+            dus = int.from_bytes(h, "big") / 2 ** 64 < self.taker_frac
+        if not dus and self.taker_vol_frac:
+            v = self._vol.get(symbol, 0.0)
+            dus = v <= 0 or float(qty) > self.taker_vol_frac * v  # hacimsiz mum: dolmaz
+        if dus:
+            self.counters[f"taker_{tur}"] += 1
+        return dus
 
     def _stop_loss(self, z: Zone, qty: Decimal, avg: Decimal) -> Decimal:
         """`ADD-REJECT-E` · pozisyon nihai stopa (`1`) giderse realize olacak kayıp.
@@ -566,8 +608,11 @@ class Backtest:
             return
 
         side = LONG if z.bias == "LONG" else SHORT
-        # Limit kolunda dolum tam limit fiyatindandir: slippage yok, komisyon maker.
-        price = (Decimal(str(hedef)) if self.limit_orders
+        # Limit kolunda dolum tam limit fiyatindandir: slippage yok, komisyon maker —
+        # OPEN-36 stresinde taker'a dusmediyse.
+        maker = self.limit_orders and not self._taker_mi(
+            z.symbol, z.zone_id, "giris", notional / Decimal(str(hedef)))
+        price = (Decimal(str(hedef)) if maker
                  else self.costs.fill_price(Decimal(str(hedef)), side, opening=True))
         qty = notional / price
         # ADD-REJECT-E ilk girise de uygulanir: pozisyon daha acilmadan stopta
@@ -575,8 +620,8 @@ class Backtest:
         if self.stop_loss_cap and self._stop_loss(z, qty, price) > self.stop_loss_cap * equity:
             self.counters["entry_reject_e"] += 1
             return
-        fee = self.costs.fee(z.symbol, qty * price, "giris", maker=self.limit_orders)
-        if not self.limit_orders:
+        fee = self.costs.fee(z.symbol, qty * price, "giris", maker=maker)
+        if not maker:
             self.costs.apply_slippage_cost(qty, Decimal(str(hedef)), "giris")
         self.pf.balance -= fee
 
@@ -767,14 +812,15 @@ class Backtest:
         self._charge_funding(pos, ts)
         # Limit kolunda TP'ler ve kucultme limit emridir: kendi fiyatindan dolar,
         # slippage yok, maker komisyonu. Stop ve zorunlu cikislar piyasa emridir.
-        maker = self.limit_orders and reason in self._maker_reasons
+        kalem = KALEM.get(reason, "cikis")
+        maker = (self.limit_orders and reason in self._maker_reasons
+                 and not self._taker_mi(pos.symbol, z.zone_id, kalem, pos.qty * fraction))
         price = (Decimal(str(price_level)) if maker
                  else self.costs.fill_price(Decimal(str(price_level)), pos.side, opening=False))
         qty = pos.qty * fraction
         pnl = pos.reduce(qty, price)
         # Kalem: ayni fonksiyon hem cikis hem kucultme yapiyor; para nereye gittigi
         # ancak bu ayrimla okunabiliyor (R-ADD-04 kucultmesi vs R-RISK-05 delev).
-        kalem = KALEM.get(reason, "cikis")
         fee = self.costs.fee(pos.symbol, qty * price, kalem, maker=maker)
         if not maker:
             self.costs.apply_slippage_cost(qty, Decimal(str(price_level)), kalem)
@@ -964,6 +1010,8 @@ class Backtest:
                 ptr[s] = i + 1
                 high, low = float(sd.high[i]), float(sd.low[i])
                 self.marks[s] = float(sd.close[i])
+                if len(sd.volume):
+                    self._vol[s] = float(sd.volume[i])
 
                 # izlemeye girenler (R-ZONE-09 · WATCH_FROM)
                 w = watch64[s]

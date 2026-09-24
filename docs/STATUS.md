@@ -8,27 +8,29 @@ Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
 
 ## Şu an
 
-**Görev:** `OPEN-35` kapandı (breakeven ücret dahil, `breakeven_fees=True` varsayılan,
-spec `R-EXIT-01`). E3B üzerinde iki kol: **F1** ekleme kapalı, **F2** asgari leg eşiği.
-Ölçüm: `docs/measurements/f_kollari.md`.
+**Görev:** `OPEN-36` maker doluş stresi (taban F1) + `spread_logger` başlatıldı.
+Ölçüm: `docs/measurements/maker_stres.md`.
 
-**Durum:** **F1 ilk kez net pozitif ve brüt/sürtünme > 1 — ama kriter 2 geçilmedi.**
+**Durum:** **F1'in kârı maker doluşa bağlı.** Başabaş: limit emirlerin **~%48,5'i**
+taker'a düşünce.
 
-| ölçü | E3B | **F1** | F2 | F1 ×1.5 |
-|---|---:|---:|---:|---:|
-| net PnL | −134 | **+2.376** | +244 | −206 |
-| brüt / sürtünme | 0,982 | **1,535** | 1,075 | 0,970 |
-| maks drawdown | %23,7 | **%11,9** | %22,0 | %15,5 |
-| kazanan sembol | 13/20 | **15/20** | 13/20 | 12/20 |
-| H2 net (örneklem dışı yarı) | −772 | **+690** | −299 | −584 |
+| taker'a düşme | %0 | %10 | %25 | %50 | %100 |
+|---|---:|---:|---:|---:|---:|
+| net PnL | +2.376 | +1.793 | +1.055 | −69 | −1.904 |
+| brüt / sürtünme | 1,535 | 1,374 | 1,202 | 0,993 | 0,744 |
 
-Ekleme merdiveni sonuç dağılımını değiştirmiyor (nihai TP 414 → 412), yalnızca stopa
-giden pozisyonu büyütüyordu. F2 eşiği (%1,938, ilk yarıdan) hacmi kesiyor, edge
-üretmiyor.
+- **En pahalı: giriş.** Yalnızca giriş taker'a düşerse net −902 (emir başına −1,45).
+  TP1 −1.092, nihai TP −315 → ikisi de neti pozitif bırakıyor.
+- **1m hacim vekili:** emirlerin %30'u dolduğu dakikanın hacminin ¼'ünden büyük.
+  θ = %10 → %49 düşer → net +114. Limit dolumlar en sakin mumlarda.
 
-**İlgili dosyalar:** `scripts/f_kollari.py` · `src/backtest/engine.py` (`max_adds`
-artık `None` = sınırsız, `0` = ekleme yok · `min_leg_pct` · `breakeven_fees=True`) ·
-`tests/test_levers.py` (F1/F2 + R-EXIT-01)
+**Kayıtçı:** `scripts/spread_logger` 20 sembolde, **bu makinede** çalışıyor (pid 27776,
+2026-09-24 16:00'dan beri, `logs/spread_logger-20260924-155333.log`). Sunucu erişimim
+yok; makine uyursa / kapanırsa kayıt durur ve kaçan dakika kalıcıdır.
+
+**İlgili dosyalar:** `scripts/maker_stres.py` · `src/backtest/engine.py`
+(`_taker_mi`, `taker_frac`, `taker_vol_frac`, `taker_kinds`) · `src/backtest/loader.py`
+(`SymbolData.volume`) · `tests/test_levers.py` (OPEN-36)
 
 ---
 
@@ -36,6 +38,12 @@ artık `None` = sınırsız, `0` = ekleme yok · `min_leg_pct` · `breakeven_fee
 
 | Bulgu | Sonuç |
 |---|---|
+| **F1 maker doluşa bağlı** | %48,5 taker'a düşmede başabaş; slippage ×3'te hâlâ +862 |
+| Girişin taker'a düşmesi en pahalı | tek başına net −902; TP'ler pozitif bırakıyor |
+| Emir mum hacmine göre büyük | dolumların %30'unda emir > 1m hacmin ¼'ü (vekil) |
+| **F1 slippage ×3'te artıda** | net +862, brüt/sürtünme 1,16; başabaş ~8,3 bps |
+| ×1.5'i çökerten komisyon | slippage tek başına ×3 bile pozitif; asıl risk maker doluşu varsayımı |
+| Defter verisi yok | BTC/ETH × 2 dakika; `OPEN-32` (a)–(c) bekliyor |
 | **Ekleme kapalı (F1) net pozitif** | net −134 → **+2.376**, brüt/sürtünme 0,98 → **1,54**, maks DD %23,7 → %11,9, iki yarıda da artı |
 | **F1 kriter 2'yi geçmedi** | maliyet ×1.5 → net **−206**, brüt/sürtünme 0,97, kazanan 15 → 12/20 |
 | Leg eşiği (F2) hacim kesiyor | işlem −%37, brüt −%24; H2 −772 → −299, işaret dönmüyor |
@@ -88,20 +96,19 @@ artık `None` = sınırsız, `0` = ekleme yok · `min_leg_pct` · `breakeven_fee
 
 ## Sıradaki
 
-1. **`OPEN-32` — sürtünme varsayımını ölç.** F1 ×1.5 başabaşın altına düşüyor; işaret
-   yine `slippage_bps` ve gerçek doluşa bağlı. `scripts/spread_logger.py` sunucuda.
-2. **Ekleme kuralı kararı (spec).** F1 her eksende E3B'den iyi. `R-ADD-01..06`
-   kaldırılsın mı / `max_adds = 0` spec'e yazılsın mı — kullanıcının çağrısı. Kod
-   varsayılanı değişmedi (`max_adds=None`).
-3. Sürtünme ölçülüp F1 ×1.5 dayanıklı çıkarsa → ayrılmış %20 (kriter 1).
-4. Paper trading → sunucuda
+1. **Kayıtçıyı sunucuya taşı** (şu an yerel makinede). Birkaç hafta → `OPEN-32`
+   (a)–(c) ve `OPEN-36`'nın gerçek kuyruk ölçümü.
+2. **Giriş emri tipi — spec kararı.** Post-only, dolmazsa kovalanmaz mı? Ölçüm girişin
+   taker'a düşmesinin tek başına sonucu negatife çevirdiğini gösteriyor.
+3. Kaçan emir modeli (düşen emir hiç dolmaz) — istenirse.
+4. Doluş ölçülüp F1 dayanıklı çıkarsa → ayrılmış %20 (kriter 1).
 
 **Uyarı:** Kriter 2 geçilmedi. Ayrılmış %20'ye henüz gidilmez.
 
 ## Açık maddeler
 
 `OPEN-27` ekleme çarpanı hedefi (şu an `0.79`) · `OPEN-28` KRİTİK'te yarılama ·
-`R-ZONE-08` aday sıralaması (adaylar ölçüldü, dayanıklı çıkan yok) · `ADD-REJECT-A` · `OPEN-31` `R-ENTRY-02` (3) kaldırılsın mı · `OPEN-32` doluş varsayımı spec'te tanımsız · `OPEN-34` boyutu risk tavanından türetme
+`R-ZONE-08` aday sıralaması (adaylar ölçüldü, dayanıklı çıkan yok) · `ADD-REJECT-A` · `OPEN-31` `R-ENTRY-02` (3) kaldırılsın mı · `OPEN-32` doluş varsayımı spec'te tanımsız · `OPEN-34` boyutu risk tavanından türetme · `OPEN-36` maker doluş oranı / giriş emri tipi
 
 ---
 
@@ -114,7 +121,7 @@ artık `None` = sınırsız, `0` = ekleme yok · `min_leg_pct` · `breakeven_fee
 | `src/zones/` | `model.py` FSM · `store.py` SQLite · `detect.py` leg → zone |
 | `src/strategy/` | `entry.py` `R-ENTRY-05` filtreleri |
 | `src/backtest/` | `loader.py` sembol hazırlığı + önbellek · `engine.py` olay döngüsü · `portfolio.py` cross equity · `costs.py` kalem defteri |
-| `scripts/` | `diagnose.py` · `sweep.py` · `entry_variants.py` · `terminate.py` · `reconcile.py` · `branches.py` · `levers.py` A/B/C/D · `tp_placement.py` D1-D4 TP yerleşimi · `add_reject_e.py` stop kaybı tavanı · `spread_logger.py` canlı emir defteri · `robustness.py` breakeven ücreti + komisyon dağılımı + `R-ZONE-08` iç validasyon · `f_kollari.py` F1/F2 · `bg.py` |
+| `scripts/` | `diagnose.py` · `sweep.py` · `entry_variants.py` · `terminate.py` · `reconcile.py` · `branches.py` · `levers.py` A/B/C/D · `tp_placement.py` D1-D4 TP yerleşimi · `add_reject_e.py` stop kaybı tavanı · `spread_logger.py` canlı emir defteri · `robustness.py` breakeven ücreti + komisyon dağılımı + `R-ZONE-08` iç validasyon · `f_kollari.py` F1/F2 · `slippage_stres.py` OPEN-32 (d) · `maker_stres.py` OPEN-36 · `bg.py` |
 | `docs/measurements/` | Ölçüm tarihçeleri — spec'te yalnızca tek satırlık referans var |
 
 Spec kuralı gerekiyorsa baştan okuma: `grep -n "R-ADD-04" docs/STRATEGY_SPEC.md`

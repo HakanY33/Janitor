@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import numpy as np
 import pytest
 
 from src.backtest.costs import CostModel, Fees
@@ -64,7 +65,7 @@ UC_EKLEME = PRIMED_ENTER + [(187, 183), (192, 188), (197, 193), (202, 198)]
 
 
 def test_B_max_adds_kapaliyken_her_OB_ekleme_uretir():
-    """Varsayılan (`max_adds=None`) spec'in yazılı hâli: ekleme sayısına sınır yok."""
+    """`max_adds=None` (test fixture'ı): R-ADD kurallarının yazılı hâli, sınır yok."""
     res = kos(UC_EKLEME, obs=(OB1, OB2, OB3))
     assert res.counters["adds"] == 3
     assert res.counters["add_reject_cap"] == 0
@@ -75,6 +76,12 @@ def test_B_max_adds_tavani_uctuncu_eklemeyi_reddeder():
     assert res.counters["adds"] == 2
     assert res.counters["add_reject_cap"] == 1  # üçüncü OB'ye dokunuldu, ekleme yok
     assert res.trades[0].adds == 2
+
+
+def test_F1_v1_varsayilani_ekleme_kapali(monkeypatch):
+    """Spec §3: v1'de ekleme kapali. Fixture'in `None`'u geri alininca motor 0 okur."""
+    monkeypatch.undo()
+    assert Backtest([symbol_data([], short_zone())], free_costs()).max_adds == 0
 
 
 def test_F1_max_adds_sifir_ekleme_ve_kucultme_uretmez():
@@ -385,3 +392,63 @@ def test_R_EXIT_01_breakeven_otelemesi_ilk_TP_seviyesini_gecmez():
     sz = short_zone()
     bt = Backtest([symbol_data([], sz)], absurt, breakeven_fees=True)
     assert bt._breakeven(sz, _pozisyon(SHORT, "170")) == sz.tp_050
+
+
+# --- OPEN-36 · maker dolus stresi: limit emri taker'a duser ------------------
+#
+# TICK_YOLU: giris 170, TP1 150, nihai TP 100 — uc limit emri, hepsi 1 tick asimla dolar.
+# Dusen emir ayni mumda dolar ama taker komisyonu + slippage oder.
+
+def test_OPEN_36_oran_sifirken_hic_emir_dusmez():
+    res = kos(TICK_YOLU, costs=real_costs("1"), limit_orders=True)
+    assert res.costs.total_slippage == Decimal("0")
+    assert all(res.counters[f"taker_{k}"] == 0 for k in ("giris", "tp1", "tp_nihai"))
+
+
+def test_OPEN_36_oran_birken_uc_emir_de_taker_oder():
+    res = kos(TICK_YOLU, costs=real_costs("1"), limit_orders=True, taker_frac=1.0)
+    b = res.costs.breakdown
+    assert {"slippage_giris", "slippage_tp1", "slippage_tp_nihai"} <= set(b)
+    assert all(res.counters[f"taker_{k}"] == 1 for k in ("giris", "tp1", "tp_nihai"))
+    # taker 5 bps: giris notional 2.000 -> komisyon 1,00 (maker olsa 0,40)
+    assert b["komisyon_giris"] == pytest.approx(Decimal("1.0"), abs=Decimal("0.01"))
+    assert res.trades[0].reason == "FINAL_TP"  # zamanlama degismez
+
+
+def test_OPEN_36_tur_filtresi_yalnizca_secilen_emri_dusurur():
+    res = kos(TICK_YOLU, costs=real_costs("1"), limit_orders=True, taker_frac=1.0,
+              taker_kinds=frozenset({"tp1"}))
+    b = res.costs.breakdown
+    assert "slippage_tp1" in b
+    assert "slippage_giris" not in b and "slippage_tp_nihai" not in b
+
+
+def test_OPEN_36_rastgele_dusme_ic_icedir():
+    """%10'da dusen her emir %25'te de duser — kollar arasi fark orandan gelir."""
+    bt = Backtest([symbol_data([], short_zone())], free_costs())
+    ids = [f"z{i}" for i in range(2_000)]
+
+    def dusen(p):
+        bt.taker_frac = p
+        return {z for z in ids if bt._taker_mi(SYM, z, "giris", Decimal("1"))}
+
+    d10, d25 = dusen(0.10), dusen(0.25)
+    assert d10 <= d25
+    assert 0.07 < len(d10) / len(ids) < 0.13  # oran kabaca tutuyor
+
+
+def test_OPEN_36_hacim_kolu_buyuk_emri_dusurur():
+    """Emir miktari 1m hacminin `taker_vol_frac` oranini asarsa taker.
+
+    Giris qty = 2.000 / 170 = 11,76. Hacim 100 -> %10 esigi 10 < 11,76 -> duser;
+    hacim 1.000 -> esik 100 -> dolar (maker).
+    """
+    def kos_hacim(v):
+        sd = symbol_data(TICK_YOLU, short_zone())
+        sd.volume = np.full(len(TICK_YOLU), v, dtype=float)
+        return Backtest([sd], real_costs("1"), k=Decimal("0.2"), uyari_blocks_adds=False,
+                        limit_orders=True, taker_vol_frac=0.10,
+                        taker_kinds=frozenset({"giris"})).run()
+
+    assert kos_hacim(100.0).counters["taker_giris"] == 1
+    assert kos_hacim(1_000.0).counters["taker_giris"] == 0
