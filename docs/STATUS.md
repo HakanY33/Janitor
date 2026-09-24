@@ -8,25 +8,29 @@ Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
 
 ## Şu an
 
-**Görev:** Taban **F1**. Spec §3'e yazıldı: `R-ADD-*` yerinde, v1'de ekleme kapalı
-(`MAX_ADDS = 0` varsayılan yapılandırma; testler `conftest` ile ekleme açık koşar).
-`OPEN-32` ölçümü: `docs/measurements/slippage.md`.
+**Görev:** `OPEN-36` maker doluş stresi (taban F1) + `spread_logger` başlatıldı.
+Ölçüm: `docs/measurements/maker_stres.md`.
 
-**Durum:** **(a)–(c) yapılamadı, defter verisi yok.** Yalnızca BTC/ETH × 2 dakika
-(2026-09-21 duman testi); kayıtçı çalışmıyor. (d) mevcut varsayımla koştu:
+**Durum:** **F1'in kârı maker doluşa bağlı.** Başabaş: limit emirlerin **~%48,5'i**
+taker'a düşünce.
 
-| slippage (komisyon sabit) | ×1 (2 bps) | ×2 (4 bps) | ×3 (6 bps) |
-|---|---:|---:|---:|
-| net PnL | **+2.376** | +1.595 | **+862** |
-| brüt / sürtünme | 1,535 | 1,320 | 1,158 |
-| maks drawdown | %11,9 | %13,1 | %14,4 |
-| kazanan sembol | 15/20 | 15/20 | 12/20 |
+| taker'a düşme | %0 | %10 | %25 | %50 | %100 |
+|---|---:|---:|---:|---:|---:|
+| net PnL | +2.376 | +1.793 | +1.055 | −69 | −1.904 |
+| brüt / sürtünme | 1,535 | 1,374 | 1,202 | 0,993 | 0,744 |
 
-Tahmini başabaş ~**8,3 bps** slippage. F1 ×1.5'i (−206) çökerten **komisyon**du,
-slippage değil: kırılgan varsayım maker doluşu.
+- **En pahalı: giriş.** Yalnızca giriş taker'a düşerse net −902 (emir başına −1,45).
+  TP1 −1.092, nihai TP −315 → ikisi de neti pozitif bırakıyor.
+- **1m hacim vekili:** emirlerin %30'u dolduğu dakikanın hacminin ¼'ünden büyük.
+  θ = %10 → %49 düşer → net +114. Limit dolumlar en sakin mumlarda.
 
-**İlgili dosyalar:** `scripts/slippage_stres.py` · `src/backtest/engine.py`
-(`MAX_ADDS`, `_VARSAYILAN`) · `tests/conftest.py` · `scripts/spread_logger.py`
+**Kayıtçı:** `scripts/spread_logger` 20 sembolde, **bu makinede** çalışıyor (pid 27776,
+2026-09-24 16:00'dan beri, `logs/spread_logger-20260924-155333.log`). Sunucu erişimim
+yok; makine uyursa / kapanırsa kayıt durur ve kaçan dakika kalıcıdır.
+
+**İlgili dosyalar:** `scripts/maker_stres.py` · `src/backtest/engine.py`
+(`_taker_mi`, `taker_frac`, `taker_vol_frac`, `taker_kinds`) · `src/backtest/loader.py`
+(`SymbolData.volume`) · `tests/test_levers.py` (OPEN-36)
 
 ---
 
@@ -34,6 +38,9 @@ slippage değil: kırılgan varsayım maker doluşu.
 
 | Bulgu | Sonuç |
 |---|---|
+| **F1 maker doluşa bağlı** | %48,5 taker'a düşmede başabaş; slippage ×3'te hâlâ +862 |
+| Girişin taker'a düşmesi en pahalı | tek başına net −902; TP'ler pozitif bırakıyor |
+| Emir mum hacmine göre büyük | dolumların %30'unda emir > 1m hacmin ¼'ü (vekil) |
 | **F1 slippage ×3'te artıda** | net +862, brüt/sürtünme 1,16; başabaş ~8,3 bps |
 | ×1.5'i çökerten komisyon | slippage tek başına ×3 bile pozitif; asıl risk maker doluşu varsayımı |
 | Defter verisi yok | BTC/ETH × 2 dakika; `OPEN-32` (a)–(c) bekliyor |
@@ -89,19 +96,19 @@ slippage değil: kırılgan varsayım maker doluşu.
 
 ## Sıradaki
 
-1. **`spread_logger`'ı sunucuda başlat** (`python -m scripts.bg scripts.spread_logger`).
-   Birkaç hafta birikmeden `OPEN-32` (a)–(c) yapılamaz.
-2. **Maker doluş stresi.** Limit emirlerin bir kısmı taker'a düşerse F1 ne olur?
-   ×1.5 testinin çöktüğü yer burası (istenirse).
-3. Doluş ve slippage ölçülünce F1 dayanıklı çıkarsa → ayrılmış %20 (kriter 1).
-4. Paper trading → sunucuda
+1. **Kayıtçıyı sunucuya taşı** (şu an yerel makinede). Birkaç hafta → `OPEN-32`
+   (a)–(c) ve `OPEN-36`'nın gerçek kuyruk ölçümü.
+2. **Giriş emri tipi — spec kararı.** Post-only, dolmazsa kovalanmaz mı? Ölçüm girişin
+   taker'a düşmesinin tek başına sonucu negatife çevirdiğini gösteriyor.
+3. Kaçan emir modeli (düşen emir hiç dolmaz) — istenirse.
+4. Doluş ölçülüp F1 dayanıklı çıkarsa → ayrılmış %20 (kriter 1).
 
-**Uyarı:** Kriter 2 (maliyet ×1.5) geçilmedi. Ayrılmış %20'ye henüz gidilmez.
+**Uyarı:** Kriter 2 geçilmedi. Ayrılmış %20'ye henüz gidilmez.
 
 ## Açık maddeler
 
 `OPEN-27` ekleme çarpanı hedefi (şu an `0.79`) · `OPEN-28` KRİTİK'te yarılama ·
-`R-ZONE-08` aday sıralaması (adaylar ölçüldü, dayanıklı çıkan yok) · `ADD-REJECT-A` · `OPEN-31` `R-ENTRY-02` (3) kaldırılsın mı · `OPEN-32` doluş varsayımı spec'te tanımsız · `OPEN-34` boyutu risk tavanından türetme
+`R-ZONE-08` aday sıralaması (adaylar ölçüldü, dayanıklı çıkan yok) · `ADD-REJECT-A` · `OPEN-31` `R-ENTRY-02` (3) kaldırılsın mı · `OPEN-32` doluş varsayımı spec'te tanımsız · `OPEN-34` boyutu risk tavanından türetme · `OPEN-36` maker doluş oranı / giriş emri tipi
 
 ---
 
@@ -114,7 +121,7 @@ slippage değil: kırılgan varsayım maker doluşu.
 | `src/zones/` | `model.py` FSM · `store.py` SQLite · `detect.py` leg → zone |
 | `src/strategy/` | `entry.py` `R-ENTRY-05` filtreleri |
 | `src/backtest/` | `loader.py` sembol hazırlığı + önbellek · `engine.py` olay döngüsü · `portfolio.py` cross equity · `costs.py` kalem defteri |
-| `scripts/` | `diagnose.py` · `sweep.py` · `entry_variants.py` · `terminate.py` · `reconcile.py` · `branches.py` · `levers.py` A/B/C/D · `tp_placement.py` D1-D4 TP yerleşimi · `add_reject_e.py` stop kaybı tavanı · `spread_logger.py` canlı emir defteri · `robustness.py` breakeven ücreti + komisyon dağılımı + `R-ZONE-08` iç validasyon · `f_kollari.py` F1/F2 · `slippage_stres.py` OPEN-32 (d) · `bg.py` |
+| `scripts/` | `diagnose.py` · `sweep.py` · `entry_variants.py` · `terminate.py` · `reconcile.py` · `branches.py` · `levers.py` A/B/C/D · `tp_placement.py` D1-D4 TP yerleşimi · `add_reject_e.py` stop kaybı tavanı · `spread_logger.py` canlı emir defteri · `robustness.py` breakeven ücreti + komisyon dağılımı + `R-ZONE-08` iç validasyon · `f_kollari.py` F1/F2 · `slippage_stres.py` OPEN-32 (d) · `maker_stres.py` OPEN-36 · `bg.py` |
 | `docs/measurements/` | Ölçüm tarihçeleri — spec'te yalnızca tek satırlık referans var |
 
 Spec kuralı gerekiyorsa baştan okuma: `grep -n "R-ADD-04" docs/STRATEGY_SPEC.md`
