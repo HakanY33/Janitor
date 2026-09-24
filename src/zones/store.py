@@ -19,7 +19,10 @@ from pathlib import Path
 from src.zones.model import TERMINAL, Zone, ZoneState
 
 FIELDS = [f.name for f in fields(Zone)]
-TIME_FIELDS = {"anchor_0_time", "anchor_1_time", "created_at", "state_changed_at", "primed_at"}
+TIME_FIELDS = {
+    "anchor_0_time", "anchor_1_time", "created_at", "state_changed_at", "primed_at",
+    "pivot_confirmed_at",
+}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS zones (
@@ -39,7 +42,12 @@ CREATE TABLE IF NOT EXISTS zones (
     state_changed_at TEXT NOT NULL,
     primed_at        TEXT,
     touch_count      INTEGER NOT NULL,
-    quality_score    REAL
+    quality_score    REAL,
+    pivot_confirmed_at TEXT,
+    hysteresis       REAL NOT NULL,
+    in_band          INTEGER NOT NULL,
+    kill_wins        INTEGER NOT NULL,
+    skipped_progress INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS zones_watch ON zones (symbol, timeframe, state);
 """
@@ -82,6 +90,18 @@ class ZoneStore:
                 args.append(value)
         return [_zone(r) for r in self.conn.execute(sql + " ORDER BY created_at", args)]
 
+    def conflict_totals(self) -> dict[str, int]:
+        """R-ZONE-09 · mum içi çakışma sayaçlarının tüm zone'lar üzerindeki toplamı.
+
+        Zone başına değerler `Zone.kill_wins` / `Zone.skipped_progress` alanlarında.
+        Oran yüksek çıkarsa kural yeniden ele alınır — bu yüzden sayılır.
+        """
+        row = self.conn.execute(
+            "SELECT COALESCE(SUM(kill_wins), 0) AS kill_wins, "
+            "COALESCE(SUM(skipped_progress), 0) AS skipped_progress FROM zones"
+        ).fetchone()
+        return dict(row)
+
     def close(self) -> None:
         self.conn.close()
 
@@ -92,4 +112,5 @@ def _zone(row: sqlite3.Row) -> Zone:
         if data[name] is not None:
             data[name] = datetime.fromisoformat(data[name])
     data["state"] = ZoneState(data["state"])
+    data["in_band"] = bool(data["in_band"])  # SQLite'ta INTEGER
     return Zone(**data)

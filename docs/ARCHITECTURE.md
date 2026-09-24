@@ -87,6 +87,29 @@ standart sapmasının katı). Böylece BTC ile bir memecoin aynı eşikle ölç�
 Sabit %20 gibi bir eşik kriptoda yanlış pozitif üretir — likidasyon kaskadlarında ve
 yeni listelemelerde 1m'de %20 üstü hareket gerçekten olur.
 
+**Şiddet modeli (`OPEN-20` kapandı).** Bir kontrolün ihlal *bulması* veri setini reddetmez.
+Şiddeti **oran** belirler. Bu kural tüm kontroller için geçerlidir.
+
+| Kontrol | Uyarı | Hata (veri seti kullanılamaz) |
+|---|---|---|
+| Fiyat sıçraması (şüpheli tick) | Her bulgu | Şüpheli mum oranı > **%0.1** |
+| Sıfır hacim serisi | Her bulgu | Oran > **%1** |
+| Eksik mum | Her bulgu | Eksik oranı > **%0.5** veya tek boşluk > 60 mum |
+| UTC / mükerrer / OHLC tutarlılığı | — | **Her bulgu hata** (yapısal bozukluk) |
+
+**Karantina, tamir değil.** Şüpheli mumlar veri setinden silinmez ve düzeltilmez.
+Parquet'e `suspect: bool` sütunu yazılır. Tüketici katman karar verir:
+
+- Backtest, **yalnızca** şüpheli bir mumun uç değeri tarafından tetiklenen giriş/çıkış üretmez
+- Şüpheli muma temas eden işlem sayısı sonuç raporunda ayrı sayaç olarak görünür
+
+Böylece bulgu kaybolmaz, ama 585 bin mumluk bir set 23 tick yüzünden çöpe gitmez.
+
+**Uygunluk listesi.** Toplu indirme bittikten sonra `scripts/validate_all.py` tüm sembolleri
+tarar ve sembol başına metrik raporu üretir (şüpheli oran, sıfır hacim oranı, eksik oranı,
+kapsanan tarih aralığı). Bu rapor **backtest'e girecek sembol evrenini** belirler.
+Toplu indirme sırasında satır içi doğrulama yapılmaz — ayrı bir toplu koşudur.
+
 **Survivorship.** Bugünkü sembol listesiyle geçmişi test edersen, borsadan düşmüş
 coinleri hiç görmezsin ve sonuçlar yapay olarak iyileşir. Geçmiş liste satın alınamaz —
 **bugünden itibaren biriktirilir.** Günlük universe anlık görüntüsü bu yüzden
