@@ -64,7 +64,7 @@ UC_EKLEME = PRIMED_ENTER + [(187, 183), (192, 188), (197, 193), (202, 198)]
 
 
 def test_B_max_adds_kapaliyken_her_OB_ekleme_uretir():
-    """Varsayılan (`max_adds=None`) spec'in yazılı hâli: ekleme sayısına sınır yok."""
+    """`max_adds=None` (test fixture'ı): R-ADD kurallarının yazılı hâli, sınır yok."""
     res = kos(UC_EKLEME, obs=(OB1, OB2, OB3))
     assert res.counters["adds"] == 3
     assert res.counters["add_reject_cap"] == 0
@@ -75,6 +75,12 @@ def test_B_max_adds_tavani_uctuncu_eklemeyi_reddeder():
     assert res.counters["adds"] == 2
     assert res.counters["add_reject_cap"] == 1  # üçüncü OB'ye dokunuldu, ekleme yok
     assert res.trades[0].adds == 2
+
+
+def test_F1_v1_varsayilani_ekleme_kapali(monkeypatch):
+    """Spec §3: v1'de ekleme kapali. Fixture'in `None`'u geri alininca motor 0 okur."""
+    monkeypatch.undo()
+    assert Backtest([symbol_data([], short_zone())], free_costs()).max_adds == 0
 
 
 def test_F1_max_adds_sifir_ekleme_ve_kucultme_uretmez():

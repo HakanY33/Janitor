@@ -123,6 +123,15 @@ KALEM = {"TP1": "tp1", "FINAL_TP": "tp_nihai", "REDUCE": "kucultme",
 sonlandırma) `cikis` kalemine düşer. Kalemler ayrı çünkü limit kolunda aynı `cikis`
 içinde maker (TP) ve taker (stop) komisyonu karışıyordu."""
 
+MAX_ADDS: int | None = 0
+"""v1 varsayilan yapilandirmasi · **ekleme kapali** (spec §3 "v1'de ekleme kapalidir").
+`R-ADD-*` kurallari silinmedi; `None` verilince aynen calisirlar. Gerekce:
+`docs/measurements/f_kollari.md` — ekleme sonucu degistirmiyor, kaybedeni buyutuyor.
+Kurulus aninda okunur (`STOP_LOSS_CAP` gibi): testler ekleme yolunu sinamak icin
+sabiti gecici olarak `None` yapar."""
+
+_VARSAYILAN = object()
+
 STOP_LOSS_CAP = Decimal("0.03")
 """`ADD-REJECT-E` · pozisyonun nihai stopa giderse kaybedeceği tutarın equity'ye oranı
 tavanı (`L`). `0` = kural kapalı.
@@ -251,7 +260,7 @@ class Backtest:
         max_hold_bars: int = MAX_HOLD_BARS,
         funding_cap_ratio: Decimal = FUNDING_CAP_RATIO,
         require_indicator: bool = False,
-        max_adds: int | None = None,
+        max_adds=_VARSAYILAN,
         reduce_once: bool = False,
         limit_orders: bool = False,
         tp_offset: float = 0.0,
@@ -291,7 +300,7 @@ class Backtest:
         # `max_adds`: pozisyon omru boyunca en fazla bu kadar ekleme; `None` = sinir
         # yok, `0` = ekleme hic yok (F1 kolu). R-ADD-01/03 ekleme sayisina sinir
         # koymuyor; salinimin maliyeti olculdugu icin var.
-        self.max_adds = max_adds
+        self.max_adds = MAX_ADDS if max_adds is _VARSAYILAN else max_adds
         # F2 kolu · asgari leg esigi: `|capa_1 - capa_0| / capa_0` bu degerin **altinda
         # veya esit** olan zone giris uretmez. Spec'te yok, olcmek icin; `0` = kapali.
         # Leg geometrisi zone tespitinde sabitlenir — karar aninda bilinir (CLAUDE.md #3).

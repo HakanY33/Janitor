@@ -341,6 +341,19 @@ Risk ayarı gerekiyorsa notional (`K`) üzerinden yapılır, kaldıraç üzerind
 
 ## 3. Ekleme
 
+> **v1'de ekleme kapalıdır.** `R-ADD-*` kuralları yerinde kalır ve kodda çalışır
+> durumdadır; v1 **varsayılan yapılandırması** `max_adds = 0`'dır
+> (`src/backtest/engine.py · MAX_ADDS`). Bu bir yapılandırma kararıdır, kural silme
+> değildir.
+>
+> **Gerekçe** (`docs/measurements/f_kollari.md`, taban E3B, 20 sembol): ekleme işlemin
+> **sonucunu değiştirmiyor**, yalnızca kaybedeni büyütüyor. Ekleme kapatıldığında nihai
+> TP 414 → 412, stop 756 → 766 — dağılım aynı; net **−134 → +2.376**, maks drawdown
+> %23,7 → %11,9. Ekleme, dönmeyen pozisyonu büyütüyor.
+>
+> **Yeniden ölçüm koşulu:** `ADD-REJECT-A` sayısallaştığında ("fiyatın gideceği tahmin
+> edilen nokta", `OPEN-27`) ekleme yeniden ölçülür.
+
 ### R-ADD-01 · İzin koşulları `SETTLED`
 1. Fiyat giriş bandının ötesinde (pozisyon eksi bölgede)
 2. Alt TF'lerin birinde yöne uygun **OB** tespit edildi
@@ -634,6 +647,7 @@ Kurallar bu dosyada, onları üreten ölçümler ayrı dosyalarda:
 | `ADD-REJECT-E` stop kaybı tavanı (`L`) · dayanıklılık (maliyet ×1.5) | `docs/measurements/add_reject_e.md` |
 | Breakeven komisyonu (`OPEN-35`) · komisyonun sonuç dağılımı · `R-ZONE-08` bölünmüş iç validasyon | `docs/measurements/robustness.md` |
 | F1 ekleme kapalı · F2 asgari leg eşiği · dayanıklılık (taban E3B) | `docs/measurements/f_kollari.md` |
+| `OPEN-32` slippage stresi (komisyon sabit, ×1/×2/×3) · defter kaydı durumu | `docs/measurements/slippage.md` |
 
 **Aşırı uyum koruması:** verinin en yeni **%20'si ayrılmıştır ve okunmaz**. Ölçüm
 betikleri bu tarih aralığını reddeder. Bulunan her ölçüt ancak ayrılmış bölümde de
