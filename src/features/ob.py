@@ -36,12 +36,18 @@ from datetime import datetime
 
 import pandas as pd
 
+from src.features.candles import BODY_LOOKBACK, reference_body
 from src.features.fvg import BEARISH, BULLISH, FVG, require_detect_tf
 
 IMPULSE_MULT = 4.0  # spec §0.1 · gövde/medyan oranının p95'i (OPEN-21 kapandı)
-BODY_LOOKBACK = 20  # referans gövde medyanının penceresi
 OB_SEARCH = 10  # impulstan geriye kaç mum ters yönlü mum aranır
 PIERCE_CONFIRM_BARS = 2  # "hemen dönme" kaç mumda ölçülür
+
+__all__ = [  # BODY_LOOKBACK/reference_body `candles`'a taşındı, buradan da okunur
+    "BODY_LOOKBACK", "IMPULSE_MULT", "OB_SEARCH", "PIERCE_CONFIRM_BARS", "AddStrength",
+    "OrderBlock", "detect_order_blocks", "evaluate_strength", "mitigation_time",
+    "pierce_time", "reference_body", "replay_obs",
+]
 
 
 @dataclass
@@ -56,16 +62,7 @@ class OrderBlock:
     bottom: float
     created_at: datetime  # OB mumunun zamanı
     impulse_at: datetime  # impuls mumunun zamanı — OB ancak burada bilinir
-
-
-def reference_body(df: pd.DataFrame, lookback: int = BODY_LOOKBACK) -> pd.Series:
-    """Geçmiş mumların medyan gövdesi. `shift(1)`: mum kendi eşiğini yükseltemez.
-
-    İlk mumlarda NaN döner; NaN ile yapılan her karşılaştırma False olduğu için
-    yetersiz geçmişte impuls de delinme de tespit edilmez.
-    """
-    body = (df.close - df.open).abs()
-    return body.rolling(lookback, min_periods=5).median().shift(1)
+    mitigated_at: datetime | None = None  # fiyatın gövdeye ilk dönüşü (R-ENTRY-05)
 
 
 def detect_order_blocks(
@@ -169,6 +166,41 @@ def pierce_time(
             continue
         return r.ts
     return None
+
+
+def mitigation_time(ob: OrderBlock, df: pd.DataFrame) -> datetime | None:
+    """R-ENTRY-05 · fiyatın OB gövdesine **ilk temas** ettiği an; temas yoksa `None`.
+
+    Mitigasyon §0.1'de "bölgeye ilk temas" olarak tanımlı — delinme (`pierce_time`)
+    değildir: delinme gövdenin tamamen geçilmesi, mitigasyon ise yalnızca dokunulması.
+    R-ENTRY-05 "fiyat bir kez uğradıysa bölge tüketilmiş sayılır" der, bu yüzden
+    girişte aranan ölçüt dokunmadır.
+
+    Yalnızca `impulse_at`'ten **sonraki** mumlar sayılır: OB o ana kadar bilinmiyordu
+    ve impuls mumunun kendisi zaten gövdeden çıkan harekettir (CLAUDE.md #3).
+    """
+    for r in df.itertuples():
+        if r.ts <= ob.impulse_at:
+            continue
+        if r.low <= ob.top and r.high >= ob.bottom:
+            return r.ts
+    return None
+
+
+def replay_obs(obs: list[OrderBlock], df: pd.DataFrame) -> None:
+    """Her OB'nin `mitigated_at`'ini doldurur — `fvg.replay` ile aynı kalıp.
+
+    Zaman damgası mumun **açılış** zamanıdır. Tespit TF'si (30m) karar TF'sinden (1m)
+    kaba olduğu için bu, mitigasyonu mum içinde olduğundan erken işaretler ve OB'yi
+    aday listesinden erken düşürür — kötümser taraf (R-ENTRY-05).
+    """
+    rows = list(df.itertuples())
+    for ob in obs:
+        for i in range(int(df.ts.searchsorted(ob.impulse_at, side="right")), len(rows)):
+            r = rows[i]
+            if r.low <= ob.top and r.high >= ob.bottom:
+                ob.mitigated_at = r.ts
+                break
 
 
 @dataclass

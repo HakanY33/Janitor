@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from scripts import backfill, daily, measure_ob
+from scripts import backfill, daily, measure_ob, spread_logger
 from src.data import collect
 from src.features.ob import detect_order_blocks, pierce_time
 
@@ -140,3 +140,32 @@ def test_measure_htf_yon_bilinme_ani_4h_mumun_kapanisidir():
         pencere = kapanis[(kapanis.index >= row.known_at - pd.Timedelta("4h"))
                           & (kapanis.index < row.known_at)]
         assert row.close == pencere.iloc[-1]
+
+
+# --- emir defteri kayitcisi ---------------------------------------------------
+
+TS = pd.Timestamp("2026-01-01 12:00", tz="UTC")
+BOOK = {"bids": [[99.0, 5.0], [98.0, 7.0], [97.0, 9.0]],
+        "asks": [[101.0, 4.0], [102.0, 6.0], [103.0, 8.0], [104.0, 2.0],
+                 [105.0, 1.0], [106.0, 3.0]]}
+
+
+def test_spread_logger_satiri_spread_ve_kademeleri_tasir():
+    """mid 100, spread 2 -> 200 bps. Kademeler sirayla, 5'ten fazlasi atilir."""
+    r = spread_logger.row("TEST/USDT:USDT", BOOK, TS)
+    assert (r["bid"], r["ask"], r["mid"]) == (99.0, 101.0, 100.0)
+    assert r["spread_bps"] == pytest.approx(200.0)
+    assert (r["bid_p1"], r["bid_q1"]) == (99.0, 5.0)
+    assert (r["ask_p5"], r["ask_q5"]) == (105.0, 1.0)
+    assert "ask_p6" not in r  # DEPTH kadar kademe, daha fazlasi degil
+
+
+def test_spread_logger_sig_defterde_eksik_kademe_nan_kalir():
+    """Sifir yazmak 'derinlik yok' ile 'kademe gelmedi'yi karistirirdi."""
+    r = spread_logger.row("TEST/USDT:USDT", BOOK, TS)
+    assert np.isnan(r["bid_p4"]) and np.isnan(r["bid_q4"])  # alis tarafi 3 kademe
+
+
+def test_spread_logger_bos_defter_sessizce_gecilmez():
+    with pytest.raises(ValueError, match="emir defteri bos"):
+        spread_logger.row("TEST/USDT:USDT", {"bids": [], "asks": BOOK["asks"]}, TS)

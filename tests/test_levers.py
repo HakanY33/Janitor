@@ -452,3 +452,50 @@ def test_OPEN_36_hacim_kolu_buyuk_emri_dusurur():
 
     assert kos_hacim(100.0).counters["taker_giris"] == 1
     assert kos_hacim(1_000.0).counters["taker_giris"] == 0
+
+
+# --- OPEN-37 · post-only giris: dolmazsa islem yok, kovalama yok -------------
+#
+# Giris satis limiti 170 (tick 1). Uc dolus kriteri yalnizca **giris**e uygulanir;
+# TP'ler 1 tick asimla kalir. Kacan giris = fiyat 170'e dokundu ama emir hic dolmadi.
+
+POST_ONLY_1TICK = [(152, 148), (171, 169), (152, 148), (102, 98)]  # 171: 1 tick, 2 degil
+POST_ONLY_DONUS = [(152, 148), (172, 160), (152, 148), (102, 98)]  # 171'i gecti, kapanis 166
+
+
+def test_OPEN_37_tick1_mevcut_davranis_1_tick_asimla_dolar():
+    res = kos(POST_ONLY_1TICK, costs=free_costs("1"), limit_orders=True)
+    assert res.counters["entries"] == 1 and res.counters["kacan_giris"] == 0
+
+
+def test_OPEN_37_tick2_1_tick_asimi_doldurmaz_ve_kacan_sayilir():
+    res = kos(POST_ONLY_1TICK, costs=free_costs("1"), limit_orders=True, entry_fill="tick2")
+    assert res.counters["entries"] == 0 and not res.trades
+    assert res.counters["kacan_giris"] == 1  # dokundu, dolmadi, zone bitti
+    assert res.counters["unfilled"] == 0     # "hic dokunulmadi" degil
+
+
+def test_OPEN_37_kapanis_ayni_mumda_geri_donen_mum_doldurmaz():
+    res = kos(POST_ONLY_DONUS, costs=free_costs("1"), limit_orders=True, entry_fill="kapanis")
+    assert res.counters["entries"] == 0 and res.counters["kacan_giris"] == 1
+    # ayni mum tick1'de dolar
+    assert kos(POST_ONLY_DONUS, costs=free_costs("1"), limit_orders=True).counters["entries"] == 1
+
+
+def test_OPEN_37_kapanis_seviyenin_otesinde_kalan_mum_doldurur():
+    # TICK_YOLU'nun (172, 168) mumu: kapanis 170 = seviye, geri donmedi
+    res = kos(TICK_YOLU, costs=free_costs("1"), limit_orders=True, entry_fill="kapanis")
+    assert res.counters["entries"] == 1 and res.counters["kacan_giris"] == 0
+    assert res.trades[0].entry_price == Decimal("170")
+
+
+def test_OPEN_37_gec_dolan_giris_kacan_sayilmaz():
+    """Kovalama yok ama emir yerinde bekler: sonraki mumda dolarsa islem acilir."""
+    yol = [(152, 148), (171, 169), (173, 167), (152, 148), (102, 98)]
+    res = kos(yol, costs=free_costs("1"), limit_orders=True, entry_fill="tick2")
+    assert res.counters["entries"] == 1 and res.counters["kacan_giris"] == 0
+
+
+def test_OPEN_37_bilinmeyen_kriter_reddedilir():
+    with pytest.raises(ValueError):
+        kos(TICK_YOLU, costs=free_costs("1"), limit_orders=True, entry_fill="yok")

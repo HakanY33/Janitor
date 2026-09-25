@@ -107,6 +107,17 @@ class Zone:
     in_band: bool = False  # önceki mum giriş bandında mıydı — olay bazlı sayım (R-ZONE-01)
     kill_wins: int = 0  # R-ZONE-09 · öldürme ilerlemeye baskın geldi
     skipped_progress: int = 0  # R-ZONE-09 · aynı mumdaki ikinci ilerleme atlandı
+    # Limit emri kolu (backtest `Backtest.limit_orders`). TP'ler limit emridir: dolmuş
+    # sayılmaları için fiyatın seviyeyi **1 tick geçmesi** gerekir; sırada önde olma
+    # varsayımı yapılmaz. `0` = kural kapalı, temas yeter (piyasa emri davranışı).
+    # Stop ve geçersizlik bundan etkilenmez — onlar piyasa emridir ve ölçü temastır.
+    tp_tick: float = 0.0
+    tp_tick_miss: int = 0  # seviyeye dokunuldu ama 1 tick geçilmedi (bar sayısı)
+    # TP'nin seviyenin kaç **leg** önüne konulduğu (pozisyon yönünde, seviyeye varmadan).
+    # `R-EXIT-01/02` TP'leri tam `0.50` ve `0` seviyesine koyar; orijinal kural "dönüşün
+    # hemen altına" koymaktı ve o "hemen" sayısallaşmadı. `0` = spec'in yazılı hâli.
+    # Ölçüm: `docs/measurements/tp_placement.md`.
+    tp_offset: float = 0.0
 
     @classmethod
     def create(
@@ -173,6 +184,25 @@ class Zone:
             return htf_close
         return max(htf_close, self.pivot_confirmed_at)
 
+    @property
+    def tp_050(self) -> float:
+        """R-EXIT-01 · kısmi TP'nin **gerçek** yerleşimi (`tp_offset` uygulanmış).
+
+        Öteleme fib oranında yapılır: `0.50` → `0.50 + tp_offset`. Fiyat cinsinden bu,
+        SHORT'ta daha yüksek, LONG'da daha düşük bir fiyattır — ikisi de pozisyonun
+        *lehine erken* çıkmaktır, çünkü fiyat bandı `1` tarafından `0` tarafına kat eder.
+        """
+        return self.level_050 + self.tp_offset * (self.anchor_1_price - self.anchor_0_price)
+
+    @property
+    def tp_final(self) -> float:
+        """R-EXIT-02 · nihai TP'nin gerçek yerleşimi.
+
+        `0` çapasının kendisi **geçersizlik ölçüsü** olarak yerinde kalır (R-ZONE-05):
+        giriş öncesi oraya dokunmak zone'u öldürür ve bu bir TP emri değildir.
+        """
+        return self.anchor_0_price + self.tp_offset * (self.anchor_1_price - self.anchor_0_price)
+
     # --- durum geçişleri -----------------------------------------------------
 
     def transition(self, new_state: ZoneState, ts: datetime) -> ZoneState:
@@ -203,6 +233,18 @@ class Zone:
         """
         return self.transition(S.ENTERED, ts)
 
+    def _tp_filled(self, level: float, high: float, low: float) -> bool:
+        """TP limit emri doldu mu. `tp_tick = 0` iken temas yeter (piyasa emri).
+
+        SHORT zone'da TP aşağıdadır ve alış limitidir: fiyatın seviyeyi 1 tick **aşağı**
+        geçmesi gerekir. LONG'da tersi. Kural yalnızca TP'lere uygulanır; stop ve
+        R-ZONE-05 geçersizliği bir *gözlemdir*, ölçüsü temastır.
+        """
+        if not self.tp_tick:
+            return touches(level, high, low)
+        return (low <= level - self.tp_tick if self.bias == "SHORT"
+                else high >= level + self.tp_tick)
+
     def _progress(self, high: float, low: float) -> ZoneState | None:
         """Bu mumun tetiklediği *tek* ilerleme; yoksa None (R-ZONE-04).
 
@@ -212,7 +254,7 @@ class Zone:
             return S.PRIMED  # ön koşul karşılandı, zone silahlandı
         if self.state is S.PRIMED and touches(self.level_070, high, low):
             return S.TOUCHED
-        if self.state is S.ENTERED and touches(self.level_050, high, low):
+        if self.state is S.ENTERED and self._tp_filled(self.tp_050, high, low):
             return S.TP1_HIT  # ilk TP; stop maliyete = R-EXIT işi
         return None
 
@@ -234,7 +276,17 @@ class Zone:
                 f"{self.zone_id}: {ts} < WATCH_FROM {self.watch_from} — look-ahead (R-ZONE-09)"
             )
 
-        if touches(self.anchor_0_price, high, low) or touches(self.anchor_1_price, high, low):
+        # `0` çapası pozisyon açıkken nihai TP'dir (limit emri), açılmadan önce bir
+        # geçersizliktir (R-ZONE-05, gözlem). `1` çapası her hâlde stoptur: piyasa emri.
+        if self.tp_tick and self.state in (S.ENTERED, S.TP1_HIT):
+            for lvl in ((self.tp_050, self.tp_final) if self.state is S.ENTERED
+                        else (self.tp_final,)):
+                if touches(lvl, high, low) and not self._tp_filled(lvl, high, low):
+                    self.tp_tick_miss += 1
+        tp0 = (self._tp_filled(self.tp_final, high, low)
+               if self.state in (S.ENTERED, S.TP1_HIT)
+               else touches(self.anchor_0_price, high, low))
+        if tp0 or touches(self.anchor_1_price, high, low):
             if self._progress(high, low) is not None:
                 self.kill_wins += 1  # aynı mumda ilerleme de vardı, öldürme kazandı
             # R-ZONE-05: giriş öncesi sıra bozuldu → zone ölür. Pozisyon varken aynı temas
