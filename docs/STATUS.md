@@ -2,35 +2,34 @@
 
 Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
 
-**Son güncelleme:** 2026-09-24
+**Son güncelleme:** 2026-09-25 (akşam)
 
 ---
 
 ## Şu an
 
-**Görev:** `OPEN-36` maker doluş stresi (taban F1) + `spread_logger` başlatıldı.
-Ölçüm: `docs/measurements/maker_stres.md`.
+**Görev:** Sembol soğuk testi + kriter 2'nin yeniden tanımı · sunucuda günlük `earliest` timer.
+Ölçüm: `docs/measurements/soguk.md` · `docs/measurements/earliest.md`.
 
-**Durum:** **F1'in kârı maker doluşa bağlı.** Başabaş: limit emirlerin **~%48,5'i**
-taker'a düşünce.
+**Durum:** F1 soğuk 20 sembolde ayakta. Yeni kriter 2 iki kümede de geçiyor. Orijinalde
+kıl payı geçiyor, yarılar da tutarsız.
 
-| taker'a düşme | %0 | %10 | %25 | %50 | %100 |
-|---|---:|---:|---:|---:|---:|
-| net PnL | +2.376 | +1.793 | +1.055 | −69 | −1.904 |
-| brüt / sürtünme | 1,535 | 1,374 | 1,202 | 0,993 | 0,744 |
+| | ORİJ F1 | YENİ F1 | ORİJ K2-yeni | YENİ K2-yeni | ORİJ K2-eski | YENİ K2-eski |
+|---|---:|---:|---:|---:|---:|---:|
+| net | +2.376 | +4.187 | +157 | +1.021 | −206 | +1.443 |
+| brüt/sürtünme | 1,535 | 1,920 | 1,033 | 1,200 | 0,970 | 1,242 |
+| H1 / H2 | +1.697 / +679 | +1.157 / +3.030 | +780 / −623 | +19 / +1.001 | +389 / −595 | −58 / +1.502 |
 
-- **En pahalı: giriş.** Yalnızca giriş taker'a düşerse net −902 (emir başına −1,45).
-  TP1 −1.092, nihai TP −315 → ikisi de neti pozitif bırakıyor.
-- **1m hacim vekili:** emirlerin %30'u dolduğu dakikanın hacminin ¼'ünden büyük.
-  θ = %10 → %49 düşer → net +114. Limit dolumlar en sakin mumlarda.
+- Kriter 2 yeniden tanımlandı: komisyon kesin · slippage ×3 · giriş P2. Koşudan **önce**
+  spec'e yazıldı (§8 Kabul kriterleri). Eşik net > 0. Bağlayıcı küme → `OPEN-39`.
+- **30m penceresi kayıyor** (günde 1 gün, 30.239 mum sabit). 1m kaymıyor. Soğuk küme bu
+  yüzden takvimle kesildi (2026-05-08 13:00), oranla değil.
 
-**Kayıtçı:** `scripts/spread_logger` 20 sembolde, **bu makinede** çalışıyor (pid 27776,
-2026-09-24 16:00'dan beri, `logs/spread_logger-20260924-155333.log`). Sunucu erişimim
-yok; makine uyursa / kapanırsa kayıt durur ve kaçan dakika kalıcıdır.
+**Sunucu:** `janitor-spread-logger` (sürekli) + `janitor-earliest.timer` (her gün
+03:00 UTC, 1m + 30m, 20 sembol). İkisi de `janitor` kullanıcı servisi.
 
-**İlgili dosyalar:** `scripts/maker_stres.py` · `src/backtest/engine.py`
-(`_taker_mi`, `taker_frac`, `taker_vol_frac`, `taker_kinds`) · `src/backtest/loader.py`
-(`SymbolData.volume`) · `tests/test_levers.py` (OPEN-36)
+**İlgili dosyalar:** `scripts/soguk.py` · `scripts/earliest.py` · `scripts/pull_book.py` ·
+`data/bingx/liquidity_soguk.json` · `tests/test_soguk.py` · `docs/SERVER.md`
 
 ---
 
@@ -38,6 +37,13 @@ yok; makine uyursa / kapanırsa kayıt durur ve kaçan dakika kalıcıdır.
 
 | Bulgu | Sonuç |
 |---|---|
+| **F1 soğuk kümede ayakta** | 21–43. sıra: net +4.187, brüt/sürtünme 1,92, 15/20 |
+| **Yeni kriter 2 iki kümede geçiyor** | orijinal +157 (kıl payı) · soğuk +1.021; eski ×1.5: −206 / +1.443 |
+| Yarılar kümeler arasında zıt | orijinalde kâr H1'de, soğukta H2'de — rejim bağımlılığı |
+| **30m penceresi kayıyor** | günde 1 gün, sabit 30.239 mum; 1m sabit |
+| Post-only sorusu OHLCV ile çözülemez | Kuyruk konumu → `OPEN-38` gerçek doluş ölçümü (kapsam kararı bekliyor) |
+| **Post-only kuyruk konumuna bağlı** | 1 tick +2.376 · 2 tick +1.574 · geri dönen mum dolmazsa −1.744 (taker giriş −902) |
+| Kaçan giriş pahalı | ~−35 / kaçan vs −1,45 / taker giriş. Dönüş mumu en iyi giriş |
 | **F1 maker doluşa bağlı** | %48,5 taker'a düşmede başabaş; slippage ×3'te hâlâ +862 |
 | Girişin taker'a düşmesi en pahalı | tek başına net −902; TP'ler pozitif bırakıyor |
 | Emir mum hacmine göre büyük | dolumların %30'unda emir > 1m hacmin ¼'ü (vekil) |
@@ -96,19 +102,21 @@ yok; makine uyursa / kapanırsa kayıt durur ve kaçan dakika kalıcıdır.
 
 ## Sıradaki
 
-1. **Kayıtçıyı sunucuya taşı** (şu an yerel makinede). Birkaç hafta → `OPEN-32`
-   (a)–(c) ve `OPEN-36`'nın gerçek kuyruk ölçümü.
-2. **Giriş emri tipi — spec kararı.** Post-only, dolmazsa kovalanmaz mı? Ölçüm girişin
-   taker'a düşmesinin tek başına sonucu negatife çevirdiğini gösteriyor.
-3. Kaçan emir modeli (düşen emir hiç dolmaz) — istenirse.
-4. Doluş ölçülüp F1 dayanıklı çıkarsa → ayrılmış %20 (kriter 1).
+1. **`OPEN-39`:** yeni kriter 2'de hangi küme bağlayıcı? İkisi de geçiyor. Karar, kriter
+   1'e (ayrılmış %20) gidilip gidilmeyeceğini belirler.
+2. Görev Zamanlayıcı'ya `pull_book`'u kaydet (`docs/SERVER.md`).
+3. `NON_CRYPTO` filtresi yalnızca `NCCO`'yu eliyor. NCSI/NCFX/NCSK de kripto dışı ama
+   bir sonraki `rank`'e sızabilir.
+4. 30m günlük artımlı toplama: pencere kaydığı için yerelde olmayan geçmiş her gün
+   bir gün kısalıyor.
+5. `OPEN-38` kapsam kararı (gerçek doluş ölçümü).
 
-**Uyarı:** Kriter 2 geçilmedi. Ayrılmış %20'ye henüz gidilmez.
+**Uyarı:** Yeni kriter 2 geçildi ama `OPEN-39` açık. Ayrılmış %20'ye kullanıcı kararı olmadan gidilmez.
 
 ## Açık maddeler
 
 `OPEN-27` ekleme çarpanı hedefi (şu an `0.79`) · `OPEN-28` KRİTİK'te yarılama ·
-`R-ZONE-08` aday sıralaması (adaylar ölçüldü, dayanıklı çıkan yok) · `ADD-REJECT-A` · `OPEN-31` `R-ENTRY-02` (3) kaldırılsın mı · `OPEN-32` doluş varsayımı spec'te tanımsız · `OPEN-34` boyutu risk tavanından türetme · `OPEN-36` maker doluş oranı / giriş emri tipi
+`R-ZONE-08` aday sıralaması (adaylar ölçüldü, dayanıklı çıkan yok) · `ADD-REJECT-A` · `OPEN-31` `R-ENTRY-02` (3) kaldırılsın mı · `OPEN-32` doluş varsayımı spec'te tanımsız · `OPEN-34` boyutu risk tavanından türetme · `OPEN-36` maker doluş oranı · `OPEN-37` post-only giriş · `OPEN-38` gerçek doluş ölçümü · `OPEN-39` kriter 2 bağlayıcı küme
 
 ---
 
@@ -121,7 +129,7 @@ yok; makine uyursa / kapanırsa kayıt durur ve kaçan dakika kalıcıdır.
 | `src/zones/` | `model.py` FSM · `store.py` SQLite · `detect.py` leg → zone |
 | `src/strategy/` | `entry.py` `R-ENTRY-05` filtreleri |
 | `src/backtest/` | `loader.py` sembol hazırlığı + önbellek · `engine.py` olay döngüsü · `portfolio.py` cross equity · `costs.py` kalem defteri |
-| `scripts/` | `diagnose.py` · `sweep.py` · `entry_variants.py` · `terminate.py` · `reconcile.py` · `branches.py` · `levers.py` A/B/C/D · `tp_placement.py` D1-D4 TP yerleşimi · `add_reject_e.py` stop kaybı tavanı · `spread_logger.py` canlı emir defteri · `robustness.py` breakeven ücreti + komisyon dağılımı + `R-ZONE-08` iç validasyon · `f_kollari.py` F1/F2 · `slippage_stres.py` OPEN-32 (d) · `maker_stres.py` OPEN-36 · `bg.py` |
+| `scripts/` | `diagnose.py` · `sweep.py` · `entry_variants.py` · `terminate.py` · `reconcile.py` · `branches.py` · `levers.py` A/B/C/D · `tp_placement.py` D1-D4 TP yerleşimi · `add_reject_e.py` stop kaybı tavanı · `spread_logger.py` canlı emir defteri · `robustness.py` breakeven ücreti + komisyon dağılımı + `R-ZONE-08` iç validasyon · `f_kollari.py` F1/F2 · `slippage_stres.py` OPEN-32 (d) · `maker_stres.py` OPEN-36 · `post_only.py` OPEN-37 · `bg.py` |
 | `docs/measurements/` | Ölçüm tarihçeleri — spec'te yalnızca tek satırlık referans var |
 
 Spec kuralı gerekiyorsa baştan okuma: `grep -n "R-ADD-04" docs/STRATEGY_SPEC.md`

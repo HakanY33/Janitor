@@ -71,6 +71,7 @@ def test_R_ZONE_01_alanlar_spec_ile_birebir():
     assert names[:len(spec)] == spec
     assert names[len(spec):] == [
         "pivot_confirmed_at", "hysteresis", "in_band", "kill_wins", "skipped_progress",
+        "tp_tick", "tp_tick_miss", "tp_offset",
     ]
 
 
@@ -495,8 +496,16 @@ ANCHOR_1 = (2.649, pd.Timestamp("2026-09-09 17:00", tz="UTC"))
 # mumunun kapanışı iş görür.
 
 
-def run_near(path: Path, hysteresis: float = HYSTERESIS) -> tuple[Zone, list[tuple[S, pd.Timestamp]]]:
-    """Referans zone'u verilen mum dosyasıyla besler, durum geçişi geçmişini döner."""
+def run_near(
+    path: Path, hysteresis: float = HYSTERESIS, until: pd.Timestamp | None = None
+) -> tuple[Zone, list[tuple[S, pd.Timestamp]]]:
+    """Referans zone'u verilen mum dosyasıyla besler, durum geçişi geçmişini döner.
+
+    `until`: beslemenin son anı. İki çözünürlüğü karşılaştıran test bunu **zorunlu**
+    kılar — 1m ve 30m dosyaları farklı anlarda bitebilir (toplayıcı ikisini ayrı
+    indirir) ve uzun olan taraf diğerinin göremediği bir olayı görürse karşılaştırma
+    çözünürlüğü değil veri kapsamını ölçer.
+    """
     z = Zone.create(
         symbol="NEAR/USDT:USDT", timeframe="30m",  # geometri 30m'den (R-ZONE-09)
         anchor_0_price=ANCHOR_0[0], anchor_0_time=ANCHOR_0[1],
@@ -506,7 +515,10 @@ def run_near(path: Path, hysteresis: float = HYSTERESIS) -> tuple[Zone, list[tup
     z.activate()
     watch_from = z.watch_from
     history = []
-    for row in pd.read_parquet(path).query("ts >= @watch_from").itertuples():
+    bars = pd.read_parquet(path).query("ts >= @watch_from")
+    if until is not None:
+        bars = bars[bars.ts <= until]
+    for row in bars.itertuples():
         before = z.state
         after = z.on_bar(row.high, row.low, row.ts)
         if after is not before:
@@ -549,9 +561,11 @@ def test_R_ZONE_09_near_1m_beslemesi_30m_ile_ayni_siralamayi_uretir(capsys):
     Ayrıca R-ZONE-01 histerezisinin 1m'deki etkisi ölçülür: aynı zone histerezissiz ve
     varsayılan oranla beslenir, iki `touch_count` yan yana raporlanır.
     """
-    z30, h30 = run_near(NEAR_30M)
-    z1, h1 = run_near(NEAR_1M)
-    z1_ham, _ = run_near(NEAR_1M, hysteresis=0.0)
+    # Ortak pencere: 30m mumunun *kapanışı* son sınır. 1m dosyası daha ileri gidebilir.
+    son30 = pd.read_parquet(NEAR_30M).ts.max() + pd.Timedelta("30m")
+    z30, h30 = run_near(NEAR_30M, until=son30)
+    z1, h1 = run_near(NEAR_1M, until=son30)
+    z1_ham, _ = run_near(NEAR_1M, hysteresis=0.0, until=son30)
 
     assert z1.timeframe == "30m"  # geometrinin TF'si; beslenen mum onu değiştirmez
     assert [state for state, _ in h1] == [state for state, _ in h30]

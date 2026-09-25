@@ -29,6 +29,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.features.candles import reference_body
+
 BULLISH = "BULLISH"  # yukarı boşluk — fiyat üstünde, aşağıdan doldurulur
 BEARISH = "BEARISH"  # aşağı boşluk — fiyat altında, yukarıdan doldurulur
 
@@ -62,6 +64,7 @@ class FVG:
     created_at: datetime
     mitigated_at: datetime | None = None  # fiyat boşluğa ilk girdiği an
     filled_at: datetime | None = None  # karşı sınır geçildi, boşluk kapandı
+    width_ratio: float | None = None  # R-ENTRY-05 · genişlik / medyan gövde (20 mum)
 
     def overlaps(self, top: float, bottom: float) -> bool:
         """Verilen fiyat aralığıyla kesişiyor mu (R-ADD-05: OB içinde FVG)."""
@@ -92,7 +95,13 @@ def detect_fvgs(df: pd.DataFrame, symbol: str, timeframe: str) -> list[FVG]:
     `df`: ts, open, high, low, close, volume (bkz. `src/data/collect.py`).
     """
     require_detect_tf(timeframe)
-    prev = df.assign(prev_high=df.high.shift(2), prev_low=df.low.shift(2))
+    prev = df.assign(
+        prev_high=df.high.shift(2),
+        prev_low=df.low.shift(2),
+        # R-ENTRY-05 · genişlik ölçütünün paydası. Oluşum anında bilinir (shift(1)'li
+        # medyan yalnızca geçmişe bakar), bu yüzden boşlukla birlikte saklanır.
+        ref_body=reference_body(df),
+    )
     out = []
     for r in prev.itertuples():
         if r.prev_high < r.low:  # NaN karşılaştırması False → ilk iki mum elenir
@@ -110,6 +119,13 @@ def detect_fvgs(df: pd.DataFrame, symbol: str, timeframe: str) -> list[FVG]:
                 top=top,
                 bottom=bottom,
                 created_at=r.ts,
+                # Payda tanımsız veya sıfırsa oran yoktur; R-ENTRY-05 eşiği o boşluğu
+                # geçiremez ve boşluk aday olmaz (None ile karşılaştırma yapılmaz).
+                width_ratio=(
+                    (top - bottom) / r.ref_body
+                    if pd.notna(r.ref_body) and r.ref_body > 0
+                    else None
+                ),
             )
         )
     return out
@@ -149,7 +165,8 @@ CREATE TABLE IF NOT EXISTS fvgs (
     bottom       REAL NOT NULL,
     created_at   TEXT NOT NULL,
     mitigated_at TEXT,
-    filled_at    TEXT
+    filled_at    TEXT,
+    width_ratio  REAL
 );
 CREATE INDEX IF NOT EXISTS fvgs_open ON fvgs (symbol, timeframe, filled_at);
 """

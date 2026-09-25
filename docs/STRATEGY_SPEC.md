@@ -624,6 +624,9 @@ Varsayılan: hepsi açık.
 | `OPEN-29` | Pozisyon sonlandırma kuralı | **Açık** — `R-EXIT-03` zaman sınırı tanımıyor. `R-ADD-04` küçültmesinden sonra bir pozisyonun tek sonlandırıcısı nihai stop/TP; ölçümde 202 gün açık kalan pozisyon var. Üç aday `scripts/terminate.py` ile ölçülüyor; kod varsayılanı `none` (spec'in hâli). |
 | `OPEN-35` | `R-EXIT-01` breakeven'in "maliyet"i ücret dahil mi | **Kapandı** — ücret dahil (gidiş-dönüş komisyonu, slippage hariç). `R-EXIT-01`. Ölçüm `docs/measurements/robustness.md`. |
 | `OPEN-36` | Maker doluş varsayımı: limit emrin taker'a düşme oranı | Ölçüldü, açık — `docs/measurements/maker_stres.md`. Başabaş ~%48,5 taker'a düşme; en pahalı tür giriş (tek başına net −902). Gerçek oran defter verisi (`OPEN-32`) olmadan bilinmez. Girişin post-only / kovalanmaz olması tanımsız. |
+| `OPEN-37` | Giriş emri post-only mi (dolmazsa işlem yok, kovalama yok) | Ölçüldü, açık — `docs/measurements/post_only.md`. 1 tick kriterinde +2.376, 2 tick +1.574, aynı mumda geri dönen mum dolmazsa −1.744. Taker'a düşen giriş (−902) P1/P2'den kötü, P3'ten iyi. **P1/P2/P3 arasındaki fark emrin kuyruktaki konumuna bağlıdır ve OHLCV ile çözülemez.** Mum, seviyede kaç lotun işlem gördüğünü ve emrin önünde kaç lot beklediğini söylemez. Paper trading de çözemez: `PaperAdapter`'da doluş simüle edilir, yani sonuç seçilen doluş kuralının kendisidir. Çözüm → `OPEN-38`. |
+| `OPEN-38` | Gerçek doluş ölçümü: küçük gerçek emirlerle post-only kuyruk davranışı | Açık. `OPEN-37`'nin kuyruk sorusunun tek çözümü, borsaya giden küçük post-only emirlerle doluşu ölçmektir. Ölçülecek: seviyeye dokunan / 1–2 tick geçen / aynı mumda geri dönen mumlarda emrin dolup dolmadığı. **Kapsam kararı gerekiyor:** mevcut aşamada gerçek para kapsam dışı (CLAUDE.md). Emir boyutu, sembol, süre ve kayıp tavanı tanımlanmadan kod yazılmaz. `R-RISK-05` ve `ExecutionAdapter` kuralları aynen geçerlidir. |
+| `OPEN-39` | Kriter 2'de bağlayıcı sembol kümesi (orijinal 20 / soğuk 20 / ikisi birden) | Açık — yeni kriter 2 (§8 Kabul kriterleri) iki kümede de koşulur, karar kullanıcının. |
 | `OPEN-33` | Ekleme merdiveninin boyut tavanı | **Kapandı** — `ADD-REJECT-E` (`R-ADD-02`). Tavan notional'da değil, stopta realize olacak kayıpta. |
 | `OPEN-13` | "Garantici mod" tetikleyicisi | Açık — v1'de kapalı, sonra eklenir |
 | `OPEN-16` | Günlük yeni-pozisyon durdurma eşiği | Backtest'le kalibre (başlangıç %10) |
@@ -650,6 +653,9 @@ Kurallar bu dosyada, onları üreten ölçümler ayrı dosyalarda:
 | F1 ekleme kapalı · F2 asgari leg eşiği · dayanıklılık (taban E3B) | `docs/measurements/f_kollari.md` |
 | `OPEN-32` slippage stresi (komisyon sabit, ×1/×2/×3) · defter kaydı durumu | `docs/measurements/slippage.md` |
 | `OPEN-36` maker doluş stresi (rastgele / 1m hacim vekili / emir türü) | `docs/measurements/maker_stres.md` |
+| `OPEN-37` post-only giriş (1 tick / 2 tick / geri dönen mum) | `docs/measurements/post_only.md` |
+| Sembol soğuk testi (21–43. sıra) · kriter 2 yeni/eski | `docs/measurements/soguk.md` |
+| 1m geçmiş penceresi kayıyor mu (`ARCHITECTURE.md` §3.2) | `docs/measurements/earliest.md` |
 
 **Aşırı uyum koruması:** verinin en yeni **%20'si ayrılmıştır ve okunmaz**. Ölçüm
 betikleri bu tarih aralığını reddeder. Bulunan her ölçüt ancak ayrılmış bölümde de
@@ -705,6 +711,35 @@ Böylece varsayım tartışması ölçüme dönüşür.
 
 Taker/maker komisyonu + funding + slippage. Oranlar borsanın yayınladığı listelerden
 alınır, tahmin edilmez.
+
+### Kabul kriterleri
+
+| # | Kriter | Tanım |
+|---|---|---|
+| 1 | Örneklem dışı | Ayrılmış %20'de (eğitim sonrası dönem) net pozitif. Kriter 2 geçilmeden okunmaz. |
+| 2 | Maliyet dayanıklılığı | Aşağıdaki stres altında eğitim döneminde **net > 0**. |
+
+**Kriter 2 — yeniden tanım (2026-09-25).** Eski hâli: komisyon ve slippage **×1.5**. Bu
+tanım yanlış yere belirsizlik ekliyordu. Komisyon borsanın yayınladığı orandır ve
+kesin olarak bilinir. Belirsiz olan iki girdi var: **slippage** (defter verisi yok,
+`OPEN-32`) ve **giriş doluşu** (kuyruk konumu, `OPEN-37`). Yeni stres yalnızca bu ikisine
+uygulanır:
+
+| girdi | stres |
+|---|---|
+| komisyon | borsa oranı (kesin, değişmez) |
+| slippage | ×3 |
+| giriş doluşu | P2 — seviye 2 tick geçilmeden dolmaz (`OPEN-37`) |
+
+**Sonuç görülmeden tanımlandı.** Bu tanım, yeni stresle hiçbir koşu yapılmadan önce
+(2026-09-25) yazıldı. İlk koşu `scripts/soguk.py`'dir. Eşik (net > 0), eski kriter 2'nin
+uygulandığı şekilden aynen taşındı. Eski ×1.5 kriteri şeffaflık için raporlarda yan yana
+verilmeye devam eder. Ancak artık bağlayıcı değildir.
+
+İki sembol kümesinden (orijinal 20 / soğuk 20) hangisinin bağlayıcı olduğu tanımlı
+değil → `OPEN-39`.
+
+Ölçüm: `docs/measurements/soguk.md` (ilk koşu, 2026-09-25). Kriter 2-yeni: orijinal 20 **+157**, soğuk 20 **+1.021**; ikisi de net > 0. Eski ×1.5: −206 / +1.443.
 
 ### Zorunlu sayaçlar
 

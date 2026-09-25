@@ -112,6 +112,10 @@ TP_REASONS = frozenset({"TP1", "FINAL_TP"})
 """R-EXIT-01/02 · kar alma kapanislari. `tp_market` kolunda bunlar piyasa emridir."""
 
 MAKER_REASONS = frozenset({"TP1", "FINAL_TP", "REDUCE"})
+# OPEN-37 · post-only giris emrinin dolus kriteri (yalnizca `limit_orders` acikken).
+# `tick1` seviye 1 tick gecilmeli (mevcut) · `tick2` 2 tick · `kapanis` 1 tick gecilmeli
+# **ve** mum seviyenin otesinde kapanmali (ayni mumda geri donen mum doldurmaz).
+ENTRY_FILLS = ("tick1", "tick2", "kapanis")
 """Limit emri kolunda (`limit_orders`) maker komisyonu ödeyen kapanışlar.
 
 Geri kalan her kapanış piyasa emridir ve taker + slippage öder: nihai stop, maliyete
@@ -272,7 +276,11 @@ class Backtest:
         taker_frac: float = 0.0,
         taker_vol_frac: float = 0.0,
         taker_kinds: frozenset[str] = frozenset({"giris", "tp1", "tp_nihai"}),
+        entry_fill: str = "tick1",
     ):
+        if entry_fill not in ENTRY_FILLS:
+            raise ValueError(f"bilinmeyen giris dolus kriteri: {entry_fill}")
+        self.entry_fill = entry_fill
         if terminate not in TERMINATION_RULES:
             raise ValueError(f"bilinmeyen sonlandirma kurali: {terminate}")
         self.terminate = terminate
@@ -390,6 +398,9 @@ class Backtest:
             "limit_miss_kucultme": 0, "limit_miss_tp": 0,
             # OPEN-36 · taker'a dusen limit emri, tur basina
             "taker_giris": 0, "taker_tp1": 0, "taker_tp_nihai": 0, "taker_kucultme": 0,
+            # OPEN-37 · giris hedefine dokunuldu ama emir zone bitene kadar dolmadi.
+            # `unfilled` artik yalnizca hedefe **hic** dokunulmayanlardir.
+            "kacan_giris": 0,
         }
         self._day_start_equity = float(start_balance)
         self._day_blocked = False
@@ -408,6 +419,21 @@ class Backtest:
             return low <= level <= high
         t = self.ticks[symbol]
         return high >= level + t if sell else low <= level - t
+
+    def _entry_filled(self, symbol: str, level: float, high: float, low: float,
+                      sell: bool) -> bool:
+        """OPEN-37 · post-only giris emri doldu mu (`entry_fill` kriteri).
+
+        Kapanis `self.marks`'tan okunur: `run` onu bu mumun kapanisina zaten yazdi.
+        Karar degil dolus modeli — emir mumdan once konmustu (CLAUDE.md #3).
+        """
+        if not self.limit_orders or self.entry_fill == "tick1":
+            return self._limit_filled(symbol, level, high, low, sell)
+        t = self.ticks[symbol]
+        if self.entry_fill == "tick2":
+            return high >= level + 2 * t if sell else low <= level - 2 * t
+        c = self.marks[symbol]
+        return self._limit_filled(symbol, level, high, low, sell) and             (c >= level if sell else c <= level)
 
     def _taker_mi(self, symbol: str, zone_id: str, tur: str, qty: Decimal) -> bool:
         """OPEN-36 · bu limit emri taker'a dustu mu. Duserse sayaci artirir."""
@@ -582,9 +608,10 @@ class Backtest:
             return  # limit bu mumda kondu; dolum en erken sonraki mumda
 
         # Giris limit emridir: SHORT bant yukaridan satilir, LONG asagidan alinir.
-        if not self._limit_filled(z.symbol, p["hedef"], high, low, sell=short):
+        if not self._entry_filled(z.symbol, p["hedef"], high, low, sell=short):
             if low <= p["hedef"] <= high:
-                self.counters["limit_miss_giris"] += 1  # dokundu, 1 tick gecmedi
+                self.counters["limit_miss_giris"] += 1  # dokundu, kriter tutmadi
+                p["dokundu"] = True
             return
 
         hedef = p["hedef"]
@@ -1030,8 +1057,10 @@ class Backtest:
                 for z in self._active[s]:
                     self._step_zone(z, sd, ts, high, low, t)
                     if z.state in TERMINAL:
-                        if self.pending.pop(z.zone_id, None) is not None:
-                            self.counters["unfilled"] += 1  # hedefe hic dokunulmadi
+                        bekleyen = self.pending.pop(z.zone_id, None)
+                        if bekleyen is not None:
+                            self.counters["kacan_giris" if bekleyen.get("dokundu")
+                                          else "unfilled"] += 1
                         self.counters["kill_wins"] += z.kill_wins
                         self.counters["skipped_progress"] += z.skipped_progress
                         if z.primed_at is not None:

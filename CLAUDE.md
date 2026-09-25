@@ -5,6 +5,17 @@ Kod yazmadan önce oku. Şüphede kalırsan sor, tahmin etme.
 
 ---
 
+## Oturum protokolü
+
+1. Önce `docs/STATUS.md`'yi oku. Nerede kaldığımız, ne yapıldığı ve hangi dosyaların
+   ilgili olduğu orada.
+2. `docs/STRATEGY_SPEC.md`'yi baştan sona okuma. Görevin gerektirdiği kural ID'sini
+   grep'le: `grep -n "R-ADD-04" docs/STRATEGY_SPEC.md`
+3. Kod tabanını keşfetme; `STATUS.md`'deki haritayı kullan.
+4. Oturum sonunda `STATUS.md`'yi güncelle: "Şu an", "Bildiklerimiz" tablosu, "Sıradaki".
+
+---
+
 ## Proje
 
 **Janitor** — OTE (likidite süpürme sonrası dönüş) modeline dayalı kripto vadeli işlem botu.

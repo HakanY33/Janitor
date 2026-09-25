@@ -122,6 +122,10 @@ en eski 1m mum 2025-07-31, ~13.4 ay; 30m ise ~20.7 ay).
 
 Doğruysa: **bugün indirilmeyen geçmiş kalıcı olarak kaybolur.**
 
+**Ölçüm (2026-09-25):** **1m kaymıyor**: 10,8 günde 20 sembolün hiçbirinde en eski mum değişmedi
+(başlangıç 2025-07-31). **30m kayıyor**: günde 1 gün, pencere sabit 30.239 mum (~630 gün).
+Ayrıntı `docs/measurements/earliest.md`. Sunucuda `janitor-earliest.timer` bu ölçümü günde bir kaydeder.
+
 Bu yüzden aşağıdakiler diğer tüm geliştirme adımlarından **önce** gelir:
 
 1. `earliest_timestamp` günlük kaydedilir — pencerenin gerçekten kaydığı doğrulanır

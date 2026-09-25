@@ -47,7 +47,10 @@ CREATE TABLE IF NOT EXISTS zones (
     hysteresis       REAL NOT NULL,
     in_band          INTEGER NOT NULL,
     kill_wins        INTEGER NOT NULL,
-    skipped_progress INTEGER NOT NULL
+    skipped_progress INTEGER NOT NULL,
+    tp_tick          REAL NOT NULL,
+    tp_tick_miss     INTEGER NOT NULL,
+    tp_offset        REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS zones_watch ON zones (symbol, timeframe, state);
 """
