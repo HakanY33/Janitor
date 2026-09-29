@@ -50,3 +50,18 @@ def test_install_yerel_dakikayi_kaybettirmez(tmp_path):
     with pytest.raises(RuntimeError):
         install(yeni, d, h(yeni))
     assert len(pd.read_parquet(d)) == 2  # dokunulmadi
+
+
+def test_install_yerel_islemi_kaybettirmez(tmp_path):
+    def trades(ids):
+        b = io.BytesIO()
+        pd.DataFrame({"id": ids, "price": 1.0}).to_parquet(b)
+        return b.getvalue()
+    d = tmp_path / "t.parquet"
+    d.write_bytes(trades([1, 3]))
+    yeni = trades([1, 2])
+    with pytest.raises(RuntimeError):
+        install(yeni, d, h(yeni))
+    ust = trades([1, 2, 3, 4])
+    install(ust, d, h(ust))
+    assert d.read_bytes() == ust

@@ -625,8 +625,10 @@ Varsayılan: hepsi açık.
 | `OPEN-35` | `R-EXIT-01` breakeven'in "maliyet"i ücret dahil mi | **Kapandı** — ücret dahil (gidiş-dönüş komisyonu, slippage hariç). `R-EXIT-01`. Ölçüm `docs/measurements/robustness.md`. |
 | `OPEN-36` | Maker doluş varsayımı: limit emrin taker'a düşme oranı | Ölçüldü, açık — `docs/measurements/maker_stres.md`. Başabaş ~%48,5 taker'a düşme; en pahalı tür giriş (tek başına net −902). Gerçek oran defter verisi (`OPEN-32`) olmadan bilinmez. Girişin post-only / kovalanmaz olması tanımsız. |
 | `OPEN-37` | Giriş emri post-only mi (dolmazsa işlem yok, kovalama yok) | Ölçüldü, açık — `docs/measurements/post_only.md`. 1 tick kriterinde +2.376, 2 tick +1.574, aynı mumda geri dönen mum dolmazsa −1.744. Taker'a düşen giriş (−902) P1/P2'den kötü, P3'ten iyi. **P1/P2/P3 arasındaki fark emrin kuyruktaki konumuna bağlıdır ve OHLCV ile çözülemez.** Mum, seviyede kaç lotun işlem gördüğünü ve emrin önünde kaç lot beklediğini söylemez. Paper trading de çözemez: `PaperAdapter`'da doluş simüle edilir, yani sonuç seçilen doluş kuralının kendisidir. Çözüm → `OPEN-38`. |
-| `OPEN-38` | Gerçek doluş ölçümü: küçük gerçek emirlerle post-only kuyruk davranışı | Açık. `OPEN-37`'nin kuyruk sorusunun tek çözümü, borsaya giden küçük post-only emirlerle doluşu ölçmektir. Ölçülecek: seviyeye dokunan / 1–2 tick geçen / aynı mumda geri dönen mumlarda emrin dolup dolmadığı. **Kapsam kararı gerekiyor:** mevcut aşamada gerçek para kapsam dışı (CLAUDE.md). Emir boyutu, sembol, süre ve kayıp tavanı tanımlanmadan kod yazılmaz. `R-RISK-05` ve `ExecutionAdapter` kuralları aynen geçerlidir. |
+| `OPEN-38` | Gerçek doluş ölçümü: küçük gerçek emirlerle post-only kuyruk davranışı | **Ertelendi (2026-09-27)** — F1 kriter 1'i geçemedi, doluş sorusu şu an bağlayıcı değil. `OPEN-37`'nin kuyruk sorusunun tek çözümü, borsaya giden küçük post-only emirlerle doluşu ölçmektir. Ölçülecek: seviyeye dokunan / 1–2 tick geçen / aynı mumda geri dönen mumlarda emrin dolup dolmadığı. **Kapsam kararı gerekiyor:** mevcut aşamada gerçek para kapsam dışı (CLAUDE.md). Emir boyutu, sembol, süre ve kayıp tavanı tanımlanmadan kod yazılmaz. `R-RISK-05` ve `ExecutionAdapter` kuralları aynen geçerlidir. |
 | `OPEN-39` | Kriter 2'de bağlayıcı sembol kümesi (orijinal 20 / soğuk 20 / ikisi birden) | Açık — yeni kriter 2 (§8 Kabul kriterleri) iki kümede de koşulur, karar kullanıcının. |
+| `OPEN-40` | Kriter 3 (aylık dağılım): kısmi aylar sayılır mı, ay sınırı hangi saat diliminde | **Kapandı 2026-09-29** — UTC takvim ayı; dilimde günlerinin yarısından azı kalan ay pay ve paydaya sayılmaz (§8 Kriter 3). |
+| `OPEN-41`…`OPEN-57` | Canlı döngü tasarım soruları (giriş emrinin zamanı, stop izleme, kill eylemleri, WS, yeniden başlatma, ortam) | Açık — liste ve gerekçeler `docs/LIVE.md` §9. |
 | `OPEN-33` | Ekleme merdiveninin boyut tavanı | **Kapandı** — `ADD-REJECT-E` (`R-ADD-02`). Tavan notional'da değil, stopta realize olacak kayıpta. |
 | `OPEN-13` | "Garantici mod" tetikleyicisi | Açık — v1'de kapalı, sonra eklenir |
 | `OPEN-16` | Günlük yeni-pozisyon durdurma eşiği | Backtest'le kalibre (başlangıç %10) |
@@ -654,12 +656,17 @@ Kurallar bu dosyada, onları üreten ölçümler ayrı dosyalarda:
 | `OPEN-32` slippage stresi (komisyon sabit, ×1/×2/×3) · defter kaydı durumu | `docs/measurements/slippage.md` |
 | `OPEN-36` maker doluş stresi (rastgele / 1m hacim vekili / emir türü) | `docs/measurements/maker_stres.md` |
 | `OPEN-37` post-only giriş (1 tick / 2 tick / geri dönen mum) | `docs/measurements/post_only.md` |
+| Kriter 1 · ayrılmış dilim (tek sefer) | `docs/measurements/ayrilmis.md` |
+| F1 neden kaybetti — eğitim vs ayrılmış (yalnızca açıklayıcı) | `docs/measurements/neden.md` |
 | Sembol soğuk testi (21–43. sıra) · kriter 2 yeni/eski | `docs/measurements/soguk.md` |
 | 1m geçmiş penceresi kayıyor mu (`ARCHITECTURE.md` §3.2) | `docs/measurements/earliest.md` |
 
 **Aşırı uyum koruması:** verinin en yeni **%20'si ayrılmıştır ve okunmaz**. Ölçüm
 betikleri bu tarih aralığını reddeder. Bulunan her ölçüt ancak ayrılmış bölümde de
 çalışırsa geçerli sayılır.
+
+**2026-09-27 itibarıyla:** ayrılmış %20 (2026-05-08 → 09-11) okundu ve harcandı. Yeni
+örneklem dışı veri yalnızca **2026-09-11 sonrası** birikir.
 
 ---
 
@@ -718,6 +725,7 @@ alınır, tahmin edilmez.
 |---|---|---|
 | 1 | Örneklem dışı | Ayrılmış %20'de (eğitim sonrası dönem) net pozitif. Kriter 2 geçilmeden okunmaz. |
 | 2 | Maliyet dayanıklılığı | Aşağıdaki stres altında eğitim döneminde **net > 0**. |
+| 3 | Aylık dağılım (ön kapı) | Eğitimde ayların ≥ %60'ı net pozitif ve tek ayın katkısı eğitim netinin ≤ %40'ı. Geçilmeden ayrılmış veriye gidilmez. |
 
 **Kriter 2 — yeniden tanım (2026-09-25).** Eski hâli: komisyon ve slippage **×1.5**. Bu
 tanım yanlış yere belirsizlik ekliyordu. Komisyon borsanın yayınladığı orandır ve
@@ -740,6 +748,67 @@ verilmeye devam eder. Ancak artık bağlayıcı değildir.
 değil → `OPEN-39`.
 
 Ölçüm: `docs/measurements/soguk.md` (ilk koşu, 2026-09-25). Kriter 2-yeni: orijinal 20 **+157**, soğuk 20 **+1.021**; ikisi de net > 0. Eski ×1.5: −206 / +1.443.
+
+**Kriter 1 — ayrılmış dilim, sabitlendi 2026-09-25 (koşudan önce).** Tek sefer okunur.
+Hata bulunursa düzeltilip yeniden koşulmaz; raporlanır.
+
+| | |
+|---|---|
+| Dilim | takvimle 2026-05-08 13:00 → 2026-09-11 13:00 UTC (orijinal 20'nin 30m verisinin ortak sonu) |
+| Semboller | 40: orijinal 20 + soğuk 20, iki ayrı portföy |
+| Isınma | motor tüm geçmişte koşar, kesimden önce giriş dolmaz (`scripts/ayrilmis.py`) |
+| (a) | F1 standart |
+| (b) | kriter 2: komisyon kesin · slippage ×3 · giriş P2 |
+
+| # | Kabul | Kol |
+|---|---|---|
+| K1 | net PnL > 0 (maliyetler dahil) | (a) |
+| K2 | net PnL > 0 | (b) |
+| K3 | ≥ 14/20 sembol net pozitif | (a) |
+| K4 | maks drawdown ≤ 1,5 × kümenin eğitim DD'si (orijinal %11,90 → %17,84 · soğuk %13,25 → %19,87) | (a) |
+| K5 | equity hiçbir barda başlangıcın %50'sinin altında değil | (a) |
+
+Her kriter iki kümede ayrı değerlendirilir. Kriterin GEÇTİ sayılması için **iki kümede de**
+geçmesi gerekir. Bu birleştirme kuralı kullanıcının kriter listesinde yazılı değildi;
+koşudan önce bu şekilde (muhafazakâr) sabitlendi. Küme bazında sonuçlar ayrıca raporlanır.
+Ek rapor: aylık net PnL dağılımı.
+
+**Sonuç (2026-09-25, tek koşu):** K1 KALDI (−1.287 / −851) · K2 KALDI (−2.182 / −1.763) · K3 KALDI (7/20 · 7/20) · K4 GEÇTİ · K5 GEÇTİ. **Kriter 1 geçilmedi.** Ölçüm: `docs/measurements/ayrilmis.md`.
+
+**F1 — olumsuz sonuç, kabul edildi 2026-09-27.** F1 dayanıklı değil.
+
+| | Eğitim | Ayrılmış dilim |
+|---|---|---|
+| (a) net, orijinal 20 | +2.376 | −1.287 |
+| (a) net, soğuk 20 | +4.187 | −851 |
+| Kriterler | — | K1, K2, K3 KALDI · K4, K5 geçti |
+
+- F1 **donduruldu**. Parametresi değişmez, yeniden ayarlanmaz.
+- 2026-05-08 → 2026-09-11 dilimi artık **örneklem içidir**. Bu dilimde yapılan hiçbir
+  ölçüm bir kuralı doğrulamaz; yalnızca açıklayıcıdır (`docs/measurements/neden.md`).
+- Gelecekteki her strateji değişikliği **yalnızca 2026-09-11 sonrası veride**
+  doğrulanabilir.
+- `OPEN-38` ertelendi.
+
+**Kriter 3 — aylık dağılım ön kapısı, eklendi 2026-09-29.** Ayrılmış veriye (kriter 1)
+gitmeden önce eğitim diliminde geçilmesi gereken kapı. Kriter 2 ile birlikte aranır.
+
+| # | Kabul |
+|---|---|
+| A1 | Eğitim dilimindeki ayların **en az %60'ı** net pozitif |
+| A2 | Hiçbir ayın net PnL'i, toplam eğitim netinin **%40'ını** aşmaz |
+
+**Ne zaman yazıldı.** F1'in sonucu görüldükten **sonra**, ancak yeni hiçbir stratejinin
+sonucu görülmeden (2026-09-29). Bu yüzden F1 için bağımsız bir sınama değildir; F1'e
+geriye dönük uygulanması yalnızca açıklayıcıdır.
+
+**Gerekçe.** F1'in eğitim kârı Ocak-Şubat'a yığılmıştı, Mart-Nisan eksiydi
+(`docs/measurements/neden.md`). Bu kapı, ayrılmış veriyi harcamadan bu yığılmayı yakalardı.
+
+**Ay tanımı (`OPEN-40`, kapandı 2026-09-29).** Ay, **UTC takvim ayıdır**. Dilim içinde
+günlerinin yarısından azı kalan ay (ör. 31 günlük ayın ≤ 15 günü) kriter 3'ün ne payına
+(A1'deki pozitif ay sayısı) ne paydasına (A1'deki ay sayısı, A2'deki karşılaştırma) sayılır.
+Bu tanım da yeni hiçbir stratejinin sonucu görülmeden sabitlendi.
 
 ### Zorunlu sayaçlar
 
