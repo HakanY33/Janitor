@@ -1,19 +1,20 @@
-"""Sunucudaki emir defteri verisini yerel `data/` altina ceker. Gunde bir.
+"""Sunucudaki emir defteri ve islem verisini yerel `data/` altina ceker. Gunde bir.
 
     python -m scripts.pull_book
     python -m scripts.pull_book --host janitor@179.61.147.81
 
-1. Sunucuda `sha256sum data/*/*/book/*.parquet` (tek SSH baglantisi).
+1. Sunucuda `sha256sum data/*/*/{book,trades}/*.parquet` (tek SSH baglantisi).
 2. Yerelde ayni SHA-256'ya sahip dosya atlanir. Biten aylar bir kez iner; icinde
    bulunulan ayin dosyasi her gun degistigi icin her gun yeniden iner.
 3. Kalanlar tek `tar` akisiyla gelir. Her dosya once gecici dosyaya yazilir, ozeti
    dogrulanir, sonra `os.replace` ile yerine konur (yarim dosya kalmaz).
 
-**Uzerine yazma korumasi.** Yerel dosyada sunucuda olmayan bir dakika varsa (ornegin
+**Uzerine yazma korumasi.** Yerel dosyada sunucuda olmayan bir satir varsa (defterde
+`ts` dakikasi, islemde `id`; ornegin
 yerel kayitci da kostu), dosya degistirilmez ve betik hata koduyla biter. Veri
 kaybetmektense durmak tercih edilir (CLAUDE.md #8).
 
-Sunucu dosyayi 30 dakikada bir yeniden yazar. Ozet ile indirme arasinda yazim olursa
+Sunucu defteri 30, islemi 5 dakikada bir yeniden yazar. Ozet ile indirme arasinda yazim olursa
 ozet tutmaz; o dosya bir tur daha denenir.
 """
 from __future__ import annotations
@@ -31,7 +32,7 @@ import pandas as pd
 
 HOST = "janitor@179.61.147.81"
 REMOTE_ROOT = "janitor"  # sunucuda ~/janitor
-PATTERN = "data/*/*/book/*.parquet"
+PATTERN = "data/*/*/book/*.parquet data/*/*/trades/*.parquet"
 TUR = 3  # ozet tutmayan dosya icin deneme sayisi
 
 try:
@@ -65,10 +66,11 @@ def install(data: bytes, dest: Path, expected: str) -> None:
     if hashlib.sha256(data).hexdigest() != expected:
         raise ValueError(f"{dest}: SHA-256 tutmadi (sunucu yazarken okunmus olabilir)")
     if dest.exists():
-        yeni = set(pd.read_parquet(io.BytesIO(data)).ts)
-        eksik = set(pd.read_parquet(dest).ts) - yeni
+        yeni = pd.read_parquet(io.BytesIO(data))
+        key = "id" if "id" in yeni.columns else "ts"  # islem: fillId · defter: dakika
+        eksik = set(pd.read_parquet(dest, columns=[key])[key]) - set(yeni[key])
         if eksik:
-            raise RuntimeError(f"{dest}: yerelde sunucuda olmayan {len(eksik)} dakika var "
+            raise RuntimeError(f"{dest}: yerelde sunucuda olmayan {len(eksik)} {key} var "
                                f"({min(eksik)} ..). Uzerine yazilmadi.")
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(".part")
@@ -82,7 +84,7 @@ def ssh(host: str, cmd: str, **kw) -> subprocess.CompletedProcess:
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="Sunucudan defter verisi cek")
+    p = argparse.ArgumentParser(description="Sunucudan defter ve islem verisi cek")
     p.add_argument("--host", default=HOST)
     p.add_argument("--root", type=Path, default=Path("."))
     a = p.parse_args()

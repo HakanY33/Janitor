@@ -2,34 +2,46 @@
 
 Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
 
-**Son güncelleme:** 2026-09-25 (akşam)
+**Son güncelleme:** 2026-09-29
 
 ---
 
 ## Şu an
 
-**Görev:** Sembol soğuk testi + kriter 2'nin yeniden tanımı · sunucuda günlük `earliest` timer.
-Ölçüm: `docs/measurements/soguk.md` · `docs/measurements/earliest.md`.
+**Görev:** F1 olumsuz sonuç olarak kaydedildi. Kaybın nedeni açıklandı (ayar için değil).
+İşlem akışı kayıtçısı sunucuda çalışıyor.
 
-**Durum:** F1 soğuk 20 sembolde ayakta. Yeni kriter 2 iki kümede de geçiyor. Orijinalde
-kıl payı geçiyor, yarılar da tutarsız.
+**Durum: F1 donduruldu.** Kriter 1 kaldı (K1–K3), sonuç kabul edildi (spec §8).
+2026-05-08 → 09-11 dilimi artık örneklem içi. **Yeni doğrulama yalnızca 2026-09-11
+sonrası veride yapılabilir.** `OPEN-38` ertelendi.
 
-| | ORİJ F1 | YENİ F1 | ORİJ K2-yeni | YENİ K2-yeni | ORİJ K2-eski | YENİ K2-eski |
-|---|---:|---:|---:|---:|---:|---:|
-| net | +2.376 | +4.187 | +157 | +1.021 | −206 | +1.443 |
-| brüt/sürtünme | 1,535 | 1,920 | 1,033 | 1,200 | 0,970 | 1,242 |
-| H1 / H2 | +1.697 / +679 | +1.157 / +3.030 | +780 / −623 | +19 / +1.001 | +389 / −595 | −58 / +1.502 |
+- **Neden** (`docs/measurements/neden.md`, yalnızca açıklayıcı): sürtünme sabit kaldı
+  (6,9 → 7,0 bps). İşlem başı brüt 10,6'dan 1,1 bps'e düştü. Kaybın yarısı isabetten,
+  yarısı kazanan işlemin küçülmesinden. İşlem sayısı oranı etkilemiyor. Eğitimin son iki
+  ayı zaten eksiydi.
+- **Isınma varsayımı:** 3 işlem, −123. Sonucu açıklamıyor.
+- **İşlem akışı:** `janitor-trades-logger` 2026-09-27'de kuruldu, 20 sembol. BingX
+  işlem geçmişi vermiyor, yalnızca son 1.000 işlem geliyor. İlk 2,5 saatte 0 boşluk,
+  ~85 MB/gün.
 
-- Kriter 2 yeniden tanımlandı: komisyon kesin · slippage ×3 · giriş P2. Koşudan **önce**
-  spec'e yazıldı (§8 Kabul kriterleri). Eşik net > 0. Bağlayıcı küme → `OPEN-39`.
-- **30m penceresi kayıyor** (günde 1 gün, 30.239 mum sabit). 1m kaymıyor. Soğuk küme bu
-  yüzden takvimle kesildi (2026-05-08 13:00), oranla değil.
+**2026-09-29:**
+- `pull_book` işlem verisini de çekiyor (`trades/`, üzerine yazma koruması `id` ile). İlk
+  tam çekim: 80 dosya, 0 hata, 45 sn.
+- Spec §8'e **kriter 3** (aylık dağılım ön kapısı) eklendi. `OPEN-40` kapandı: UTC takvim
+  ayı, dilimde günlerinin yarısından azı kalan ay sayılmaz.
+- **`docs/LIVE.md`** canlı döngü tasarımı (kod yok). Ön koşullar: `step` çıkarımı,
+  doluşun `ExecutionAdapter` arkasına alınması, deterministik `zone_id`/`ob_id`. Merkez:
+  parite testi D0–D3. Açık sorular `OPEN-41`…`OPEN-57`.
+- **VST demo `OPEN-37`'yi cevaplayamaz** (`docs/measurements/vst.md`). Ayrı defter, ayrı
+  işlem akışı, ortak `fillId` 0. DOGE'de orta fiyat 12 bps ayrışıyor. Demo anahtarının
+  gerçek hesaba erişip erişmediği doğrulanamadı. Demo doluş testi yapılmadı.
 
-**Sunucu:** `janitor-spread-logger` (sürekli) + `janitor-earliest.timer` (her gün
-03:00 UTC, 1m + 30m, 20 sembol). İkisi de `janitor` kullanıcı servisi.
+**Sunucu:** `janitor-spread-logger` · `janitor-trades-logger` (sürekli) ·
+`janitor-earliest.timer` (03:00 UTC) · `janitor-ohlcv30m.timer` (03:30 UTC). Hepsi
+`janitor` kullanıcı servisi (`docs/SERVER.md`).
 
-**İlgili dosyalar:** `scripts/soguk.py` · `scripts/earliest.py` · `scripts/pull_book.py` ·
-`data/bingx/liquidity_soguk.json` · `tests/test_soguk.py` · `docs/SERVER.md`
+**İlgili dosyalar:** `scripts/neden.py` · `tests/test_neden.py` · `scripts/trades_logger.py` ·
+`tests/test_trades_logger.py` · `docs/measurements/neden.md`
 
 ---
 
@@ -37,6 +49,15 @@ kıl payı geçiyor, yarılar da tutarsız.
 
 | Bulgu | Sonuç |
 |---|---|
+| **Backtest girişi temas mumunda kurup dolduruyor** | canlıda emir önceden defterde olmalı → `OPEN-41` |
+| Zone/OB kimliği `uuid4` | canlı ↔ backtest eşleştirilemez; deterministik kimlik ön koşul |
+| **VST ≠ gerçek piyasa** | ayrı defter/işlem akışı, DOGE orta fiyat +12 bps, spread 26 bps. Demo doluşu kuyruk ölçümü değil |
+| **F1 donduruldu** | olumsuz sonuç kabul edildi 2026-09-27. Doğrulama yalnızca 09-11 sonrası veride |
+| Brüt/sürtünme çöküşü paydan | sürtünme 6,9 → 7,0 bps sabit; brüt 10,6 → 1,1 bps. Yarısı isabet (−3 puan), yarısı kazanan küçülmesi (açıklayıcı) |
+| Isınma varsayımı önemsiz | kesim öncesi kurulan emir: 3 işlem, −123 |
+| İşlem geçmişi yok | BingX yalnızca son 1.000 işlemi veriyor; `fillId` ardışık → boşluk kesin sayılıyor |
+| **Kriter 1 KALDI** | ayrılmış dilimde net −1.287 / −851, brüt/sürtünme 0,16 / 0,35, 7/20 kazanan |
+| Risk katmanı ayrılmış dilimde tuttu | likidasyon 0, equity ≥ %50, DD ≤ 1,5× eğitim |
 | **F1 soğuk kümede ayakta** | 21–43. sıra: net +4.187, brüt/sürtünme 1,92, 15/20 |
 | **Yeni kriter 2 iki kümede geçiyor** | orijinal +157 (kıl payı) · soğuk +1.021; eski ×1.5: −206 / +1.443 |
 | Yarılar kümeler arasında zıt | orijinalde kâr H1'de, soğukta H2'de — rejim bağımlılığı |
@@ -102,21 +123,20 @@ kıl payı geçiyor, yarılar da tutarsız.
 
 ## Sıradaki
 
-1. **`OPEN-39`:** yeni kriter 2'de hangi küme bağlayıcı? İkisi de geçiyor. Karar, kriter
-   1'e (ayrılmış %20) gidilip gidilmeyeceğini belirler.
-2. Görev Zamanlayıcı'ya `pull_book`'u kaydet (`docs/SERVER.md`).
-3. `NON_CRYPTO` filtresi yalnızca `NCCO`'yu eliyor. NCSI/NCFX/NCSK de kripto dışı ama
-   bir sonraki `rank`'e sızabilir.
-4. 30m günlük artımlı toplama: pencere kaydığı için yerelde olmayan geçmiş her gün
-   bir gün kısalıyor.
-5. `OPEN-38` kapsam kararı (gerçek doluş ölçümü).
+1. **Karar kullanıcının:** F1 donduruldu. Sonraki strateji değişikliği yalnızca
+   2026-09-11 sonrası veride doğrulanabilir. Bu veri birikiyor.
+2. İşlem akışını birkaç gün izle: `trades_gap` sayısı ve disk kullanımı. Boşluk
+   çıkarsa `--cycle` kısaltılır ya da yoklama paralelleştirilir.
+3. `docs/LIVE.md` §9 açık soruları, özellikle `OPEN-41` (giriş emri zamanı) ve `OPEN-49`
+   (kill eylemleri). Kod bunlardan ve CLAUDE.md adım 5–6'dan sonra.
+4. Görev Zamanlayıcı'ya `pull_book`'u kaydet.
 
-**Uyarı:** Yeni kriter 2 geçildi ama `OPEN-39` açık. Ayrılmış %20'ye kullanıcı kararı olmadan gidilmez.
+**Uyarı:** Ayrılmış %20 harcandı (2026-09-25). 2026-05-08 → 09-11 örneklem içidir.
 
 ## Açık maddeler
 
 `OPEN-27` ekleme çarpanı hedefi (şu an `0.79`) · `OPEN-28` KRİTİK'te yarılama ·
-`R-ZONE-08` aday sıralaması (adaylar ölçüldü, dayanıklı çıkan yok) · `ADD-REJECT-A` · `OPEN-31` `R-ENTRY-02` (3) kaldırılsın mı · `OPEN-32` doluş varsayımı spec'te tanımsız · `OPEN-34` boyutu risk tavanından türetme · `OPEN-36` maker doluş oranı · `OPEN-37` post-only giriş · `OPEN-38` gerçek doluş ölçümü · `OPEN-39` kriter 2 bağlayıcı küme
+`R-ZONE-08` aday sıralaması (adaylar ölçüldü, dayanıklı çıkan yok) · `ADD-REJECT-A` · `OPEN-31` `R-ENTRY-02` (3) kaldırılsın mı · `OPEN-32` doluş varsayımı spec'te tanımsız · `OPEN-34` boyutu risk tavanından türetme · `OPEN-36` maker doluş oranı · `OPEN-37` post-only giriş · `OPEN-38` gerçek doluş ölçümü (ertelendi) · `OPEN-39` kriter 2 bağlayıcı küme · `OPEN-41`…`OPEN-57` canlı döngü (`docs/LIVE.md` §9)
 
 ---
 
@@ -129,7 +149,7 @@ kıl payı geçiyor, yarılar da tutarsız.
 | `src/zones/` | `model.py` FSM · `store.py` SQLite · `detect.py` leg → zone |
 | `src/strategy/` | `entry.py` `R-ENTRY-05` filtreleri |
 | `src/backtest/` | `loader.py` sembol hazırlığı + önbellek · `engine.py` olay döngüsü · `portfolio.py` cross equity · `costs.py` kalem defteri |
-| `scripts/` | `diagnose.py` · `sweep.py` · `entry_variants.py` · `terminate.py` · `reconcile.py` · `branches.py` · `levers.py` A/B/C/D · `tp_placement.py` D1-D4 TP yerleşimi · `add_reject_e.py` stop kaybı tavanı · `spread_logger.py` canlı emir defteri · `robustness.py` breakeven ücreti + komisyon dağılımı + `R-ZONE-08` iç validasyon · `f_kollari.py` F1/F2 · `slippage_stres.py` OPEN-32 (d) · `maker_stres.py` OPEN-36 · `post_only.py` OPEN-37 · `bg.py` |
+| `scripts/` | `diagnose.py` · `sweep.py` · `entry_variants.py` · `terminate.py` · `reconcile.py` · `branches.py` · `levers.py` A/B/C/D · `tp_placement.py` D1-D4 TP yerleşimi · `add_reject_e.py` stop kaybı tavanı · `spread_logger.py` canlı emir defteri · `robustness.py` breakeven ücreti + komisyon dağılımı + `R-ZONE-08` iç validasyon · `f_kollari.py` F1/F2 · `slippage_stres.py` OPEN-32 (d) · `maker_stres.py` OPEN-36 · `post_only.py` OPEN-37 · `ayrilmis.py` kriter 1 · `neden.py` eğitim/ayrılmış açıklayıcı · `trades_logger.py` işlem akışı · `bg.py` |
 | `docs/measurements/` | Ölçüm tarihçeleri — spec'te yalnızca tek satırlık referans var |
 
 Spec kuralı gerekiyorsa baştan okuma: `grep -n "R-ADD-04" docs/STRATEGY_SPEC.md`

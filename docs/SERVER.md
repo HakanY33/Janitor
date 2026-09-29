@@ -139,6 +139,41 @@ Kontrol için `systemctl --user list-timers` ve `journalctl --user -u janitor-ea
 Kayıtları okumak için:
 `ssh janitor@179.61.147.81 'cat ~/janitor/logs/earliest/*.jsonl'`
 
+### 5 · 30m artımlı toplama (`janitor`)
+
+Borsanın 30m penceresi günde bir gün kayıyor (`docs/measurements/earliest.md`). Sunucu
+arşivi her gün ilerleyerek büyür. `janitor-ohlcv30m.service` 40 sembolde (orijinal 20 +
+soğuk 20) `python -m scripts.backfill --timeframe 30m` çalıştırır. Betik artımlıdır:
+tamamlanmış ayları atlar, yarım ayı son mumdan sürdürür. Veri
+`~/janitor/data/bingx/{sembol}/30m/` altında. Zamanlayıcı `janitor-ohlcv30m.timer` her gün
+03:30 UTC'de çalışır (`Persistent=true`). İlk koşu 2026-09-25'te yapıldı: 40/40 sembol,
+0 hata. Birim dosyaları 4. adımdakiyle aynı yapıda.
+
+### 6 · İşlem akışı kayıtçısı (`janitor`)
+
+`scripts/trades_logger.py`: BingX herkese açık işlem akışından her işlem (id, zaman,
+fiyat, miktar, agresör tarafı). 20 sembol (spread_logger ile aynı liste), 5 sn'de bir
+REST yoklaması, 5 dakikada bir yazım. 2026-09-27'de kuruldu.
+
+| Ne | Nerede |
+|---|---|
+| Veri | `~/janitor/data/bingx/{sembol}/trades/{yyyy-mm-dd}.parquet` |
+| Servis | `~/.config/systemd/user/janitor-trades-logger.service` |
+| Kaçırılan işlem | `~/janitor/logs/collect/{tarih}.jsonl`, `"job": "trades_gap"` |
+
+Birim dosyası `janitor-spread-logger.service` ile aynı yapıda (`KillSignal=SIGINT`,
+`Restart=always`). Yalnızca `ExecStart` farklı:
+`python -m scripts.trades_logger --symbols <spread_logger ile aynı 20 sembol>`.
+Kurulumda yalnızca `scripts/trades_logger.py` kopyalandı (`scp`).
+
+- **Geçmiş yok.** Uç yalnızca son 1.000 işlemi verir; `fromId` / `startTime` /
+  `endTime` yok sayılır. Veri yalnızca servisin çalıştığı süre boyunca birikir.
+- **Boşluk görünürdür.** `fillId` sembol başına ardışık. Kimlik atlarsa kaç işlemin
+  kaçırıldığı yazılır. Yeniden başlatmada diskteki son kimlikten devam edilir, aradaki
+  boşluk da sayılır.
+- **Delta:** `python -m scripts.trades_logger --delta BTC/USDT:USDT 2026-09-27` →
+  dakika bazlı `buy`, `sell`, `delta`, `n`, `cum_delta` (`minute_delta`).
+
 ## Doğrulama
 
 ```bash
@@ -154,10 +189,11 @@ satırı görünmeli.
 python -m scripts.pull_book
 ```
 
+- Defter (`book/`) ve işlem (`trades/`) dosyalarını çeker.
 - Sunucudaki SHA-256 listesiyle karşılaştırır. Aynı dosyalar atlanır, yalnızca
   değişenler iner (bulunulan ayın dosyası her gün değişir).
 - Her dosyayı indirdikten sonra özetini doğrular ve atomik olarak yerine koyar.
-- Yerel dosyada sunucuda olmayan bir dakika varsa dosyanın **üzerine yazmaz** ve hata
+- Yerel dosyada sunucuda olmayan bir dakika (defter) ya da `id` (işlem) varsa dosyanın **üzerine yazmaz** ve hata
   koduyla biter.
 
 Günlük çalıştırma için Windows Görev Zamanlayıcı (PowerShell, bir kez):
