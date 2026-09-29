@@ -1,3 +1,5 @@
+> **UYARI:** Bu ölçüm 30m look-ahead hatası taşır (commit 3fb2ff4 ve öncesi). Mutlak değerler geçersiz. Düzeltilmiş yeniden ölçüm: `docs/measurements/damga.md`.
+
 # F1 / F2 kolları — ekleme kapalı ve asgari leg eşiği
 
 **Tarih:** 2026-09-24 · **spec** v0.4 · **kod** b5c68a0+kirli · betik `scripts/f_kollari.py`

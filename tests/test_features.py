@@ -235,7 +235,8 @@ def pierced(tail: Rows):
 
 def test_R_ADD_06_buyuk_govdeli_mumla_tam_gecis_delinmedir():
     when, ts = pierced([(105, 105, 99, 99.5), (99.5, 99.6, 98, 98.5), (98.5, 99, 98, 98.2)])
-    assert when == ts.iloc[len(PIERCE_HEAD)]
+    # Bilgi anı: geçiş mumu + 2 teyit mumu, sonuncusunun kapanışı (CLAUDE.md #3)
+    assert when == ts.iloc[len(PIERCE_HEAD) + 2] + pd.Timedelta("30m")
 
 
 def test_R_ADD_06_kucuk_govdeli_gecis_delinme_degil():
@@ -257,7 +258,7 @@ def test_R_ADD_06_altina_inip_hemen_donme_delinme_degil():
 def test_R_ADD_06_mum_kapanisi_beklenmez():
     """Kapanış OB'nin içinde kalsa da fitil tamamen geçtiyse ve dönüş yoksa delinmedir."""
     when, ts = pierced([(105, 105, 99, 99.8), (99.8, 99.9, 99, 99.2), (99.2, 99.5, 98, 98.5)])
-    assert when == ts.iloc[len(PIERCE_HEAD)]
+    assert when == ts.iloc[len(PIERCE_HEAD) + 2] + pd.Timedelta("30m")
 
 
 def test_R_ADD_06_ob_olusmadan_onceki_mumlar_delinme_saymaz():

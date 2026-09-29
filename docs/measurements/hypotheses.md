@@ -1,3 +1,5 @@
+> **UYARI:** Bu ölçüm 30m look-ahead hatası taşır (commit 3fb2ff4 ve öncesi). Mutlak değerler geçersiz. Düzeltilmiş yeniden ölçüm: `docs/measurements/damga.md`.
+
 # Ölçüm · Hipotez testleri
 
 Kural metni: `docs/STRATEGY_SPEC.md` — `R-ADD-05`, `R-ZONE-02`, `R-ZONE-07`.

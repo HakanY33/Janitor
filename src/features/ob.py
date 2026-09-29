@@ -24,19 +24,20 @@ ayıran ölçüt aranıyor, ölçüm `scripts/measure_ob.py`.
 
 Tespit yalnızca **5m ve üstünde** çalışır (`R-ZONE-09`, `require_detect_tf`).
 
-Look-ahead (CLAUDE.md #3): OB, impuls mumu kapanmadan **bilinemez**. Bu yüzden gövdenin
-kendi zamanı (`created_at`) ile OB'nin bilinir olduğu an (`impulse_at`) ayrı alanlardır;
-delinme ve güç değerlendirmesi `impulse_at`'ten önceki mumlara bakmaz.
+Look-ahead (CLAUDE.md #3): OB, impuls mumu **kapanmadan** bilinemez. `created_at` ve
+`impulse_at` mumların **açılış** zamanıdır (kimlik); bilgi anı `known_at = impulse_at + TF`.
+`mitigated_at` ve `pierce_time` olayın bilindiği mumun **kapanışıdır**. Tüketiciler
+yalnızca bunları okur; delinme ve güç değerlendirmesi impuls mumundan önceki mumlara bakmaz.
 """
 from __future__ import annotations
 
-import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 import pandas as pd
 
 from src.features.candles import BODY_LOOKBACK, reference_body
+from src.features.ids import stable_id
 from src.features.fvg import BEARISH, BULLISH, FVG, require_detect_tf
 
 IMPULSE_MULT = 4.0  # spec §0.1 · gövde/medyan oranının p95'i (OPEN-21 kapandı)
@@ -60,9 +61,14 @@ class OrderBlock:
     direction: str  # BULLISH = impuls yukarı (talep) · BEARISH = impuls aşağı (arz)
     top: float
     bottom: float
-    created_at: datetime  # OB mumunun zamanı
-    impulse_at: datetime  # impuls mumunun zamanı — OB ancak burada bilinir
-    mitigated_at: datetime | None = None  # fiyatın gövdeye ilk dönüşü (R-ENTRY-05)
+    created_at: datetime  # OB mumunun açılışı — kimlik
+    impulse_at: datetime  # impuls mumunun açılışı — kimlik, bilgi anı değil
+    mitigated_at: datetime | None = None  # gövdeye ilk dönülen mumun kapanışı (R-ENTRY-05)
+    known_at: datetime | None = field(default=None)  # impuls mumunun kapanışı; boşsa türetilir
+
+    def __post_init__(self) -> None:
+        if self.known_at is None:
+            self.known_at = self.impulse_at + pd.Timedelta(self.timeframe)
 
 
 def detect_order_blocks(
@@ -92,7 +98,7 @@ def detect_order_blocks(
                 if not (out and out[-1].created_at == prev.ts):
                     out.append(
                         OrderBlock(
-                            ob_id=uuid.uuid4().hex,
+                            ob_id=stable_id("ob", symbol, timeframe, prev.ts, r.ts),
                             symbol=symbol,
                             timeframe=timeframe,
                             direction=BULLISH if up else BEARISH,
@@ -127,8 +133,10 @@ def pierce_time(
        `high >= top`): geçiş mumunun kapanışı OB'nin içinde kalabilir ve o mumun
        kapanışı zaten beklenmiyor — dokunma ölçütü bu iki kuralı çelişkiye sokardı
 
-    Veri geçişten hemen sonra bitiyorsa delinme sayılır: kapanış beklenmez kuralının
-    sonucu ve kötümser taraf (`ADD-REJECT-C` tetiklenir, ekleme yapılmaz).
+    Dönen an, son teyit mumunun **kapanışıdır**: "geri alma" o mumlar kapanmadan bilinmez
+    (CLAUDE.md #3). Teyit mumları henüz yoksa delinme **henüz bilinmiyor**dur (`None`).
+    2026-09-29'a kadar veri geçişten hemen sonra bitince delinme sayılıyordu; bu, önekte
+    tam seriden farklı sonuç veriyordu (canlı ↔ backtest paritesi, D1).
 
     ponytail: hacim ölçütü yalnızca gövde büyüklüğü. R-ADD-06'nın "bölgesel hacim =
     zigzag yoğunluğu" göstergesi leg tespiti (`OPEN-01`) geldiğinde eklenir.
@@ -157,6 +165,8 @@ def pierce_time(
             entered = None  # sürünerek geçildi; fiyat dönerse yeniden ölçülür
             continue
         after = rows[i + 1:i + 1 + confirm_bars]
+        if len(after) < confirm_bars:
+            return None  # teyit mumları kapanmadı: delinme henüz bilinmiyor
         returned = any(
             (a.high >= ob.top) if ob.direction == BULLISH else (a.low <= ob.bottom)
             for a in after
@@ -164,7 +174,7 @@ def pierce_time(
         if returned:
             entered = None
             continue
-        return r.ts
+        return rows[i + confirm_bars].ts + pd.Timedelta(ob.timeframe)  # son teyit mumunun kapanışı
     return None
 
 
@@ -183,23 +193,23 @@ def mitigation_time(ob: OrderBlock, df: pd.DataFrame) -> datetime | None:
         if r.ts <= ob.impulse_at:
             continue
         if r.low <= ob.top and r.high >= ob.bottom:
-            return r.ts
+            return r.ts + pd.Timedelta(ob.timeframe)  # mumun kapanışı
     return None
 
 
 def replay_obs(obs: list[OrderBlock], df: pd.DataFrame) -> None:
     """Her OB'nin `mitigated_at`'ini doldurur — `fvg.replay` ile aynı kalıp.
 
-    Zaman damgası mumun **açılış** zamanıdır. Tespit TF'si (30m) karar TF'sinden (1m)
-    kaba olduğu için bu, mitigasyonu mum içinde olduğundan erken işaretler ve OB'yi
-    aday listesinden erken düşürür — kötümser taraf (R-ENTRY-05).
+    Zaman damgası mumun **kapanışıdır**: mitigasyon ancak o mum kapanınca bilinir
+    (CLAUDE.md #3). Eski açılış damgası mitigasyonu erken görüyordu.
     """
     rows = list(df.itertuples())
     for ob in obs:
+        td = pd.Timedelta(ob.timeframe)
         for i in range(int(df.ts.searchsorted(ob.impulse_at, side="right")), len(rows)):
             r = rows[i]
             if r.low <= ob.top and r.high >= ob.bottom:
-                ob.mitigated_at = r.ts
+                ob.mitigated_at = r.ts + td
                 break
 
 
@@ -231,11 +241,11 @@ def evaluate_strength(
     Pencereyi çağıran seçer: `fvgs` ve `obs` listelerinin kapsamı (hangi TF, ne kadar
     geçmiş) bu fonksiyonun kararı değildir.
     """
-    at = at or ob.impulse_at
-    gecmis_fvg = [f for f in fvgs if f.created_at <= at]
+    at = at or ob.known_at
+    gecmis_fvg = [f for f in fvgs if f.known_at <= at]
     gecmis_ob = sorted(
-        (o for o in obs if o.impulse_at <= at and o.ob_id != ob.ob_id),
-        key=lambda o: o.impulse_at,
+        (o for o in obs if o.known_at <= at and o.ob_id != ob.ob_id),
+        key=lambda o: o.known_at,
     )
     return AddStrength(
         fvg_inside_unfilled=any(

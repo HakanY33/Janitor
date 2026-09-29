@@ -17,8 +17,8 @@ ortalama brut). Tutarlar donemin ortalama notional'ina bolunur (bps), boylece
 equity'nin buyumesiyle gelen boyut farki karsilastirmaya girmez. Slippage islem basina
 tutulmaz; toplam slippage islemlere notional'la orantili dagitilir (toplamlar tutar).
 
-**Bekleyen emir.** Ayrilmis kosuda `_arm_entry` kesimden once cagrilan zone'lar
-"eski emir" olarak isaretlenir: karar kesim oncesi verilmis, dolum kesimden sonra.
+**Bekleyen emir.** Ayrilmis kosuda kesimden once `PRIMED` olan (emri kesimden once
+konan, `OPEN-41`) ve kesimden sonra dolan zone'lar "eski emir" olarak isaretlenir.
 """
 from __future__ import annotations
 
@@ -64,12 +64,10 @@ class Izli(Ayrilmis):
         super().__init__(*a, **kw)
         self.eski: set[str] = set()
 
-    def _arm_entry(self, z, sd, ts):
-        super()._arm_entry(z, sd, ts)
-        if ts < self.kesim and z.zone_id in self.pending:
+    def _try_fill(self, z, sd, ts, *a, **kw):
+        super()._try_fill(z, sd, ts, *a, **kw)
+        if z.zone_id in self._girilen and z.primed_at is not None and z.primed_at < self.kesim:
             self.eski.add(z.zone_id)
-        else:
-            self.eski.discard(z.zone_id)  # zone kesimden sonra yeniden kuruldu
 
 
 def islem_df(trades, slip_total: Decimal) -> pd.DataFrame:

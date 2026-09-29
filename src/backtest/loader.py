@@ -61,7 +61,7 @@ class SymbolData:
     ob_top: np.ndarray = field(default_factory=lambda: np.array([]))
     ob_bottom: np.ndarray = field(default_factory=lambda: np.array([]))
     ob_bull: np.ndarray = field(default_factory=lambda: np.array([], dtype=bool))
-    ob_impulse: np.ndarray = field(default_factory=lambda: np.array([], dtype="datetime64[ns]"))
+    ob_known: np.ndarray = field(default_factory=lambda: np.array([], dtype="datetime64[ns]"))  # OB.known_at
     ob_pierce: np.ndarray = field(default_factory=lambda: np.array([], dtype="datetime64[ns]"))
     ob_alive: np.ndarray = field(default_factory=lambda: np.array([], dtype=bool))
     # R-ZONE-10 · 4h yapisal yon. `bias_known` yonun **kullanilabilir** oldugu an
@@ -98,18 +98,23 @@ def _build_symbol(
     if len(d1) < 1_000:
         return None
 
-    obs = detect_order_blocks(tr, symbol, DETECT_TF)
-    replay_obs(obs, tr)
-    fvgs = detect_fvgs(tr, symbol, DETECT_TF)
-    replay(fvgs, tr)
-    zones = [z for z in detect_zones(tr, symbol, DETECT_TF)
+    return build_from_frames(symbol, tr, d1)
+
+
+def build_from_frames(symbol: str, d30, d1) -> SymbolData:
+    """Kapanmış 30m ve 1m mumlarından `SymbolData`. Saf: dosya okumaz.
+
+    Backtest bunu tüm dilimle bir kez, canlı döngü (`src/live/replay.py`) her 30m
+    kapanışında o ana kadarki önekle çağırır — tespit kodu tektir (`docs/LIVE.md` A2).
+    """
+    obs = detect_order_blocks(d30, symbol, DETECT_TF)
+    replay_obs(obs, d30)
+    fvgs = detect_fvgs(d30, symbol, DETECT_TF)
+    replay(fvgs, d30)
+    zones = [z for z in detect_zones(d30, symbol, DETECT_TF)
              if d1.ts.iloc[0] <= z.watch_from <= d1.ts.iloc[-1]]
     zones.sort(key=lambda z: z.watch_from)
-
-    pierce_at = {o.ob_id: pierce_time(o, tr) for o in obs}  # R-ADD-06 / ADD-REJECT-C
-    bias = htf_bias(tr, symbol)  # R-ZONE-07/10 · 4h yon, `known_at` damgali
-    uzak = np.datetime64("2262-01-01")  # delinmemiş OB: karşılaştırmada hep gelecekte
-    return SymbolData(
+    sd = SymbolData(
         symbol=symbol,
         # İç zaman ekseni tz-naive UTC `datetime64`: tz-aware seri `to_numpy()`'da
         # object dizisine düşüyor ve karşılaştırmalar Timestamp'e geri dönüyordu.
@@ -121,20 +126,41 @@ def _build_symbol(
         zones=zones,
         obs=obs,
         fvgs=fvgs,
-        pierce_at=pierce_at,
-        ob_top=np.array([o.top for o in obs], dtype=float),
-        ob_bottom=np.array([o.bottom for o in obs], dtype=float),
-        ob_bull=np.array([o.direction == "BULLISH" for o in obs], dtype=bool),
-        ob_impulse=np.array([np.datetime64(o.impulse_at.tz_localize(None)) for o in obs]),
-        ob_pierce=np.array([
-            uzak if pierce_at[o.ob_id] is None
-            else np.datetime64(pierce_at[o.ob_id].tz_localize(None)) for o in obs
-        ]),
-        ob_alive=np.ones(len(obs), dtype=bool),  # ekleme için kullanılınca düşer
-        bias_known=bias.known_at.dt.tz_convert("UTC").dt.tz_localize(None).to_numpy(),
-        bias_val=bias.bias.to_numpy(dtype=object),
+        pierce_at={},
         volume=d1.volume.to_numpy(dtype=float),
     )
+    set_ob_arrays(sd, d30)
+    set_bias(sd, d30)
+    return sd
+
+
+def set_ob_arrays(sd: SymbolData, d30) -> None:
+    """Ekleme aramasının vektörel dizinleri + `R-ADD-06` delinme anı. `ob_alive` korunur:
+    yeni OB'ler canlı eklenir, tüketilmiş olan tüketilmiş kalır."""
+    obs = sd.obs
+    # R-ADD-06 / ADD-REJECT-C. Bilinen delinme bir daha değişmez (önek değişmez, D0):
+    # canlıda her kapanışta yalnızca henüz delinmemiş OB'ler yeniden hesaplanır.
+    eski = sd.pierce_at
+    sd.pierce_at = {o.ob_id: eski.get(o.ob_id) or pierce_time(o, d30) for o in obs}
+    uzak = np.datetime64("2262-01-01")  # delinmemiş OB: karşılaştırmada hep gelecekte
+    sd.ob_top = np.array([o.top for o in obs], dtype=float)
+    sd.ob_bottom = np.array([o.bottom for o in obs], dtype=float)
+    sd.ob_bull = np.array([o.direction == "BULLISH" for o in obs], dtype=bool)
+    sd.ob_known = np.array([np.datetime64(o.known_at.tz_localize(None)) for o in obs],
+                           dtype="datetime64[ns]")
+    sd.ob_pierce = np.array([
+        uzak if sd.pierce_at[o.ob_id] is None
+        else np.datetime64(sd.pierce_at[o.ob_id].tz_localize(None)) for o in obs
+    ], dtype="datetime64[ns]")
+    eski = sd.ob_alive[: len(obs)]
+    sd.ob_alive = np.concatenate([eski, np.ones(len(obs) - len(eski), dtype=bool)])
+
+
+def set_bias(sd: SymbolData, d30) -> None:
+    """R-ZONE-07/10 · 4h yön, `known_at` damgalı."""
+    bias = htf_bias(d30, sd.symbol)
+    sd.bias_known = bias.known_at.dt.tz_convert("UTC").dt.tz_localize(None).to_numpy()
+    sd.bias_val = bias.bias.to_numpy(dtype=object)
 
 
 class RelativeImportError(RuntimeError):

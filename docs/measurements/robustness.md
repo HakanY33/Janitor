@@ -1,3 +1,5 @@
+> **UYARI:** Bu ölçüm 30m look-ahead hatası taşır (commit 3fb2ff4 ve öncesi). Mutlak değerler geçersiz. Düzeltilmiş yeniden ölçüm: `docs/measurements/damga.md`.
+
 # Breakeven komisyonu · komisyonun sonuç dağılımı · `R-ZONE-08` iç validasyon
 
 **Koşu:** `python -m scripts.bg scripts.robustness` · 2026-09-24

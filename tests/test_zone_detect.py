@@ -136,15 +136,15 @@ def test_R_ZONE_09_watch_from_respects_pivot_confirmation():
     z = zones_from_swings(swings, SYM, TF)[0]
     bar = pd.Timedelta(TF)
     assert z.pivot_confirmed_at == z.anchor_1_time + 2 * bar
-    assert z.watch_from == z.anchor_1_time + 2 * bar  # teyit, HTF kapanışından sonra
-    assert z.watch_from > z.anchor_1_time + bar
+    # teyit mumunun kapanışı: pivot ancak o mum kapanınca bilinir (CLAUDE.md #3)
+    assert z.watch_from == z.known_at == z.anchor_1_time + 3 * bar
 
 
 def test_R_ZONE_09_watch_from_never_precedes_anchor_1_bar_close():
     df = bars(warmup() + ramp(100, 130, 6) + ramp(130, 112, 5) + ramp(112, 150, 7))
     for z in detect_zones(df, SYM, TF):
         assert z.watch_from >= z.anchor_1_time + pd.Timedelta(TF)
-        assert z.watch_from >= z.pivot_confirmed_at
+        assert z.watch_from >= z.pivot_confirmed_at + pd.Timedelta(TF)
 
 
 def test_R_ZONE_09_detect_zones_rejects_1m():

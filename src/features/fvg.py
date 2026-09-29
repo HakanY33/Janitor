@@ -16,20 +16,22 @@ boşluk. Gövde değil fitil; orta mumun yönü şart koşulmaz.
 ```
 
 Zone gibi kalıcıdır (`FvgStore`): boşluk bir kez oluşur, mitigasyon zamanla işlenir.
-`created_at` **3. mumun** zamanıdır — boşluk ancak o mum kapanınca bilinir
-(CLAUDE.md #3). Fiyatlar float64: ham piyasa verisi, para hesabı değil (CLAUDE.md #4).
+**Zaman damgaları (CLAUDE.md #3).** `created_at` **3. mumun açılış** zamanıdır, yani
+mumun kimliği. Boşluk ancak o mum kapanınca bilinir: `known_at = created_at + TF`.
+`mitigated_at` ve `filled_at` olayın gerçekleştiği mumun **kapanışıdır** — bir mumdan çıkan
+bilgi o mum kapanmadan kullanılamaz. Tüketiciler yalnızca `known_at` ve bu iki alanı okur. Fiyatlar float64: ham piyasa verisi, para hesabı değil (CLAUDE.md #4).
 """
 from __future__ import annotations
 
 import sqlite3
-import uuid
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 
 from src.features.candles import reference_body
+from src.features.ids import stable_id
 
 BULLISH = "BULLISH"  # yukarı boşluk — fiyat üstünde, aşağıdan doldurulur
 BEARISH = "BEARISH"  # aşağı boşluk — fiyat altında, yukarıdan doldurulur
@@ -61,10 +63,15 @@ class FVG:
     direction: str
     top: float
     bottom: float
-    created_at: datetime
-    mitigated_at: datetime | None = None  # fiyat boşluğa ilk girdiği an
-    filled_at: datetime | None = None  # karşı sınır geçildi, boşluk kapandı
+    created_at: datetime  # 3. mumun açılışı — kimlik, bilgi anı değil
+    mitigated_at: datetime | None = None  # fiyatın boşluğa ilk girdiği mumun kapanışı
+    filled_at: datetime | None = None  # karşı sınırın geçildiği mumun kapanışı
     width_ratio: float | None = None  # R-ENTRY-05 · genişlik / medyan gövde (20 mum)
+    known_at: datetime | None = field(default=None)  # 3. mumun kapanışı; boşsa türetilir
+
+    def __post_init__(self) -> None:
+        if self.known_at is None:
+            self.known_at = self.created_at + pd.Timedelta(self.timeframe)
 
     def overlaps(self, top: float, bottom: float) -> bool:
         """Verilen fiyat aralığıyla kesişiyor mu (R-ADD-05: OB içinde FVG)."""
@@ -72,6 +79,8 @@ class FVG:
 
     def on_bar(self, high: float, low: float, ts: datetime) -> None:
         """Mitigasyon durumunu ilerletir. Dolmuş boşluk bir daha değişmez.
+
+        `ts` mumun **kapanışıdır**: olay o anda bilinir (CLAUDE.md #3).
 
         Mum içi sıra bilinmez: aynı mumda hem giriş hem tam dolum olabilir, ikisi de
         o muma işlenir (zone durum makinesindeki kötümser yaklaşımın karşılığı değil —
@@ -112,7 +121,7 @@ def detect_fvgs(df: pd.DataFrame, symbol: str, timeframe: str) -> list[FVG]:
             continue
         out.append(
             FVG(
-                fvg_id=uuid.uuid4().hex,
+                fvg_id=stable_id("fvg", symbol, timeframe, r.ts),
                 symbol=symbol,
                 timeframe=timeframe,
                 direction=direction,
@@ -143,9 +152,10 @@ def replay(fvgs: list[FVG], df: pd.DataFrame) -> None:
     """
     rows = list(df.itertuples())
     for f in fvgs:
+        td = pd.Timedelta(f.timeframe)
         for i in range(int(df.ts.searchsorted(f.created_at, side="right")), len(rows)):
             r = rows[i]
-            f.on_bar(r.high, r.low, r.ts)
+            f.on_bar(r.high, r.low, r.ts + td)  # olay mumun kapanışında bilinir
             if f.filled_at is not None:
                 break
 
@@ -153,7 +163,7 @@ def replay(fvgs: list[FVG], df: pd.DataFrame) -> None:
 # --- kalıcılık ---------------------------------------------------------------
 
 FIELDS = [f.name for f in fields(FVG)]
-TIME_FIELDS = {"created_at", "mitigated_at", "filled_at"}
+TIME_FIELDS = {"created_at", "mitigated_at", "filled_at", "known_at"}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS fvgs (
@@ -166,7 +176,8 @@ CREATE TABLE IF NOT EXISTS fvgs (
     created_at   TEXT NOT NULL,
     mitigated_at TEXT,
     filled_at    TEXT,
-    width_ratio  REAL
+    width_ratio  REAL,
+    known_at     TEXT
 );
 CREATE INDEX IF NOT EXISTS fvgs_open ON fvgs (symbol, timeframe, filled_at);
 """

@@ -1,3 +1,5 @@
+> **UYARI:** Bu ölçüm 30m look-ahead hatası taşır (commit 3fb2ff4 ve öncesi). Mutlak değerler geçersiz. Düzeltilmiş yeniden ölçüm: `docs/measurements/damga.md`.
+
 # Kriter 1 — ayrılmış dilim (tek sefer)
 
 **Tarih:** 2026-09-25 · **HEAD** `6ede38843b8613c1d21f4c8244b2167a11bc58e0` + işlenmemiş

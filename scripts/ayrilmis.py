@@ -61,10 +61,10 @@ class Ayrilmis(Backtest):
         super().__init__(*a, **kw)
         self.kesim = kesim
 
-    def _try_fill(self, z, sd, ts, high, low, t64):
+    def _try_fill(self, z, sd, ts, *a, **kw):
         if ts < self.kesim:
             return
-        super()._try_fill(z, sd, ts, high, low, t64)
+        super()._try_fill(z, sd, ts, *a, **kw)
 
 
 def say(line: str = "") -> None:

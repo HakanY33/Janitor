@@ -52,7 +52,7 @@ def ob_eligible(ob: OrderBlock, zone: Zone, at: datetime) -> bool:
 
     Dört koşul: bilinebilir olmuş · yöne uygun · giriş bandını kesiyor · unmitige.
     """
-    if ob.impulse_at > at:  # OB henüz bilinmiyor (CLAUDE.md #3)
+    if ob.known_at > at:  # OB henüz bilinmiyor (CLAUDE.md #3)
         return False
     if ob.direction != BIAS_TO_DIRECTION[zone.bias]:  # R-ENTRY-02 (1) · yöne uygun
         return False
@@ -68,7 +68,7 @@ def fvg_eligible(fvg: FVG, zone: Zone, at: datetime, min_ratio: float = MIN_FVG_
     Dört koşul: bilinebilir olmuş · giriş bandını kesiyor · dolmamış · yeterince geniş.
     Yön eşleşmesi aranmaz (bkz. modül docstring).
     """
-    if fvg.created_at > at:
+    if fvg.known_at > at:  # boşluk henüz bilinmiyor (CLAUDE.md #3)
         return False
     if not _overlaps(fvg.top, fvg.bottom, *band(zone)):
         return False

@@ -26,12 +26,25 @@ ve `ValueError` yükseltir.
 """
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass
+from functools import lru_cache
 from datetime import datetime
 from enum import Enum
 
 import pandas as pd  # yalnızca timeframe -> Timedelta ayrıştırması ("30m", "4h")
+
+from src.features.ids import stable_id
+
+STATE_BAR = pd.Timedelta("1m")
+
+
+@lru_cache(maxsize=None)
+def _td(timeframe: str) -> pd.Timedelta:
+    """TF metni → süre. `on_bar` her 1m mumda `known_at` okur; ayrıştırma pahalı."""
+    return pd.Timedelta(timeframe)
+
+"""R-ZONE-09 · durum geçişlerini süren mum. `on_bar`'a mumun **açılışı** verilir; geçiş
+mumun **kapanışında** damgalanır — mumdan çıkan bilgi o mum kapanmadan bilinmez (CLAUDE.md #3)."""
 
 HYSTERESIS = 0.25
 """R-ZONE-01 · banttan "belirgin çıkış" eşiği, bant genişliğinin oranı olarak.
@@ -152,7 +165,8 @@ class Zone:
         span = anchor_1_price - anchor_0_price
         created_at = max(anchor_0_time, anchor_1_time)
         return cls(
-            zone_id=zone_id or uuid.uuid4().hex,
+            zone_id=zone_id or stable_id("zone", symbol, timeframe, anchor_0_time, anchor_0_price,
+                                          anchor_1_time, anchor_1_price),
             symbol=symbol,
             timeframe=timeframe,
             bias="SHORT" if span > 0 else "LONG",  # 0 altta → SHORT (§0)
@@ -172,17 +186,23 @@ class Zone:
 
     @property
     def watch_from(self) -> datetime:
-        """R-ZONE-09 · `max(anchor_1 HTF mumunun kapanışı, pivot teyit zamanı)`.
+        """R-ZONE-09 · izleme başlangıcı = zone'un bilgi anı (`known_at`)."""
+        return self.known_at
+
+    @property
+    def known_at(self) -> datetime:
+        """`max(anchor_1 HTF mumunun kapanışı, pivot teyit mumunun kapanışı)`.
 
         Çapa, kendi HTF mumunun *içinde* oluşur; o mumun 1m'lerini beslemek çapaya
-        dokunur ve zone'u doğduğu anda öldürür. Pivot teyidi (`R-ZONE-02`, `IMPL-01`)
-        henüz yok, dışarıdan verilir; verilmezse ilk terim taban olarak iş görür.
-        Leg tespiti otomatikleştiğinde ikinci terim asıl kısıt olur.
+        dokunur ve zone'u doğduğu anda öldürür. `pivot_confirmed_at` teyit mumunun
+        **açılışıdır** (kimlik); pivot o mum kapanınca bilinir, bu yüzden `+ TF`
+        (CLAUDE.md #3). Verilmezse ilk terim taban olarak iş görür.
         """
-        htf_close = self.anchor_1_time + pd.Timedelta(self.timeframe)
+        tf = _td(self.timeframe)
+        htf_close = self.anchor_1_time + tf
         if self.pivot_confirmed_at is None:
             return htf_close
-        return max(htf_close, self.pivot_confirmed_at)
+        return max(htf_close, self.pivot_confirmed_at + tf)
 
     @property
     def tp_050(self) -> float:
@@ -265,6 +285,7 @@ class Zone:
         mum içi çakışma sayaçları).
 
         Mum 1m'dir (R-ZONE-09); `self.timeframe` geometrinin TF'si, buraya karışmaz.
+        `ts` mumun açılışıdır; geçişler kapanışta (`ts + STATE_BAR`) damgalanır.
         Sıra önemlidir: önce çapa teması (öldürür), sonra tek bir ilerleme. CREATED ve
         terminal durumlar fiyat işlemez.
         """
@@ -292,7 +313,8 @@ class Zone:
             # R-ZONE-05: giriş öncesi sıra bozuldu → zone ölür. Pozisyon varken aynı temas
             # tanımlı sonuçtur: 0 = nihai TP, 1 = nihai stop → CLOSED.
             return self.transition(
-                S.CLOSED if self.state in (S.ENTERED, S.TP1_HIT) else S.INVALIDATED, ts
+                S.CLOSED if self.state in (S.ENTERED, S.TP1_HIT) else S.INVALIDATED,
+                ts + STATE_BAR,
             )
 
         # R-ZONE-01: temas = giriş bandına (0.70–0.79) bant *dışından* giriş. Bant içinde
@@ -313,7 +335,7 @@ class Zone:
         nxt = self._progress(high, low)
         if nxt is None:
             return self.state
-        self.transition(nxt, ts)
+        self.transition(nxt, ts + STATE_BAR)
         if self._progress(high, low) is not None:
             self.skipped_progress += 1  # mum içi sıra bilinmez → ikinci ilerleme atlandı
         return self.state

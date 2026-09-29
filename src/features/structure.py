@@ -12,8 +12,9 @@ ATR(14)` yer değiştirme filtresi eklenir — yeni pivot, **son kabul edilen** 
 en az bu kadar uzaklaşmamışsa gürültüdür ve kabul edilmez.
 
 Look-ahead (CLAUDE.md #3): bir pivot ancak `N` mum sonra teyitlenir. `ts` pivotun kendi
-zamanı, `pivot_confirmed_at` ise **bilinebilir olduğu** andır; ikisi ayrı alandır ve
-`R-ZONE-09` `WATCH_FROM` ikincisini kullanır. Kabul listesi **yalnızca büyür**: kabul
+mumu, `pivot_confirmed_at` teyit mumunun **açılışıdır** (kimlik). Bilgi anı teyit mumunun
+**kapanışıdır**: `known_at = pivot_confirmed_at + TF`. `R-ZONE-09` `WATCH_FROM` onu
+kullanır. (2026-09-29'a kadar `pivot_confirmed_at` bilgi anı sanılıyordu: 1 mum look-ahead.) Kabul listesi **yalnızca büyür**: kabul
 edilmiş bir swing sonradan silinmez veya değiştirilmez. Bu, "geçmişi yeniden yazma"
 riskini tanım gereği kaldırır ve `test_R_ZONE_10_no_lookahead` bunu ölçer — veriyi
 herhangi bir noktadan kesmek, o ana kadar teyitlenmiş swing'leri değiştirmemelidir.
@@ -30,14 +31,14 @@ daha uçtaki ile değiştir" kuralı kabul edilmiş bir swing'i geriye dönük d
 """
 from __future__ import annotations
 
-import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 import numpy as np
 import pandas as pd
 
 from src.features.fvg import require_detect_tf
+from src.features.ids import stable_id
 
 FRACTAL_N = 2  # R-ZONE-10 · 5 mumluk yapı
 ATR_PERIOD = 14  # R-ZONE-10
@@ -68,9 +69,14 @@ class Swing:
     kind: str  # HIGH | LOW
     price: float
     ts: datetime  # pivotun kendi mumu
-    pivot_confirmed_at: datetime  # N mum sonra — bilinebilir olduğu an (R-ZONE-09)
+    pivot_confirmed_at: datetime  # teyit mumunun (N mum sonra) açılışı — kimlik
     label: str | None = None  # HH | HL | LH | LL
     swept: bool = False  # önceki aynı tip swing'i aştı (BoS)
+    known_at: datetime | None = field(default=None)  # teyit mumunun kapanışı (CLAUDE.md #3)
+
+    def __post_init__(self) -> None:
+        if self.known_at is None:
+            self.known_at = self.pivot_confirmed_at + pd.Timedelta(self.timeframe)
 
 
 def atr(df: pd.DataFrame, period: int = ATR_PERIOD) -> pd.Series:
@@ -138,7 +144,7 @@ def detect_swings(
             label = "LL" if swept else "HL"
 
         s = Swing(
-            swing_id=uuid.uuid4().hex,
+            swing_id=stable_id("swing", symbol, timeframe, kind, ts[i]),
             symbol=symbol,
             timeframe=timeframe,
             kind=kind,

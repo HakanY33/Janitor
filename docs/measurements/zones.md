@@ -1,3 +1,5 @@
+> **UYARI:** Bu ölçüm 30m look-ahead hatası taşır (commit 3fb2ff4 ve öncesi). Mutlak değerler geçersiz. Düzeltilmiş yeniden ölçüm: `docs/measurements/damga.md`.
+
 # Ölçüm · Zone çözünürlüğü
 
 Kural metni: `docs/STRATEGY_SPEC.md` — `R-ZONE-01`, `R-ZONE-09`, `R-ZONE-10`.

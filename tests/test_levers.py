@@ -319,7 +319,6 @@ def test_ADD_REJECT_E_olcusu_notional_degil_stop_kaybidir():
 # maker 2 bps (giris) + taker 5 bps (breakeven piyasa emridir) = **7 bps**
 # -> otelenmis seviye 170 x 0.9993 = 169,881.
 
-BE_ORAN = Decimal("0.0007")  # maker giris + taker cikis
 
 
 def fee_only(tick: str = "1") -> CostModel:
@@ -343,10 +342,12 @@ BE_TAM = PRIMED_ENTER + [(152, 148), (170.5, 169.0)]
 def test_R_EXIT_01_breakeven_varsayilan_ucret_dahildir():
     """`OPEN-35` kapandi: varsayilan seviye ucret dahil maliyet; ham yalnizca acikca."""
     t = kos(BE_TAM, costs=fee_only(), limit_orders=True).trades[0]
-    assert t.reason == "BREAKEVEN"
-    assert t.exit_price == pytest.approx(Decimal("170") * (1 - BE_ORAN))
     ham = kos(BE_TAM, costs=fee_only(), limit_orders=True, breakeven_fees=False).trades[0]
-    assert ham.exit_price == Decimal("170")
+    assert t.reason == ham.reason == "BREAKEVEN"
+    # İç stop: seviye tetiği belirler, çıkış tetik mumunun kapanışından (169,75) piyasa
+    # emriyle olur (CLAUDE.md #3, OPEN-42). Ücret dahil seviye 170 × (1 − oran) = 169,88
+    # ve ham seviye 170, ikisi de bu mumda tetiklenir.
+    assert t.exit_price == ham.exit_price == Decimal("169.75")
 
 
 def test_R_EXIT_01_breakeven_otelemesi_maliyete_donmeden_tetikler():
@@ -359,16 +360,18 @@ def test_R_EXIT_01_breakeven_otelemesi_maliyete_donmeden_tetikler():
     assert otel.reason == "BREAKEVEN"
 
 
-def test_R_EXIT_01_breakeven_otelemesi_gidis_donus_komisyonunu_karsilar():
+def test_R_EXIT_01_breakeven_otelemesi_tetigi_degistirir_fiyati_degil():
+    """Çıkış kapanıştan olduğu için öteleme fiyatı değil yalnızca tetik anını değiştirir.
+
+    İkisi aynı mumda tetiklenince PnL aynıdır; fark `BE_ERKEN`'de görülür (ham kol hiç
+    tetiklenmez).
+    """
     ham = kos(BE_TAM, costs=fee_only(), limit_orders=True,
               breakeven_fees=False).trades[0]
     otel = kos(BE_TAM, costs=fee_only(), limit_orders=True,
                breakeven_fees=True).trades[0]
-    assert otel.exit_price == pytest.approx(Decimal("170") * (1 - BE_ORAN))
-    # Ham kolda breakeven yarisinin brutu 0; oteleme tam komisyon kadar brut uretir.
-    yari = ham.qty / 2
-    assert otel.gross - ham.gross == pytest.approx(yari * Decimal("170") * BE_ORAN)
-    assert otel.pnl > ham.pnl
+    assert otel.exit_price == ham.exit_price
+    assert otel.pnl == ham.pnl
 
 
 def _pozisyon(side: str, avg: str) -> Position:
@@ -429,7 +432,7 @@ def test_OPEN_36_rastgele_dusme_ic_icedir():
     ids = [f"z{i}" for i in range(2_000)]
 
     def dusen(p):
-        bt.taker_frac = p
+        bt.exec.taker_frac = p
         return {z for z in ids if bt._taker_mi(SYM, z, "giris", Decimal("1"))}
 
     d10, d25 = dusen(0.10), dusen(0.25)

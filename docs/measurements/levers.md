@@ -1,3 +1,5 @@
+> **UYARI:** Bu ölçüm 30m look-ahead hatası taşır (commit 3fb2ff4 ve öncesi). Mutlak değerler geçersiz. Düzeltilmiş yeniden ölçüm: `docs/measurements/damga.md`.
+
 # Üç kaldıracın katkısı — salınım tavanı, limit emri, gösterge kapısı
 
 **Koşu:** `python -m scripts.bg scripts.levers` · 2026-09-21

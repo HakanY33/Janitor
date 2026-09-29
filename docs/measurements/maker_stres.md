@@ -1,3 +1,5 @@
+> **UYARI:** Bu ölçüm 30m look-ahead hatası taşır (commit 3fb2ff4 ve öncesi). Mutlak değerler geçersiz. Düzeltilmiş yeniden ölçüm: `docs/measurements/damga.md`.
+
 # `OPEN-36` — maker doluş stresi
 
 **Tarih:** 2026-09-24 · **spec** v0.4 · **kod** 2153a63+kirli · betik
