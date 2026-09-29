@@ -51,7 +51,6 @@ işlem `ambiguous` işaretlenir, **stop önce** varsayılır ve ayrı sayaçta r
 """
 from __future__ import annotations
 
-import hashlib
 import sys
 import time
 from dataclasses import dataclass, field
@@ -71,8 +70,9 @@ from src.backtest.loader import (  # noqa: F401  (geriye donuk yeniden disari ve
     reset_for_rerun,
 )
 from src.backtest.portfolio import LONG, SHORT, Portfolio, Position
-from src.strategy.entry import eligible_fvgs, eligible_obs
-from src.zones.model import TERMINAL, Zone, ZoneState as S
+from src.execution.adapter import ENTRY_FILLS, SimAdapter  # noqa: F401  (ENTRY_FILLS yeniden disari)
+from src.strategy.entry import band, eligible_fvgs, eligible_obs
+from src.zones.model import STATE_BAR, TERMINAL, Zone, ZoneState as S
 
 K_STANDARD = Decimal("1.0")  # R-ENTRY-03 · standart notional katsayısı
 NOTIONAL_CAP = Decimal("10")  # R-RISK-01 · toplam notional tavanı (× equity)
@@ -94,6 +94,8 @@ FUNDING_INTERVAL = pd.Timedelta("8h")
 `OPEN-29` funding tavani kurali birikmis maliyeti **pozisyon acikken** okumak zorunda
 oldugu icin tahsilat gercek takvimine tasindi. Toplam maliyet ayni, zamanlamasi dogru:
 funding 8 saatte bir nakit akisidir ve equity'yi o anda etkiler."""
+_FUNDING_NP = np.timedelta64(FUNDING_INTERVAL.value, "ns")
+_KOVA_NS = pd.Timedelta(DETECT_TF).value  # gösterge önbelleği kovası (`_gosterge`)
 
 TERMINATE_NONE = "none"
 TERMINATE_TIME = "time"
@@ -112,10 +114,6 @@ TP_REASONS = frozenset({"TP1", "FINAL_TP"})
 """R-EXIT-01/02 · kar alma kapanislari. `tp_market` kolunda bunlar piyasa emridir."""
 
 MAKER_REASONS = frozenset({"TP1", "FINAL_TP", "REDUCE"})
-# OPEN-37 · post-only giris emrinin dolus kriteri (yalnizca `limit_orders` acikken).
-# `tick1` seviye 1 tick gecilmeli (mevcut) · `tick2` 2 tick · `kapanis` 1 tick gecilmeli
-# **ve** mum seviyenin otesinde kapanmali (ayni mumda geri donen mum doldurmaz).
-ENTRY_FILLS = ("tick1", "tick2", "kapanis")
 """Limit emri kolunda (`limit_orders`) maker komisyonu ödeyen kapanışlar.
 
 Geri kalan her kapanış piyasa emridir ve taker + slippage öder: nihai stop, maliyete
@@ -167,36 +165,29 @@ class EntryRule:
     """Giriş seviyesi varyantı. `R-ENTRY-02`'nin tetiğini değiştirir, kuralı değil.
 
     Zone'un `TOUCHED`'a geçmesi (0.70 teması) **her varyantta ön koşuldur** — bu
-    `R-ZONE-04`'ün durum makinesidir ve dokunulmaz. Varyant yalnızca "dolum hangi
-    fiyatta olsun" sorusunu değiştirir; zone `TOUCHED` iken beklenir ve bu sırada
-    `R-ZONE-05` geçersizliği normal işler (çapaya değerse giriş hiç olmaz).
+    `R-ZONE-04`'ün durum makinesidir ve dokunulmaz. Varyant yalnızca bekleyen giriş
+    emrinin fiyatını değiştirir (`OPEN-41`: emir `PRIMED` kapanışında konur).
 
-    | kind | davranış |
+    | kind | emir fiyatı |
     |---|---|
-    | `level` | `ratio` fib seviyesine dokunulunca dolar |
-    | `window` | `window` mum boyunca bant içi en iyi fiyat izlenir, sonra o seviyeye limit konur |
+    | `level` | `ratio` fib seviyesi |
     | `indicator` | bantta uygun OB (yoksa FVG) varsa onun **ilk dokunulan** kenarı, yoksa `ratio` |
 
-    **Look-ahead notu (CLAUDE.md #3).** "Pencerede görülen en iyi fiyattan gir"
-    kelimesi kelimesine uygulanırsa geçmişe dönük dolum olur ve look-ahead üretir.
-    Nedensel karşılığı uygulanır: pencere boyunca en iyi fiyat **izlenir**, pencere
-    bitince o seviyeye limit konur ve fiyat oraya **geri gelirse** dolar. Dolmayan
-    girişler sayaçta görünür.
+    Eski `window` varyantı ("temastan sonra N mum en iyi fiyatı izle") temasla kurulduğu
+    için bekleyen emir modelinde tanımsızdır; `OPEN-41` ile silindi.
     """
 
     name: str
-    kind: str  # level | window | indicator
+    kind: str  # level | indicator
     ratio: Decimal = Decimal("0.70")  # level ve indicator yedeği için fib oranı
-    window: int = 0  # window varyantında beklenen mum sayısı
 
 
 ENTRY_070 = EntryRule("0.70 ilk temas", "level", Decimal("0.70"))
 ENTRY_075 = EntryRule("0.75 teması", "level", Decimal("0.75"))
 ENTRY_079 = EntryRule("0.79 teması", "level", Decimal("0.79"))
-ENTRY_W3 = EntryRule("bant içi 3 mum, en iyi fiyat", "window", Decimal("0.79"), window=3)
 ENTRY_IND = EntryRule("OB/FVG varsa oradan, yoksa 0.79", "indicator", Decimal("0.79"))
 
-ENTRY_VARIANTS = (ENTRY_070, ENTRY_075, ENTRY_079, ENTRY_W3, ENTRY_IND)
+ENTRY_VARIANTS = (ENTRY_070, ENTRY_075, ENTRY_079, ENTRY_IND)
 
 
 @dataclass
@@ -278,9 +269,6 @@ class Backtest:
         taker_kinds: frozenset[str] = frozenset({"giris", "tp1", "tp_nihai"}),
         entry_fill: str = "tick1",
     ):
-        if entry_fill not in ENTRY_FILLS:
-            raise ValueError(f"bilinmeyen giris dolus kriteri: {entry_fill}")
-        self.entry_fill = entry_fill
         if terminate not in TERMINATION_RULES:
             raise ValueError(f"bilinmeyen sonlandirma kurali: {terminate}")
         self.terminate = terminate
@@ -317,17 +305,6 @@ class Backtest:
         # veya esit** olan zone giris uretmez. Spec'te yok, olcmek icin; `0` = kapali.
         # Leg geometrisi zone tespitinde sabitlenir — karar aninda bilinir (CLAUDE.md #3).
         self.min_leg_pct = min_leg_pct
-        # OPEN-36 · maker dolus stresi (spec'te yok, olcmek icin; ikisi de `0` = kapali).
-        # Taker'a dusen limit emri **ayni mumda** dolar ama taker komisyonu ve slippage
-        # oder; dolum zamanlamasi degismez (iyimser taraf: gercekte kacan emir de olur).
-        # `taker_frac`: emrin (zone, tur) hash'i bu oranin altindaysa duser —
-        # deterministik ve ic ice: %10'da dusen %25'te de duser.
-        # `taker_vol_frac`: emir miktari dolum mumunun 1m hacminin bu oranini asarsa
-        # duser. 1m hacim, defterdeki kuyrugun **vekili**dir (defter verisi yok).
-        # `taker_kinds`: hangi emir turleri dusebilir (KALEM adlari; `giris` dahil).
-        self.taker_frac = taker_frac
-        self.taker_vol_frac = taker_vol_frac
-        self.taker_kinds = taker_kinds
         self._vol: dict[str, float] = {}
         # `reduce_once`: R-ADD-04 kucultmesi pozisyon basina bir kez tetiklenir ve
         # sonraki eklemeler tetigi **yeniden kurmaz**.
@@ -354,20 +331,30 @@ class Backtest:
         # maliyet — yalnizca eski olcumleri yeniden uretmek icin.
         self.breakeven_fees = breakeven_fees
         self._maker_reasons = MAKER_REASONS - TP_REASONS if tp_market else MAKER_REASONS
-        self.ticks = {s_: float(costs.fees[s_].tick) for s_ in self.data} if limit_orders else {}
-        if limit_orders:
-            eksik = [s_ for s_, t in self.ticks.items() if t <= 0]
-            if eksik:
-                raise ValueError(
-                    f"fiyat adimi (tick) yok: {eksik} — once: python -m scripts.funding --fees-only"
-                )
+        # Doluş kararı `ExecutionAdapter` arkasında (docs/LIVE.md Ö2). Backtest'in
+        # modeli `SimAdapter`; TP 1 tick kuralı zone'a oradan verilir.
+        self.exec = SimAdapter(
+            {s_: float(costs.fees[s_].tick) for s_ in self.data} if limit_orders else {},
+            limit_orders=limit_orders, entry_fill=entry_fill, taker_frac=taker_frac,
+            taker_vol_frac=taker_vol_frac, taker_kinds=taker_kinds, tp_market=tp_market,
+        )
+        self.tp_offset = tp_offset
         for sd_ in self.data.values():
             for z_ in sd_.zones:
-                z_.tp_offset = tp_offset
-                # tp_market: TP temasla dolar, asim aranmaz (piyasa emri).
-                z_.tp_tick = 0.0 if (tp_market or not limit_orders)                     else self.ticks[sd_.symbol]
+                self._hazirla(z_, sd_.symbol)
         self.entry_rule = entry_rule
-        self.pending: dict[str, dict] = {}  # zone_id -> bekleyen giriş durumu
+        if entry_rule.kind not in ("level", "indicator"):
+            raise ValueError(f"bilinmeyen giris varyanti: {entry_rule.kind}")
+        # OPEN-41 · bekleyen giriş emri defteri (sayaçlar için; emrin kendisi `order_for`).
+        self._armed: set[str] = set()  # emri en az bir kez aktif olan zone
+        self._red: set[tuple[str, str]] = set()  # (zone, neden) — neden başına bir kez sayılır
+        self._dokundu: set[str] = set()  # emir aktifken fiyata dokunuldu, dolmadı
+        self._hedefe_dokunan: set[str] = set()  # emir fiyatına ulaşıldı (emir olsun olmasın)
+        self._girilen: set[str] = set()
+        self._temas: set[str] = set()  # TOUCHED'a geçen zone
+        self._gosterge_onbellek: dict[str, tuple] = {}  # zone -> (30m kovası, ob, fvg, hedef)
+        self._bant_onbellek: dict[str, tuple] = {}  # zone -> ((n_ob, n_fvg), bant OB, bant FVG)
+        self._snap: dict | None = None  # son 1m kapanışının portföy görüntüsü (`_kapanis`)
         self.pf = Portfolio(balance=start_balance, start_balance=start_balance, mmr=mmr)
         self.pf.peak_equity_f = float(start_balance)
         self.trades: list[Trade] = []
@@ -401,51 +388,17 @@ class Backtest:
             # OPEN-37 · giris hedefine dokunuldu ama emir zone bitene kadar dolmadi.
             # `unfilled` artik yalnizca hedefe **hic** dokunulmayanlardir.
             "kacan_giris": 0,
+            # OPEN-41 · zone'u `1` çapasıyla öldüren mumda bekleyen emir doldu, aynı mumda stop
+            "kill_bar_fills": 0,
         }
         self._day_start_equity = float(start_balance)
         self._day_blocked = False
 
     # --- yardimcilar ---------------------------------------------------------
 
-    def _limit_filled(self, symbol: str, level: float, high: float, low: float,
-                      sell: bool) -> bool:
-        """Limit emri doldu mu. `limit_orders` kapaliyken temas yeter (piyasa emri).
-
-        Muhafazakar kural: satis limiti seviyenin **ustune** konur ve fiyat seviyeyi
-        1 tick yukari gecmeden dolmus sayilmaz; alis limiti icin tersi. Sirada onde
-        olma varsayimi yapilmaz — seviyeye degip donen mum emri doldurmaz.
-        """
-        if not self.limit_orders:
-            return low <= level <= high
-        t = self.ticks[symbol]
-        return high >= level + t if sell else low <= level - t
-
-    def _entry_filled(self, symbol: str, level: float, high: float, low: float,
-                      sell: bool) -> bool:
-        """OPEN-37 · post-only giris emri doldu mu (`entry_fill` kriteri).
-
-        Kapanis `self.marks`'tan okunur: `run` onu bu mumun kapanisina zaten yazdi.
-        Karar degil dolus modeli — emir mumdan once konmustu (CLAUDE.md #3).
-        """
-        if not self.limit_orders or self.entry_fill == "tick1":
-            return self._limit_filled(symbol, level, high, low, sell)
-        t = self.ticks[symbol]
-        if self.entry_fill == "tick2":
-            return high >= level + 2 * t if sell else low <= level - 2 * t
-        c = self.marks[symbol]
-        return self._limit_filled(symbol, level, high, low, sell) and             (c >= level if sell else c <= level)
-
     def _taker_mi(self, symbol: str, zone_id: str, tur: str, qty: Decimal) -> bool:
-        """OPEN-36 · bu limit emri taker'a dustu mu. Duserse sayaci artirir."""
-        if tur not in self.taker_kinds:
-            return False
-        dus = False
-        if self.taker_frac:
-            h = hashlib.blake2b(f"{zone_id}|{tur}".encode(), digest_size=8).digest()
-            dus = int.from_bytes(h, "big") / 2 ** 64 < self.taker_frac
-        if not dus and self.taker_vol_frac:
-            v = self._vol.get(symbol, 0.0)
-            dus = v <= 0 or float(qty) > self.taker_vol_frac * v  # hacimsiz mum: dolmaz
+        """OPEN-36 · bu limit emri taker'a dustu mu (`SimAdapter.taker`). Duserse sayac."""
+        dus = self.exec.taker(symbol, zone_id, tur, qty, self._vol.get(symbol, 0.0))
         if dus:
             self.counters[f"taker_{tur}"] += 1
         return dus
@@ -534,119 +487,135 @@ class Backtest:
         a, b = self._fib(z, Decimal("0.70")), self._fib(z, Decimal("0.79"))
         return (price - a) / (b - a) if b != a else 0.0
 
-    def _arm_entry(self, z: Zone, sd: SymbolData, ts: pd.Timestamp) -> None:
-        """Zone TOUCHED'a geldiğinde giriş hedefini belirler (varyanta göre).
+    def _gosterge(self, z: Zone, sd: SymbolData, at: pd.Timestamp) -> tuple[bool, bool, float]:
+        """`at`'te bantta uygun OB / FVG var mı ve emir fiyatı (R-ENTRY-02, R-ENTRY-05).
 
-        Hedef burada **bir kez** hesaplanır; dolum sonraki mumlarda beklenir. Gösterge
-        bayrakları da bu anda okunur — karar anı budur (R-ENTRY-05, CLAUDE.md #3).
+        Gösterge damgalarının hepsi (`known_at`, `mitigated_at`, `filled_at`) 30m
+        kapanışıdır: sonuç bir 30m kovası içinde değişmez. Kova başına bir kez hesaplanır —
+        yaklaşım değil, birebir aynı sonuç. ponytail: hizasız damga gelirse önbellek yanılır;
+        `known_at` her zaman TF kapanışı olduğu sürece geçerli.
         """
-        self.counters["entry_candidates"] += 1
+        kova = at.value // _KOVA_NS
+        c = self._gosterge_onbellek.get(z.zone_id)
+        if c is not None and c[0] == kova:
+            return c[1:]
+        obs, fvgs = self._bantta(z, sd)
+        had_ob = bool(eligible_obs(obs, z, at))
+        had_fvg = bool(eligible_fvgs(fvgs, z, at))
+        sonuc = (had_ob, had_fvg, self._hedef(z, sd, at))
+        self._gosterge_onbellek[z.zone_id] = (kova, *sonuc)
+        return sonuc
+
+    def _bantta(self, z: Zone, sd: SymbolData) -> tuple[list, list]:
+        """Giriş bandını kesen OB/FVG'ler (§0.1 kesişim). Geometri sabit: zone başına bir kez;
+        liste büyürse (canlıda yeni tespit) yeniden. Zaman koşulları `eligible_*`'da kalır."""
+        anahtar = (len(sd.obs), len(sd.fvgs))
+        c = self._bant_onbellek.get(z.zone_id)
+        if c is None or c[0] != anahtar:
+            lo, hi = band(z)
+            c = (anahtar, [o for o in sd.obs if o.bottom <= hi and o.top >= lo],
+                 [f for f in sd.fvgs if f.bottom <= hi and f.top >= lo])
+            self._bant_onbellek[z.zone_id] = c
+        return c[1], c[2]
+
+    def _hedef(self, z: Zone, sd: SymbolData, at: pd.Timestamp) -> float:
+        """Giriş emrinin fiyatı, `at`'te bilinen bilgiyle (varyanta göre)."""
         r = self.entry_rule
+        if r.kind == "level":
+            return self._fib(z, r.ratio)
+        # indicator · R-ENTRY-02 önceliği: önce OB, sonra FVG, sonra çıplak seviye.
+        # Kenar seçimi: fiyatın **ilk dokunacağı** kenar — SHORT bandı aşağıdan
+        # yukarı, LONG yukarıdan aşağı kat eder. Bu hem nedenseldir hem de
+        # göstergenin kötü tarafıdır (short için düşük, long için yüksek).
+        short = z.bias == "SHORT"
         band_low, band_high = sorted((self._fib(z, Decimal("0.70")),
                                       self._fib(z, Decimal("0.79"))))
-        short = z.bias == "SHORT"
+        obs, fvgs = self._bantta(z, sd)
+        adaylar = [(o.bottom, o.top) for o in eligible_obs(obs, z, at)] or \
+                  [(f.bottom, f.top) for f in eligible_fvgs(fvgs, z, at)]
+        if not adaylar:
+            return self._fib(z, r.ratio)
+        kenarlar = [b for b, _ in adaylar] if short else [t for _, t in adaylar]
+        hedef = min(kenarlar) if short else max(kenarlar)
+        return min(max(hedef, band_low), band_high)  # bant dışına taşma
 
-        had_ob = bool(eligible_obs(sd.obs, z, ts))
-        had_fvg = bool(eligible_fvgs(sd.fvgs, z, ts))
+    def order_for(self, z: Zone, sd: SymbolData, at: pd.Timestamp) -> tuple[dict | None, str | None]:
+        """R-ENTRY-02 · `OPEN-41` · `at` kapanışında bu zone'un bekleyen giriş emri.
+
+        Saf fonksiyon: yalnızca `at`'te bilinen göstergeler (`known_at <= at`) ve o
+        kapanıştaki portföy görüntüsü (`self._snap`). Emir yoksa ikinci değer nedendir
+        (sayaç adı; `None` = sayılmayan neden, ör. sembolde pozisyon var).
+
+        Canlı döngü bunu her 1m kapanışında çağırır ve emri koyar / iptal eder / yeniler.
+        Backtest aynı fonksiyonu yalnızca sonraki mum emir fiyatına ulaştığında çağırır:
+        emrin fiyatı, kapısı ve boyutu yalnızca `at` durumuna bağlı olduğu için sonuç
+        aynıdır. ponytail: her kapanışta her zone'u hesaplamak koşuyu saatlere çıkarırdı.
+        """
+        s = self._snap
+        had_ob, had_fvg, hedef = self._gosterge(z, sd, at)
         if self.require_indicator and not (had_ob or had_fvg):
-            self.counters["no_indicator_skipped"] += 1
-            return  # R-ENTRY-02 (3) kapali: ciplak 0.70 temasi giris uretmez
+            return None, "no_indicator_skipped"  # R-ENTRY-02 (3) kapali
         if self.min_leg_pct and \
                 abs(z.anchor_1_price - z.anchor_0_price) / z.anchor_0_price <= self.min_leg_pct:
-            self.counters["leg_skipped"] += 1
-            return  # F2 kolu · esik alti leg giris uretmez
-        self.counters["armed"] += 1
-        hedef: float | None = None
-
-        if r.kind == "level":
-            hedef = self._fib(z, r.ratio)
-        elif r.kind == "indicator":
-            # R-ENTRY-02 önceliği: önce OB, sonra FVG, sonra çıplak seviye.
-            # Kenar seçimi: fiyatın **ilk dokunacağı** kenar — SHORT bandı aşağıdan
-            # yukarı, LONG yukarıdan aşağı kat eder. Bu hem nedenseldir hem de
-            # göstergenin kötü tarafıdır (short için düşük, long için yüksek).
-            adaylar = [(o.bottom, o.top) for o in eligible_obs(sd.obs, z, ts)] or \
-                      [(f.bottom, f.top) for f in eligible_fvgs(sd.fvgs, z, ts)]
-            if adaylar:
-                kenarlar = [b for b, _ in adaylar] if short else [t for _, t in adaylar]
-                hedef = min(kenarlar) if short else max(kenarlar)
-                hedef = min(max(hedef, band_low), band_high)  # bant dışına taşma
-            else:
-                hedef = self._fib(z, r.ratio)
-
-        self.pending[z.zone_id] = {
-            "hedef": hedef,  # None -> window varyantı henüz izliyor
-            "kalan": r.window,
-            "en_iyi": None,
-            "band": (band_low, band_high),
-            "short": short,
-            "had_ob": had_ob,
-            "had_fvg": had_fvg,
-        }
+            return None, "leg_skipped"  # F2 kolu · esik alti leg
+        if z.symbol in s["pozisyon"]:  # sembol başına tek pozisyon (modelleme tercihi 5)
+            return None, None
+        if s["gun_blok"]:
+            return None, "rejected_risk03"
+        if s["risk05"] != "RAHAT":  # R-RISK-05 · UYARI/KRITIK'te yeni pozisyon yok
+            return None, "rejected_risk05"
+        equity = s["equity"]
+        if equity <= 0:
+            return None, None
+        notional = equity * self.k  # R-ENTRY-03 · ölçü birimi notional
+        if s["notional"] + notional > NOTIONAL_CAP * equity:
+            return None, "rejected_risk01"  # R-RISK-01
+        qty = notional / Decimal(str(hedef))
+        # ADD-REJECT-E ilk girise de uygulanir (R-ADD-02).
+        if self.stop_loss_cap and \
+                self._stop_loss(z, qty, Decimal(str(hedef))) > self.stop_loss_cap * equity:
+            return None, "entry_reject_e"
+        return {"hedef": hedef, "qty": qty, "notional": notional,
+                "had_ob": had_ob, "had_fvg": had_fvg}, None
 
     def _try_fill(self, z: Zone, sd: SymbolData, ts: pd.Timestamp, high: float,
-                  low: float, t64: np.datetime64) -> None:
-        """Bekleyen girişin dolup dolmadığına bakar; dolduysa pozisyonu açar."""
-        p = self.pending.get(z.zone_id)
-        if p is None:
+                  low: float, t64: np.datetime64, kill: bool = False) -> None:
+        """Bekleyen giriş emri bu mumda doldu mu; dolduysa pozisyonu açar.
+
+        Emir bir önceki kapanışta (`ts` = bu mumun açılışı) konmuştu (`OPEN-41`).
+        `kill`: bu mum zone'u `1` çapasıyla öldürdü. Emir geçildiyse dolmuştur ve aynı
+        mumda iç stoptan çıkılır (§8 "stop önce"; iç stop mum kapanışında).
+        """
+        hedef = self._gosterge(z, sd, ts)[2]
+        short = z.bias == "SHORT"
+        if not (high >= hedef if short else low <= hedef):  # mum emir fiyatına ulaşmadı
             return
-        band_low, band_high = p["band"]
-        short = p["short"]
-
-        if p["hedef"] is None:  # window varyantı: bant içi en iyi fiyatı izle
-            uc = min(high, band_high) if short else max(low, band_low)
-            if band_low <= uc <= band_high:
-                p["en_iyi"] = uc if p["en_iyi"] is None else (
-                    max(p["en_iyi"], uc) if short else min(p["en_iyi"], uc))
-            p["kalan"] -= 1
-            if p["kalan"] > 0:
-                return
-            if p["en_iyi"] is None:  # pencerede bant içi fiyat görülmedi
-                p["hedef"] = self._fib(z, self.entry_rule.ratio)
-            else:
-                p["hedef"] = p["en_iyi"]
-            return  # limit bu mumda kondu; dolum en erken sonraki mumda
-
+        self._hedefe_dokunan.add(z.zone_id)
+        emir, neden = self.order_for(z, sd, ts)
+        if emir is None:
+            if neden is not None and (z.zone_id, neden) not in self._red:
+                self._red.add((z.zone_id, neden))
+                self.counters[neden] += 1
+            return
+        if z.zone_id not in self._armed:
+            self._armed.add(z.zone_id)
+            self.counters["armed"] += 1
         # Giris limit emridir: SHORT bant yukaridan satilir, LONG asagidan alinir.
-        if not self._entry_filled(z.symbol, p["hedef"], high, low, sell=short):
-            if low <= p["hedef"] <= high:
-                self.counters["limit_miss_giris"] += 1  # dokundu, kriter tutmadi
-                p["dokundu"] = True
+        if not self.exec.entry_filled(z.symbol, hedef, high, low, self.marks[z.symbol],
+                                      sell=short):
+            self.counters["limit_miss_giris"] += 1  # dokundu, kriter tutmadi
+            self._dokundu.add(z.zone_id)
             return
-
-        hedef = p["hedef"]
-        self.pending.pop(z.zone_id, None)
-
-        if z.symbol in self.pf.positions:  # sembol başına tek pozisyon
-            return
-        if self._daily_loss_hit():
-            self.counters["rejected_risk03"] += 1
-            return
-        if self._risk05_zone() != "RAHAT":  # R-RISK-05 · UYARI/KRITIK'te yeni pozisyon yok
-            self.counters["rejected_risk05"] += 1
-            return
-
-        equity = Decimal(str(self.pf.equity_f(self.marks)))
-        if equity <= 0:
-            return
-        notional = equity * self.k  # R-ENTRY-03 · ölçü birimi notional
-        if Decimal(str(self.pf.total_notional_f(self.marks))) + notional > NOTIONAL_CAP * equity:
-            self.counters["rejected_risk01"] += 1  # R-RISK-01
+        if z.symbol in self.pf.positions:  # aynı dakikada başka zone doldu
             return
 
         side = LONG if z.bias == "LONG" else SHORT
+        qty, notional = emir["qty"], emir["notional"]
         # Limit kolunda dolum tam limit fiyatindandir: slippage yok, komisyon maker —
         # OPEN-36 stresinde taker'a dusmediyse.
-        maker = self.limit_orders and not self._taker_mi(
-            z.symbol, z.zone_id, "giris", notional / Decimal(str(hedef)))
+        maker = self.limit_orders and not self._taker_mi(z.symbol, z.zone_id, "giris", qty)
         price = (Decimal(str(hedef)) if maker
                  else self.costs.fill_price(Decimal(str(hedef)), side, opening=True))
-        qty = notional / price
-        # ADD-REJECT-E ilk girise de uygulanir: pozisyon daha acilmadan stopta
-        # kaybedecegi tutar tavani asiyorsa hic acilmaz (R-ADD-02).
-        if self.stop_loss_cap and self._stop_loss(z, qty, price) > self.stop_loss_cap * equity:
-            self.counters["entry_reject_e"] += 1
-            return
         fee = self.costs.fee(z.symbol, qty * price, "giris", maker=maker)
         if not maker:
             self.costs.apply_slippage_cost(qty, Decimal(str(hedef)), "giris")
@@ -661,19 +630,23 @@ class Backtest:
             entry_bias=self._bias_now(sd, t64),
         )
         self.pf.positions[z.symbol] = pos
-        z.enter(ts)
+        self._girilen.add(z.zone_id)
+        if not kill:
+            z.enter(ts)
         self.entry_ctx[z.zone_id] = {
-            "had_ob": p["had_ob"], "had_fvg": p["had_fvg"], "entry_price": price,
+            "had_ob": emir["had_ob"], "had_fvg": emir["had_fvg"], "entry_price": price,
             "entry_qty": qty,  # tepe/baslangic notional orani icin (salinim olcumu)
-            "entry_ts": ts, "ambiguous": False, "band_pos": self._band_pos(z, hedef),
-            # R-ZONE-08 aday ozellikleri, **dolum aninda** okunur: temas sayaci
-            # sonradan artabilir, leg geometrisi sabit ama ikisi de burada donar.
+            "entry_ts": ts, "ambiguous": kill, "band_pos": self._band_pos(z, hedef),
+            # R-ZONE-08 aday ozellikleri, **dolum aninda** okunur.
             "touch_count": z.touch_count,
             "leg_pct": abs(z.anchor_1_price - z.anchor_0_price) / z.anchor_0_price,
         }
         self.counters["entries"] += 1
-        self.counters["entries_with_ob"] += p["had_ob"]
-        self.counters["entries_with_fvg"] += p["had_fvg"]
+        self.counters["entries_with_ob"] += emir["had_ob"]
+        self.counters["entries_with_fvg"] += emir["had_fvg"]
+        if kill:
+            self.counters["kill_bar_fills"] += 1
+            self._close(z, pos, self.marks[z.symbol], ts + STATE_BAR, "STOP")
 
     # --- ekleme --------------------------------------------------------------
 
@@ -731,7 +704,7 @@ class Backtest:
         dokunan = (
             sd.ob_alive
             & (sd.ob_bull == (pos.side == LONG))
-            & (sd.ob_impulse <= t64)
+            & (sd.ob_known <= t64)
             & (sd.ob_bottom <= high)
             & (sd.ob_top >= low)
         )
@@ -754,7 +727,7 @@ class Backtest:
             # konur: SHORT bandi asagidan yukari, LONG yukaridan asagi kat eder.
             # Dolum icin kenarin 1 tick asilmasi gerekir; dolmazsa ekleme yok.
             kenar = aday.bottom if pos.side == SHORT else aday.top
-            if not self._limit_filled(z.symbol, kenar, high, low, sell=(pos.side == SHORT)):
+            if not self.exec.limit_filled(z.symbol, kenar, high, low, sell=(pos.side == SHORT)):
                 self.counters["limit_miss_ekleme"] += 1
                 return
             price_f = kenar
@@ -999,109 +972,163 @@ class Backtest:
             file=sys.stderr, flush=True,
         )
 
-    def run(self) -> Result:
-        symbols = list(self.data)
-        grid = np.unique(np.concatenate([self.data[s].ts for s in symbols]))
-        ptr = {s: 0 for s in symbols}
-        zptr = {s: 0 for s in symbols}
-        self._active: dict[str, list[Zone]] = {s: [] for s in symbols}
-        for s in symbols:
-            self.counters["zones_total"] += len(self.data[s].zones)
+    def start(self) -> None:
+        """Koşu durumunu kurar. `run` ve canlı döngü `step`'ten önce bir kez çağırır."""
+        self._symbols = list(self.data)
+        self._zptr = {s: 0 for s in self._symbols}
+        self._active: dict[str, list[Zone]] = {s: [] for s in self._symbols}
+        self._watch64 = {s: self._watch_dizisi(self.data[s].zones) for s in self._symbols}
+        self._onceki_gun = None
 
-        # `pd.Timestamp` kurmak 1m çözünürlükte pahalıdır ve mumların çoğunda hiçbir
-        # olay yoktur. Bu yüzden karşılaştırmalar numpy datetime64 üzerinde yapılır ve
-        # Timestamp yalnızca gerçekten bir olay varken kurulur.
-        gun = grid.astype("datetime64[D]")
-        watch64 = {
-            s: np.array([np.datetime64(z.watch_from.tz_localize(None)) for z in self.data[s].zones])
-            for s in symbols
+    def _hazirla(self, z: Zone, symbol: str) -> None:
+        z.tp_offset = self.tp_offset
+        z.tp_tick = self.exec.tp_tick(symbol)
+
+    @staticmethod
+    def _watch_dizisi(zones: list[Zone]) -> np.ndarray:
+        return np.array([np.datetime64(z.watch_from.tz_localize(None)) for z in zones],
+                        dtype="datetime64[ns]")
+
+    def add_zones(self, symbol: str, zones: list[Zone]) -> None:
+        """Canlı döngü · 30m kapanışında yeni tespit edilen zone'ları ekler (`docs/LIVE.md` A2).
+
+        Yeni zone'un `known_at`'i son kapanıştır, izlenmekte olanlarınkinden önce olamaz:
+        liste `watch_from` sırasında kalır ve `step`'in işaretçisi bozulmaz.
+        """
+        sd = self.data[symbol]
+        for z in sorted(zones, key=lambda z: z.watch_from):
+            self._hazirla(z, symbol)
+            sd.zones.append(z)
+        self._watch64[symbol] = self._watch_dizisi(sd.zones)
+
+    def step(self, t: np.datetime64, bars: dict[str, tuple]) -> None:
+        """Bir kapanmış 1m dakikasını işler — backtest ve canlı döngünün **tek** gövdesi.
+
+        `docs/LIVE.md` Ö1. `t`: dakikanın açılış damgası (tz-naive UTC `datetime64`).
+        `bars`: o dakikada mumu olan semboller → `(high, low, close, volume)`;
+        `volume` yoksa `None`. Mumu olmayan sembol o dakikada işlenmez (`OPEN-46`).
+        Semboller `self.data` sırasıyla işlenir (§2 dakika bariyeri).
+
+        `pd.Timestamp` kurmak 1m çözünürlükte pahalıdır ve mumların çoğunda hiçbir
+        olay yoktur. Bu yüzden karşılaştırmalar numpy datetime64 üzerinde yapılır ve
+        Timestamp yalnızca gerçekten bir olay varken kurulur.
+        """
+        if self._snap is None:
+            self._kapanis(t)
+
+        ts: pd.Timestamp | None = None
+        for s in self._symbols:
+            bar = bars.get(s)
+            if bar is None:
+                continue
+            sd = self.data[s]
+            high, low, close, volume = bar
+            self.marks[s] = close
+            if volume is not None:
+                self._vol[s] = volume
+
+            # izlemeye girenler (R-ZONE-09 · WATCH_FROM)
+            w = self._watch64[s]
+            while self._zptr[s] < len(sd.zones) and w[self._zptr[s]] <= t:
+                z = sd.zones[self._zptr[s]]
+                z.activate()
+                self._active[s].append(z)
+                self._zptr[s] += 1
+
+            if not self._active[s]:
+                continue
+            if ts is None:
+                ts = pd.Timestamp(t, tz="UTC")
+
+            kalan = []
+            for z in self._active[s]:
+                self._step_zone(z, sd, ts, high, low, t)
+                if z.state in TERMINAL:
+                    if z.zone_id in self._girilen:
+                        pass
+                    elif z.zone_id in self._dokundu:
+                        self.counters["kacan_giris"] += 1  # emir fiyatına dokunuldu, dolmadı
+                    elif z.zone_id in self._temas and z.zone_id not in self._hedefe_dokunan:
+                        self.counters["unfilled"] += 1  # TOUCHED oldu, emir fiyatı hiç gelmedi
+                    self.counters["kill_wins"] += z.kill_wins
+                    self.counters["skipped_progress"] += z.skipped_progress
+                    if z.primed_at is not None:
+                        self.counters["zones_primed"] += 1
+                else:
+                    kalan.append(z)
+            self._active[s] = kalan
+
+        if self.pf.positions:
+            # Funding gercek takviminde tahsil edilir (8 saat). Cikista tek seferde
+            # islemek toplami dogru verir ama equity'yi butun pozisyon boyunca
+            # yanlis yerde tutar — ve `funding` sonlandirma adayi birikmis maliyeti
+            # pozisyon acikken okumak zorundadir.
+            _ts_f: pd.Timestamp | None = None
+            for _p in self.pf.positions.values():
+                if t - np.datetime64(_p.last_funding_at.tz_localize(None)) >= _FUNDING_NP:
+                    if _ts_f is None:
+                        _ts_f = pd.Timestamp(t, tz="UTC")
+                    self._charge_funding(_p, _ts_f)
+            if self.pf.is_liquidated_f(self.marks):
+                self._liquidate(pd.Timestamp(t, tz="UTC"))
+            elif self._risk05_zone() == "KRITIK":
+                self._deleverage(pd.Timestamp(t, tz="UTC"))
+            # R-RISK-01 · tavan yeni girişi bu mumda bağlıyor mu (rapor sayacı):
+            # notional + K × equity > 10 × equity  <=>  notional > (10 − K) × equity
+            eq = self.pf.equity_f(self.marks)
+            if self.pf.total_notional_f(self.marks) > float(NOTIONAL_CAP - self.k) * eq:
+                self.counters["risk01_binding_bars"] += 1
+        if self.pf.positions:
+            d = self.pf.liq_distance_f(self.marks)
+            if d is not None:
+                for _p in self.pf.positions.values():
+                    _p.min_liq_dist = d if _p.min_liq_dist is None else min(_p.min_liq_dist, d)
+        self.counters["bars_with_position"] += bool(self.pf.positions)
+        self.counters["bars_total"] += 1
+        self.pf.observe(self.marks)
+        self._kapanis(t + np.timedelta64(1, "m"))
+
+    def _kapanis(self, an: np.datetime64) -> None:
+        """1m kapanışı `an`: gün sınırı (R-RISK-03) ve bekleyen emirlerin dayandığı portföy
+        görüntüsü (`OPEN-41`). Sonraki mumdaki her giriş kararı yalnızca bunu okur."""
+        gun = an.astype("datetime64[D]")
+        if gun != self._onceki_gun:
+            self._onceki_gun = gun
+            self._day_start_equity = self.pf.equity_f(self.marks)
+            self._day_blocked = False
+        self._snap = {
+            "equity": Decimal(str(self.pf.equity_f(self.marks))),
+            "notional": Decimal(str(self.pf.total_notional_f(self.marks))),
+            "risk05": self._risk05_zone(),
+            "gun_blok": self._daily_loss_hit(),
+            "pozisyon": frozenset(self.pf.positions),
         }
-        onceki_gun = None
-        _funding_np = np.timedelta64(FUNDING_INTERVAL.value, "ns")
 
+    def run(self) -> Result:
+        """Parquet ızgarasını dakika dakika `step`'e besler."""
+        self.start()
+        grid = np.unique(np.concatenate([self.data[s].ts for s in self._symbols]))
+        ptr = {s: 0 for s in self._symbols}
         for gi in range(len(grid)):
             t = grid[gi]
             if self.progress_every and gi % self.progress_every == 0:
                 self._progress(gi, len(grid), t)
-            if gun[gi] != onceki_gun:
-                onceki_gun = gun[gi]
-                self._day_start_equity = self.pf.equity_f(self.marks)
-                self._day_blocked = False
-
-            ts: pd.Timestamp | None = None
-            for s in symbols:
+            bars = {}
+            for s in self._symbols:
                 sd = self.data[s]
                 i = ptr[s]
                 if i >= len(sd.ts) or sd.ts[i] != t:
                     continue
                 ptr[s] = i + 1
-                high, low = float(sd.high[i]), float(sd.low[i])
-                self.marks[s] = float(sd.close[i])
-                if len(sd.volume):
-                    self._vol[s] = float(sd.volume[i])
-
-                # izlemeye girenler (R-ZONE-09 · WATCH_FROM)
-                w = watch64[s]
-                while zptr[s] < len(sd.zones) and w[zptr[s]] <= t:
-                    z = sd.zones[zptr[s]]
-                    z.activate()
-                    self._active[s].append(z)
-                    zptr[s] += 1
-
-                if not self._active[s]:
-                    continue
-                if ts is None:
-                    ts = pd.Timestamp(t, tz="UTC")
-
-                kalan = []
-                for z in self._active[s]:
-                    self._step_zone(z, sd, ts, high, low, t)
-                    if z.state in TERMINAL:
-                        bekleyen = self.pending.pop(z.zone_id, None)
-                        if bekleyen is not None:
-                            self.counters["kacan_giris" if bekleyen.get("dokundu")
-                                          else "unfilled"] += 1
-                        self.counters["kill_wins"] += z.kill_wins
-                        self.counters["skipped_progress"] += z.skipped_progress
-                        if z.primed_at is not None:
-                            self.counters["zones_primed"] += 1
-                    else:
-                        kalan.append(z)
-                self._active[s] = kalan
-
-            if self.pf.positions:
-                # Funding gercek takviminde tahsil edilir (8 saat). Cikista tek seferde
-                # islemek toplami dogru verir ama equity'yi butun pozisyon boyunca
-                # yanlis yerde tutar — ve `funding` sonlandirma adayi birikmis maliyeti
-                # pozisyon acikken okumak zorundadir.
-                _ts_f: pd.Timestamp | None = None
-                for _p in self.pf.positions.values():
-                    if t - np.datetime64(_p.last_funding_at.tz_localize(None)) >= _funding_np:
-                        if _ts_f is None:
-                            _ts_f = pd.Timestamp(t, tz="UTC")
-                        self._charge_funding(_p, _ts_f)
-                if self.pf.is_liquidated_f(self.marks):
-                    self._liquidate(pd.Timestamp(t, tz="UTC"))
-                elif self._risk05_zone() == "KRITIK":
-                    self._deleverage(pd.Timestamp(t, tz="UTC"))
-                # R-RISK-01 · tavan yeni girişi bu mumda bağlıyor mu (rapor sayacı):
-                # notional + K × equity > 10 × equity  <=>  notional > (10 − K) × equity
-                eq = self.pf.equity_f(self.marks)
-                if self.pf.total_notional_f(self.marks) > float(NOTIONAL_CAP - self.k) * eq:
-                    self.counters["risk01_binding_bars"] += 1
-            if self.pf.positions:
-                d = self.pf.liq_distance_f(self.marks)
-                if d is not None:
-                    for _p in self.pf.positions.values():
-                        _p.min_liq_dist = d if _p.min_liq_dist is None else min(_p.min_liq_dist, d)
-            self.counters["bars_with_position"] += bool(self.pf.positions)
-            self.counters["bars_total"] += 1
-            self.pf.observe(self.marks)
+                bars[s] = (float(sd.high[i]), float(sd.low[i]), float(sd.close[i]),
+                           float(sd.volume[i]) if len(sd.volume) else None)
+            self.step(t, bars)
             if gi % 1440 == 0:
                 self.equity_curve.append((pd.Timestamp(t, tz="UTC"), self.pf.equity_f(self.marks)))
+        return self.finish(pd.Timestamp(grid[-1], tz="UTC"))
 
-        # Koşu sonunda açık kalanlar son fiyattan kapatılır — açık pozisyon raporlanmaz.
-        son = pd.Timestamp(grid[-1], tz="UTC")  # ızgara tz-naive; dışarı çıkan damga aware
+    def finish(self, son: pd.Timestamp) -> Result:
+        """Koşu sonu: açık kalanlar son fiyattan `RUN_END` ile kapatılır (A9)."""
         for symbol in list(self.pf.positions):
             pos = self.pf.positions[symbol]
             z = self._zone_of(pos)
@@ -1110,6 +1137,7 @@ class Backtest:
             else:
                 self.pf.positions.pop(symbol, None)
 
+        self.counters["zones_total"] = sum(len(sd.zones) for sd in self.data.values())
         self.counters["limit_miss_tp"] = sum(
             z.tp_tick_miss for sd in self.data.values() for z in sd.zones
         )
@@ -1154,7 +1182,7 @@ class Backtest:
             if pos is not None and not pos.tp1_done and pos.reduce_armed:
                 maliyet = float(pos.avg_price)
                 # Kucultme bir azaltma emridir: LONG'da satis, SHORT'ta alis.
-                if self._limit_filled(z.symbol, maliyet, high, low,
+                if self.exec.limit_filled(z.symbol, maliyet, high, low,
                                       sell=(pos.side == LONG)):
                     self._reduce_to_base(z, pos, maliyet, ts)
                     return
@@ -1164,9 +1192,12 @@ class Backtest:
                 # R-EXIT-01 · ilk TP sonrası stop maliyete çekilir.
                 be = self._breakeven(z, pos)
                 if low <= be <= high:
-                    self._close(z, pos, be, ts, "BREAKEVEN")
+                    # İç stop (R-RISK-02): tetik mum kapanınca bilinir, piyasa emri kapanışta
+                    # gider — seviyeden değil kapanıştan çıkılır (CLAUDE.md #3, OPEN-42).
+                    kapanis = ts + STATE_BAR
+                    self._close(z, pos, self.marks[z.symbol], kapanis, "BREAKEVEN")
                     if z.state not in TERMINAL:
-                        z.transition(S.CLOSED, ts)
+                        z.transition(S.CLOSED, kapanis)
                     return
             if z.state is S.TOUCHED:  # varyant dolumu bekliyor
                 self._try_fill(z, sd, ts, high, low, t64)
@@ -1176,8 +1207,13 @@ class Backtest:
 
         if after is S.TOUCHED:
             self.counters["zones_touched"] += 1
-            self._arm_entry(z, sd, ts)
+            self.counters["entry_candidates"] += 1
+            self._temas.add(z.zone_id)
             self._try_fill(z, sd, ts, high, low, t64)
+        elif after is S.INVALIDATED and before in (S.PRIMED, S.TOUCHED)                 and low <= z.anchor_1_price <= high:
+            # OPEN-41 · bekleyen emir `PRIMED` kapanışından beri defterde: `1`'e giden mum
+            # onu da geçti. Dolum + aynı mumda iç stop (§8 stop önce).
+            self._try_fill(z, sd, ts, high, low, t64, kill=True)
         elif after is S.TP1_HIT and pos is not None:
             # R-EXIT-01 · 0.50'de pozisyonun ~%50'si, stop maliyete
             self._close(z, pos, z.tp_050, ts, "TP1", fraction=TP1_FRACTION)
@@ -1185,12 +1221,13 @@ class Backtest:
                 self.pf.positions[z.symbol].tp1_done = True
         elif after is S.CLOSED and pos is not None:
             # Çapa teması: 0 = nihai TP, 1 = nihai stop. İkisi de vurulduysa stop kazanır (§8).
+            # Nihai TP borsada bekleyen limittir, seviyeden dolar. Nihai stop iç stoptur
+            # (R-RISK-02): mum kapanınca bilinir, kapanıştan piyasa emriyle çıkılır.
             stop = low <= z.anchor_1_price <= high
-            self._close(
-                z, pos,
-                z.anchor_1_price if stop else z.tp_final,
-                ts, "STOP" if stop else "FINAL_TP",
-            )
+            if stop:
+                self._close(z, pos, self.marks[z.symbol], ts + STATE_BAR, "STOP")
+            else:
+                self._close(z, pos, z.tp_final, ts, "FINAL_TP")
 
 
 def run_backtest(

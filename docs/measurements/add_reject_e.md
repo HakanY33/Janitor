@@ -1,3 +1,5 @@
+> **UYARI:** Bu ölçüm 30m look-ahead hatası taşır (commit 3fb2ff4 ve öncesi). Mutlak değerler geçersiz. Düzeltilmiş yeniden ölçüm: `docs/measurements/damga.md`.
+
 # `ADD-REJECT-E` — pozisyon seviyesinde stop kaybı tavanı (`L`)
 
 **Koşu:** `python -m scripts.bg scripts.add_reject_e` · 2026-09-21

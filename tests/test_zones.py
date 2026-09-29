@@ -14,7 +14,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from src.zones.model import HYSTERESIS, InvalidTransition, Zone, ZoneState as S
+from src.zones.model import HYSTERESIS, STATE_BAR, InvalidTransition, Zone, ZoneState as S
 from src.zones.store import ZoneStore
 
 T0 = pd.Timestamp("2026-01-01", tz="UTC")
@@ -224,7 +224,7 @@ def test_R_ZONE_04_created_to_primed_gecersiz():
 def test_R_ZONE_04_active_to_primed_050_temasiyla():
     z = zone_in(S.ACTIVE)
     assert z.on_bar(155, 145, ts(3)) is S.PRIMED
-    assert z.primed_at == ts(3)
+    assert z.primed_at == ts(3) + STATE_BAR  # geçiş mumun kapanışında bilinir
 
 
 def test_R_ZONE_04_050_temasi_olmadan_070_giris_uretmez():
@@ -368,9 +368,9 @@ def test_R_ZONE_09_watch_from_anchor_1_htf_mum_kapanisi():
 
 
 def test_R_ZONE_09_watch_from_gec_olan_terimi_secer():
-    """WATCH_FROM = max(HTF mum kapanışı, pivot teyit zamanı)."""
+    """WATCH_FROM = max(HTF mum kapanışı, pivot teyit mumunun kapanışı)."""
     gec = short_zone(pivot_confirmed_at=ts(5))
-    assert gec.watch_from == ts(5)  # pivot teyidi HTF kapanışından sonra
+    assert gec.watch_from == ts(6)  # teyit mumu ts(5)'te açılır, ts(6)'da kapanır
     erken = short_zone(pivot_confirmed_at=T0)
     assert erken.watch_from == ts(2)  # taban kazanır
 
@@ -387,10 +387,11 @@ def test_R_ZONE_09_pivot_teyidi_izlemeyi_geciktirir():
     """Pivot teyidi geç ise arada kalan mumlar zone'a hiç gösterilmez."""
     z = short_zone(pivot_confirmed_at=ts(5))
     z.activate()
-    assert z.state_changed_at == ts(5)
-    with pytest.raises(ValueError, match="look-ahead"):
-        z.on_bar(200, 190, ts(4))  # teyitten önceki çapa teması zone'u öldürmemeli
-    assert z.on_bar(155, 145, ts(5)) is S.PRIMED
+    assert z.state_changed_at == ts(6)  # teyit mumunun kapanışı
+    for erken in (ts(4), ts(5)):  # teyit mumu kapanmadan gelen mumlar görülmez
+        with pytest.raises(ValueError, match="look-ahead"):
+            z.on_bar(200, 190, erken)
+    assert z.on_bar(155, 145, ts(6)) is S.PRIMED
 
 
 # --- R-ZONE-09 · mum içi çakışma sayaçları ----------------------------------
@@ -435,6 +436,7 @@ def test_R_ZONE_09_sayaclar_zone_basina_ve_toplamda(tmp_path):
     atlayan.on_bar(175, 145, ts(3))  # atlanan ilerleme
     olen = zone_in(S.ACTIVE)
     olen.on_bar(200, 145, ts(3))  # öldürme kazandı
+    olen.zone_id = "olen"  # aynı çapalar aynı deterministik kimliği verir (Ö3)
     for z in (atlayan, olen):
         store.save(z)
 
@@ -476,7 +478,8 @@ def test_R_ZONE_06_open_zones_terminalleri_haric_tutar(tmp_path):
     watched = [zone_in(S.ACTIVE), zone_in(S.PRIMED), zone_in(S.ENTERED)]
     dead = zone_in(S.TP1_HIT)
     dead.transition(S.CLOSED, ts(9))
-    for z in watched + [dead]:
+    for i, z in enumerate(watched + [dead]):
+        z.zone_id = f"z{i}"  # aynı çapalar aynı deterministik kimliği verir (Ö3)
         store.save(z)
     assert {z.zone_id for z in store.open_zones()} == {z.zone_id for z in watched}
     assert store.open_zones(symbol="YOK/USDT") == []

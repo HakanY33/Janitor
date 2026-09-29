@@ -8,8 +8,25 @@ Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
 
 ## Şu an
 
-**Görev:** F1 olumsuz sonuç olarak kaydedildi. Kaybın nedeni açıklandı (ayar için değil).
-İşlem akışı kayıtçısı sunucuda çalışıyor.
+**Görev:** Canlı döngü ön koşulları (`docs/LIVE.md` Ö1–Ö3) yapıldı, F1 birebir korundu.
+D0 yazıldı. **D1 ve `OPEN-41` kodu kullanıcı kararını bekliyor: motorda look-ahead bulundu.**
+
+**2026-09-29 (2. oturum):**
+- `OPEN-41`…`OPEN-57` kapandı, spec **v0.5** (`R-ENTRY-02` emir anı, `R-RISK-02` felaket
+  stopu, §6 kill eylemleri). Karar satırları `docs/LIVE.md` §9.
+- Ö3 deterministik kimlik (`src/features/ids.py`, `uuid5`) · Ö1 `Backtest.start/step/finish`
+  · Ö2 `src/execution/adapter.py` (`ExecutionAdapter`, `SimAdapter`). Her adımdan sonra F1
+  eğitim: net **2.376,0853**, 2.251 işlem, işlem parmak izi ve tüm sayaçlar birebir aynı.
+- **Look-ahead (CLAUDE.md #3).** 30m damgaları mumun **açılışı**; motor bunları "bilinir
+  oldu" anı gibi kullanıyor: zone `pivot_confirmed_at` (→ `watch_from`), OB `impulse_at`,
+  FVG `created_at` bir 30m mum erken görünüyor. `htf_bias` doğru (`known_at = ts + TF`).
+  Damgalar kapanışa kaydırılınca (yalnızca ölçüm, `src` değişmedi) F1 eğitim
+  **+2.376 → −3.721**, işlem 2.251 → 2.832. Tespit fonksiyonları nedensel (D0 geçiyor);
+  hata tüketen tarafta. D1 bu hatayla geçemez.
+  Ayrıştırma: yalnızca zone damgası → **+1.973** (1.946 işlem); yalnızca OB/FVG damgaları →
+  **−3.930** (3.219 işlem). Gösterge kaydırması iki yönlü: oluşum geç görünür (iyimserlik
+  kalkar) **ve** `filled_at`/`mitigated_at` geç görünür (açılış damgasının kötümserliği
+  kalkar, kapı daha çok zone geçirir). İkisi ayrı ölçülmedi. Betik: `logs/f1check/`.
 
 **Durum: F1 donduruldu.** Kriter 1 kaldı (K1–K3), sonuç kabul edildi (spec §8).
 2026-05-08 → 09-11 dilimi artık örneklem içi. **Yeni doğrulama yalnızca 2026-09-11
@@ -49,6 +66,8 @@ sonrası veride yapılabilir.** `OPEN-38` ertelendi.
 
 | Bulgu | Sonuç |
 |---|---|
+| **F1 eğitim edge'i look-ahead'den** | damgalar kapanışa alınınca +2.376 → **−3.721**. Önceki tüm backtest sayıları aynı hatayı taşıyor |
+| `pierce_time` önek-değişmez değil | tasarım gereği (veri geçişten hemen sonra biterse delinme sayılır, kötümser); D0 dışında |
 | **Backtest girişi temas mumunda kurup dolduruyor** | canlıda emir önceden defterde olmalı → `OPEN-41` |
 | Zone/OB kimliği `uuid4` | canlı ↔ backtest eşleştirilemez; deterministik kimlik ön koşul |
 | **VST ≠ gerçek piyasa** | ayrı defter/işlem akışı, DOGE orta fiyat +12 bps, spread 26 bps. Demo doluşu kuyruk ölçümü değil |
@@ -127,8 +146,9 @@ sonrası veride yapılabilir.** `OPEN-38` ertelendi.
    2026-09-11 sonrası veride doğrulanabilir. Bu veri birikiyor.
 2. İşlem akışını birkaç gün izle: `trades_gap` sayısı ve disk kullanımı. Boşluk
    çıkarsa `--cycle` kısaltılır ya da yoklama paralelleştirilir.
-3. `docs/LIVE.md` §9 açık soruları, özellikle `OPEN-41` (giriş emri zamanı) ve `OPEN-49`
-   (kill eylemleri). Kod bunlardan ve CLAUDE.md adım 5–6'dan sonra.
+3. **Karar kullanıcının:** look-ahead düzeltmesi (damga + TF'yi "bilinir" anı yap). F1
+   sayısı değişir. Sonra: `OPEN-41` kodu + F1 fark raporu, D1 (`ReplayFeed` + artımlı
+   tespit), `ARCHITECTURE.md` §4.1 olay listesi (`OPEN-54`).
 4. Görev Zamanlayıcı'ya `pull_book`'u kaydet.
 
 **Uyarı:** Ayrılmış %20 harcandı (2026-09-25). 2026-05-08 → 09-11 örneklem içidir.
@@ -136,7 +156,7 @@ sonrası veride yapılabilir.** `OPEN-38` ertelendi.
 ## Açık maddeler
 
 `OPEN-27` ekleme çarpanı hedefi (şu an `0.79`) · `OPEN-28` KRİTİK'te yarılama ·
-`R-ZONE-08` aday sıralaması (adaylar ölçüldü, dayanıklı çıkan yok) · `ADD-REJECT-A` · `OPEN-31` `R-ENTRY-02` (3) kaldırılsın mı · `OPEN-32` doluş varsayımı spec'te tanımsız · `OPEN-34` boyutu risk tavanından türetme · `OPEN-36` maker doluş oranı · `OPEN-37` post-only giriş · `OPEN-38` gerçek doluş ölçümü (ertelendi) · `OPEN-39` kriter 2 bağlayıcı küme · `OPEN-41`…`OPEN-57` canlı döngü (`docs/LIVE.md` §9)
+`R-ZONE-08` aday sıralaması (adaylar ölçüldü, dayanıklı çıkan yok) · `ADD-REJECT-A` · `OPEN-31` `R-ENTRY-02` (3) kaldırılsın mı · `OPEN-32` doluş varsayımı spec'te tanımsız · `OPEN-34` boyutu risk tavanından türetme · `OPEN-36` maker doluş oranı · `OPEN-37` post-only giriş · `OPEN-38` gerçek doluş ölçümü (ertelendi) · `OPEN-39` kriter 2 bağlayıcı küme
 
 ---
 
@@ -145,10 +165,11 @@ sonrası veride yapılabilir.** `OPEN-38` ertelendi.
 | Klasör | İçerik |
 |---|---|
 | `src/data/` | Toplama, doğrulama, Parquet |
-| `src/features/` | `structure.py` swing/bias · `ob.py` · `fvg.py` · `candles.py` |
+| `src/features/` | `structure.py` swing/bias · `ob.py` · `fvg.py` · `candles.py` · `ids.py` deterministik kimlik |
 | `src/zones/` | `model.py` FSM · `store.py` SQLite · `detect.py` leg → zone |
 | `src/strategy/` | `entry.py` `R-ENTRY-05` filtreleri |
-| `src/backtest/` | `loader.py` sembol hazırlığı + önbellek · `engine.py` olay döngüsü · `portfolio.py` cross equity · `costs.py` kalem defteri |
+| `src/backtest/` | `loader.py` sembol hazırlığı + önbellek · `engine.py` olay döngüsü (`start`/`step`/`finish`) · `portfolio.py` cross equity · `costs.py` kalem defteri |
+| `src/execution/` | `adapter.py` `ExecutionAdapter` arayüzü, `SimAdapter` (backtest doluş modeli) |
 | `scripts/` | `diagnose.py` · `sweep.py` · `entry_variants.py` · `terminate.py` · `reconcile.py` · `branches.py` · `levers.py` A/B/C/D · `tp_placement.py` D1-D4 TP yerleşimi · `add_reject_e.py` stop kaybı tavanı · `spread_logger.py` canlı emir defteri · `robustness.py` breakeven ücreti + komisyon dağılımı + `R-ZONE-08` iç validasyon · `f_kollari.py` F1/F2 · `slippage_stres.py` OPEN-32 (d) · `maker_stres.py` OPEN-36 · `post_only.py` OPEN-37 · `ayrilmis.py` kriter 1 · `neden.py` eğitim/ayrılmış açıklayıcı · `trades_logger.py` işlem akışı · `bg.py` |
 | `docs/measurements/` | Ölçüm tarihçeleri — spec'te yalnızca tek satırlık referans var |
 

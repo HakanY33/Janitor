@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Durum** | Tasarım taslağı, 2026-09-29. Kod yok. |
+| **Durum** | 2026-09-29. §9 kapandı (spec v0.5). Ö1–Ö3, `OPEN-41` ve 30m look-ahead düzeltmesi kodda. D0 ve D1 geçiyor (`tests/test_parity.py`, `tests/test_parity_d1.py`). WS/REST, SQLite durum ve PaperAdapter kodu yok. |
 | **Otorite** | `STRATEGY_SPEC.md` > `ARCHITECTURE.md` > bu belge. Çelişkide üstteki kazanır. |
 | **Aşama** | CLAUDE.md çalışma sırası adım 7 (PaperAdapter + canlı döngü). Adım 5 (`src/risk/`) ve 6 bitmeden kod yazılmaz. |
 
@@ -32,7 +32,7 @@ risk (`_risk05_zone`, `_deleverage`, `_daily_loss_hit`) ve doluş simülasyonu
 | # | Ön koşul | Neden |
 |---|---|---|
 | Ö1 | `Backtest.run` içindeki dakika gövdesi (`for gi in range(len(grid))` içi) tek bir `step(t, bars)` fonksiyonuna çıkarılır. Backtest bu fonksiyonu ızgarada döngüyle, canlı döngü her kapanan dakikada çağırır. | İki ayrı döngü iki ayrı mantık demektir. |
-| Ö2 | Doluş kararı (`_limit_filled`, `_entry_filled`, `_taker_mi`) `ExecutionAdapter` arkasına taşınır. Backtest `PaperAdapter(P1)` ile koşar. | Backtest'in doluş modeli ile paper'ınki aynı nesne olur. |
+| Ö2 | Doluş kararı (`_limit_filled`, `_entry_filled`, `_taker_mi`) `ExecutionAdapter` arkasına taşınır. Backtest'in bugünkü davranışı `SimAdapter`'dır. | Backtest'in doluş modeli ile paper'ınki aynı nesne olur: `PaperAdapter` = `SimAdapter` + kayıt. |
 | Ö3 | `zone_id` ve `ob_id` deterministik olur (`uuid4` → sembol, TF, çapa zamanları ve fiyatlarından `uuid5`). | Şu an her koşuda rastgele. Canlıda yeniden tespit edilen zone'un "zaten bilinen" olduğu anlaşılamaz. Parite testi kimlikle eşleştiremez. |
 
 ### Ayrıştıkları yerler — tam liste
@@ -44,15 +44,15 @@ Bu tablonun dışında kalan her fark bir hatadır.
 | A1 | Mum kaynağı | Parquet (REST'ten toplanmış) | WS kline + REST uzlaştırma (§2) | Oynatmada Parquet mum mum beslenir → fark yok. Gölge testte (§5 D3) ölçülür. |
 | A2 | Feature üretimi | Tüm 30m serisi tek seferde. Görünürlük `watch_from`, `pivot_confirmed_at`, `known_at`, `pierce_at` damgalarıyla sınırlanır. | Her 30m kapanışında büyüyen seri üzerinde yeniden tespit. Yeni kimlikler eklenir. | **Merkez test** (§5 D0). Önek değişmezliği. |
 | A3 | Karar zamanlaması | Mum `t` işlenirken mumun tamamı elde | Mum `t`, kapanışı teyit edildikten sonra işlenir. Tüm semboller için dakika bariyeri (§2). | Aynı: kararlar yalnızca kapanmış mumda. |
-| A4 | Giriş emrinin konması | `TOUCHED` olan mumda hedef hesaplanır ve **aynı mumda** doluş aranır. | Temas ancak mum kapanınca bilinir. Aynı mumda dolum için emir **önceden** defterde olmalıdır. | **Fark var** → `OPEN-41`. |
-| A5 | Nihai stop (`R-RISK-02`) ve breakeven | Mum `low/high` seviyeye değerse **seviyeden** kapanır (+ slippage modeli). | Stop borsada yok, bot içinde. Kapanmış mumda görülürse piyasa emri ≤ 60 sn geç gider. | **Fark var** → `OPEN-42`. |
-| A6 | İşaret fiyatı (equity, `R-RISK-05` likidasyon mesafesi) | 1m kapanışı | Borsanın `markPrice`'ı ve gerçek likidasyon fiyatı | Paper, pariteyi korumak için 1m kapanışı kullanır, `markPrice`'ı yanına loglar → `OPEN-43`. |
+| A4 | Giriş emrinin konması | `PRIMED` kapanışında bekleyen limit, her kapanışta yeniden hesap (`R-ENTRY-02`, `OPEN-41`) | Aynı | Fark yok. |
+| A5 | Nihai stop (`R-RISK-02`) ve breakeven | Mum `low/high` seviyeye değerse **seviyeden** kapanır (+ slippage modeli). | Stop borsada yok, bot içinde. Kapanmış mumda görülürse piyasa emri ≤ 60 sn geç gider. | Backtest artık tetik mumunun **kapanışından** çıkar (spec `R-RISK-02`). Paper, kapanıştaki defterle gerçek çıkış fiyatını kaydeder (§4). |
+| A6 | İşaret fiyatı (equity, `R-RISK-05` likidasyon mesafesi) | 1m kapanışı | Borsanın `markPrice`'ı ve gerçek likidasyon fiyatı | Paper 1m kapanışı kullanır, `markPrice`'ı loglar. Live ikisinden **küçük** mesafeyi kullanır (`OPEN-43`). |
 | A7 | Funding | 8 saatlik takvimde maliyet modeli | Paper: aynı model. Live: borsanın gerçek funding kaydı. | Paper'da fark yok. |
 | A8 | Komisyon ve slippage | `costs.py` modeli | Paper: aynı model. Live: doluş yanıtındaki gerçek ücret ve fiyat. | Paper'da fark yok. |
 | A9 | Koşu sonu | Açık pozisyon `RUN_END` ile kapatılır | Koşu sonu yok | Oynatmada `RUN_END` satırları karşılaştırma dışı. |
 | A10 | Veri penceresi | `train_frac` kesimi (`loader.py`) | Kesim yok | Oynatma, kesilmemiş Parquet ile yapılır. |
 | A11 | Borsa parametreleri (`tickSize`, `stepSize`, ücret) | Önbellek | API'den çekilip önbelleklenir (CLAUDE.md #5) | Oynatmada aynı önbellek. |
-| A12 | Şüpheli mum (`ARCHITECTURE.md` §3.1) | Şu an uygulanmıyor (`src/`'da `suspect` yok) | Canlıda **bilinemez**: tanım sonraki N mumu istiyor | → `OPEN-44`. |
+| A12 | Şüpheli mum (`ARCHITECTURE.md` §3.1) | Şu an uygulanmıyor (`src/`'da `suspect` yok) | Canlıda **bilinemez**: tanım sonraki N mumu istiyor | İkisinde de karar girdisi değil; yalnızca sonradan işaretlenir (`OPEN-44`). |
 
 ---
 
@@ -93,9 +93,8 @@ canlıda:
 | **Yapısal bozukluk** | `low ≤ open,close ≤ high`, mükerrer damga, UTC dışı (§3.1 "her bulgu hata") | → **`R-KILL-01`** |
 | **İşlem akışında boşluk** | `fillId` atlaması (`trades_logger` ile aynı yöntem) | Kill **değil**: karar girdisi değil. O aralıktaki doluş kayıtları `incomplete` işaretlenir. |
 
-`B`, `P` ve kopma süresi eşiği spec'te tanımlı değil → `OPEN-48`. `R-KILL-01`
-tetiklendiğinde botun ne yaptığı (yeni girişi durdurmak mı, emir iptali mi, pozisyon
-kapatmak mı) spec'te tanımlı değil → `OPEN-49`. Bu, `R-KILL-02..06` için de geçerlidir.
+`B = 10 sn`, `P = 30 sn`, kopma eşiği `60 sn` (`OPEN-48`). `R-KILL-*` eylemleri spec §6
+tablosunda (`OPEN-49`).
 
 ---
 
@@ -139,13 +138,13 @@ gönderimde BingX'in ne yaptığı (red mi, mevcut emri mi döndürür) doğrula
    Otomatik düzeltme yapılmaz. Hangi tarafın doğru olduğuna insan karar verir.
 4. **Yetişme.** İmleçten şimdiye kadarki 30m ve 1m mumları REST'ten çekilir ve sırayla
    `step`'ten geçer. Paper'da bu, kesintisiz koşuyla aynı sonucu verir: P1 mumla çalışır.
-   Live'da geçmiş bir mumda emir verilemez. Yetişme sırasında doğan girişlerin ne olacağı
-   tanımsız → `OPEN-51`.
+   Live'da geçmiş bir mumda emir verilemez: yetişmede doğan **giriş** atılır ve loglanır;
+   kaçırılmış **çıkış** (stop/TP seviyesi geçilmiş) yetişme biter bitmez piyasa emriyle
+   kapatılır (`OPEN-51`).
 5. WS'e bağlanılır, bariyer başlar.
 
-**Süreç kapalıyken stop yoktur.** `R-RISK-02` stopu borsaya göndermiyor. Paper'da bu
-yalnızca bir kayıttır. Live'da süreç kapalı kaldığı her dakika pozisyon stopsuzdur →
-`OPEN-52`.
+**Süreç kapalıyken iç stop yoktur.** Live'da borsadaki felaket stopu korur
+(`R-RISK-02`, `OPEN-52`). Paper'da emir gönderilmez, seviyesi kaydedilir.
 
 ---
 
@@ -153,7 +152,8 @@ yalnızca bir kayıttır. Live'da süreç kapalı kaldığı her dakika pozisyon
 
 ### Doluş modeli
 
-Backtest'teki **P1**'in aynısı. Nesne de aynıdır (Ö2): `entry_fill="tick1"`. Limit emir,
+Backtest'teki **P1**'in aynısı. Nesne de aynıdır (Ö2): `PaperAdapter`, `SimAdapter`'ı
+(`entry_fill="tick1"`) sarar ve üstüne kayıt ekler. Limit emir,
 fiyat seviyeyi 1 tick geçmeden dolmaz. Seviyeye değip dönen mum doldurmaz. Paper'ın ürettiği
 işlemler bu yüzden **tanım gereği** backtest'inkilerdir. Paper doluş sorusunu çözmez
 (`OPEN-37`). Görevi o soruyu çözecek veriyi toplamaktır.
@@ -205,8 +205,7 @@ Tespit edilen bir leg'in çapası sonradan uzuyorsa, önekte başka çapalı bir
 test kırılır. Bu tam olarak aranan hata sınıfıdır. Ö3 olmadan (deterministik kimlik) bu test
 yazılamaz.
 
-Canlıda tespit tüm geçmişte değil **kayan bir pencerede** koşarsa (maliyet için), aynı test
-pencere başlangıcı için de yapılır. Pencere uzunluğu → `OPEN-53`.
+Canlı tespit **tüm geçmişte** koşar (`OPEN-53`): pencere başlangıcı testi gerekmez.
 
 ### D1 — Oynatma
 
@@ -221,6 +220,15 @@ koşulur. Karşılaştırılan:
 Ö1 ve Ö2'den sonra iki taraf aynı `step`'i ve aynı adaptörü kullanır. D1'in yakaladığı fark
 **yalnızca** feature'ların artımlı üretimi (A2) ve besleme sırasıdır (A3). Bu kasıtlıdır:
 farkın kaynağı daralır.
+
+**Uygulama (2026-09-29).** `src/live/replay.py`: `kapanis` her 30m kapanışında önekte
+yeniden tespit eder, yeni kimlikleri ekler (`Backtest.add_zones`); `oynat` 30m'i yalnızca
+kapanışında verir. Veri sentetik ve tohumlu (ağsız, `data/` gerekmez), 20 gün, iki
+yapılandırma (F1 ve eklemeli). İşlemler, sayaçlar, equity eğrisi ve bakiye birebir. İlk
+koşuda eklemeli yapılandırma **kırıldı**: `pierce_time` veri geçişten hemen sonra bitince
+delinme sayıyordu, önekte tam seriden erken. Düzeltildi. Karar logu henüz yazılmıyor
+(`OPEN-54`); yazılınca D1'e eklenir. Süre ~2 dk: her kapanışta tüm geçmiş yeniden
+tespit ediliyor (`OPEN-53`).
 
 ### D2 — Çökme oynatması
 
@@ -254,8 +262,10 @@ D1 bu iki çıktıyı karşılaştırır.
 
 Şemanın `event` listesinde giriş reddi, simüle doluş, uzlaştırma ve veri olayı yok. Motor
 bugün giriş reddini yalnızca sayaçta tutuyor (`no_indicator_skipped`, `leg_skipped`).
-Listenin genişletilmesi ve `NO_ACTION`'ın hangi dakikalarda yazılacağı (her sembol her dakika
-= günde ~28.800 satır) → `OPEN-54`.
+`OPEN-54` kapandı: `event` listesine `ENTRY_REJECTED`, `ORDER` (koy/iptal/yenile),
+`FILL`, `RECONCILE`, `DATA` eklenir. `NO_ACTION` yalnızca bir kararın **değerlendirildiği**
+dakikada yazılır: sembolde `PRIMED`/`TOUCHED` zone ya da açık pozisyon varsa. Boşta
+dakika yazılmaz. Şema değişikliği `ARCHITECTURE.md` §4.1'e log kodu yazılınca işlenir.
 
 ---
 
@@ -267,12 +277,11 @@ Listenin genişletilmesi ve `NO_ACTION`'ın hangi dakikalarda yazılacağı (her
 | Live | Xeon | Alt hesap, sıfır bakiye | Anahtar yalnızca ortam değişkeni (CLAUDE.md #10), IP kısıtlı. |
 
 Paper'ın bellek bütçesi ölçülmedi. Backtest 20 sembolde ~740 MB tutuyor. Sunucuda Minecraft
-ve iki kayıtçı zaten çalışıyor → `OPEN-55`.
+ve iki kayıtçı zaten çalışıyor. `OPEN-55`: kurulumdan önce yerelde ölçülür; servis
+`MemoryMax` ile sınırlanır.
 
-**Sıfır bakiye ve LiveAdapter çelişiyor.** Sıfır bakiyeli hesapta her emir "yetersiz
-marjin" ile reddedilir. Bu aşama yalnızca kimlik doğrulama, red yolu, `R-KILL-02`/`03` ve
-uzlaştırma kodunu sınayabilir. Doluş üretemez → `OPEN-56`. Xeon'un kendisi (adres, işletim
-sistemi, başka ne çalıştığı) bu repoda tanımlı değil → `OPEN-57`.
+**API anahtarı `OPEN-38`'e kadar gerekmiyor (`OPEN-56`).** Sıfır bakiyeli LiveAdapter
+aşaması yapılmaz. Live satırı ve Xeon (`OPEN-57`) `OPEN-38` açılınca tanımlanır.
 
 Demo (VST) bu tabloda yok: ayrı bir piyasa (`docs/measurements/vst.md`).
 
@@ -286,24 +295,27 @@ Demo (VST) bu tabloda yok: ayrı bir piyasa (`docs/measurements/vst.md`).
 
 ---
 
-## 9. Açık sorular
+## 9. Kararlar (eski açık sorular)
 
-| ID | Soru | Neden karar gerekiyor |
+Hepsi 2026-09-29'da kapandı. `OPEN-41`, `OPEN-49`, `OPEN-52`, `OPEN-56` kullanıcı kararı;
+diğerleri en muhafazakâr varsayılan.
+
+| ID | Soru | Karar |
 |---|---|---|
-| `OPEN-41` | Giriş emri ne zaman borsaya konur? Backtest temas mumunda hedefi hesaplayıp aynı mumda dolduruyor (A4). | Canlıda temas mum kapanınca bilinir. Seçenekler: zone izlemeye girince emri koymak ve her kapanan mumda hedefi yeniden fiyatlamak (backtest'in de buna göre değişmesi gerekir), ya da temas sonrası koymak (backtest'ten farklı bir strateji). İkisi de spec değişikliği. |
-| `OPEN-42` | Nihai stop ve breakeven kapanmış mumda mı, işlem akışında anlık mı izlenir (A5)? | Kapanmış mum pariteyi korur ama ≤ 60 sn gecikir. Anlık izleme tek mum içi mantık olur ve backtest'te karşılığı yok. |
-| `OPEN-43` | Live'da risk hesabı (`R-RISK-05`) 1m kapanışından mı, borsanın `markPrice`'ından mı? | Likidasyonu borsa `markPrice` ile yapar. Backtest kapanışla ölçüldü. |
-| `OPEN-44` | Şüpheli mum karantinası canlıda nasıl uygulanır (A12)? | §3.1 tanımı sonraki N mumu istiyor. Karar anında kullanılırsa look-ahead olur. Kullanılmazsa backtest ile canlı aynı veriyi farklı görür. |
-| `OPEN-45` | BingX swap WS: uç noktası, sıkıştırma, ping/pong, kline "kapandı" bayrağı var mı? | Kapanış tespiti (§2) buna bağlı. Belge ve deneme bağlantısıyla doğrulanacak. |
-| `OPEN-46` | İşlemsiz dakika: borsa mum döndürmüyorsa eksik mum mu, sıfır hacimli mum mu? | Backtest verisinde bu dakikalar nasıl temsil ediliyor, doğrulanmalı. Canlı aynısını yapmalı. |
-| `OPEN-47` | WS ↔ REST mum uzlaştırmasında tam eşitlik mi, tolerans mı? | `R-KILL-01` eşiği. |
-| `OPEN-48` | Bariyer süresi `B`, sessizlik süresi `P`, kopma süresi eşiği | Spec'te `R-KILL-01`'in sayısal tanımı yok. |
-| `OPEN-49` | `R-KILL-01..06` tetiklenince ne olur: yeni giriş durur mu, emirler iptal mi, pozisyon kapanır mı? Hangisi kendiliğinden, hangisi insanla kalkar? | Spec §6 yalnızca adları listeliyor. Ayrıca §6 "tüm kill switch'ler açık/kapalı switch" diyor. `R-KILL-04` (`R-RISK-05`) CLAUDE.md #2'ye göre kapatılamaz. Çelişki. |
-| `OPEN-50` | Aynı `client_order_id` ile ikinci gönderimde BingX ne yapar? | İdempotentlik (CLAUDE.md #6) buna dayanıyor. Borsa yanıtı fixture olarak saklanacak. |
-| `OPEN-51` | Live'da yetişme sırasında (kesinti sonrası) doğan giriş/çıkış sinyali ne olur? | Geçmiş mumda emir verilemez. Çıkış sinyali (stop) kaçırılmışsa şimdiki fiyattan mı kapatılır? |
-| `OPEN-52` | Süreç kapalıyken live pozisyon stopsuz (`R-RISK-02`). Borsaya felaket stopu eklensin mi? | Spec değişikliği. `R-RISK-02` gerekçesiyle çelişir. |
-| `OPEN-53` | Canlı tespit tüm geçmişte mi, kayan pencerede mi? Pencereyse uzunluğu? | Maliyet ↔ önek değişmezliği (D0). Tespit süresi ölçülmedi. |
-| `OPEN-54` | Karar logu `event` listesinin genişletilmesi (giriş reddi, doluş, uzlaştırma, veri) ve `NO_ACTION` sıklığı | Şema ARCHITECTURE'da. Değişiklik oraya yazılmalı. |
-| `OPEN-55` | Paper'ın Minecraft sunucusundaki bellek/CPU bütçesi | Ölçülmeden kurulum yapılmaz. |
-| `OPEN-56` | Sıfır bakiyeli alt hesapta LiveAdapter aşamasının amacı ne? Doluş ölçülecekse bakiye ve kayıp tavanı gerekir (`OPEN-38`). | Gerçek para kapsam dışı (CLAUDE.md). |
-| `OPEN-57` | Xeon makinesi: adres, işletim sistemi, erişim, başka ne çalışıyor | Repoda tanımı yok. |
+| `OPEN-41` | Giriş emri ne zaman konur (A4) | `PRIMED` mumunun kapanışında, o anda bilinen bilgiyle bekleyen limit. Her kapanışta yeniden hesap; değiştiyse iptal + yenile. Zone'u `1` çapasıyla öldüren mum emri geçtiyse dolum + aynı mumda stop. Backtest birebir uygular (spec `R-ENTRY-02`). |
+| `OPEN-42` | Stop/breakeven kapanmış mumda mı, anlık mı (A5) | Kapanmış 1m mumda; tetikte hemen piyasa emri. Mum içi mantık yok. Gecikmenin maliyeti paper kaydında ölçülür. |
+| `OPEN-43` | Live `R-RISK-05`: kapanış mı `markPrice` mı | İkisiyle de hesaplanır, **küçük** mesafe kullanılır. Paper kapanışla (parite), `markPrice` loglanır. |
+| `OPEN-44` | Şüpheli mum karantinası canlıda (A12) | Karar girdisi değil (ikisinde de). Yalnızca sonradan işaretlenir; yapısal bozukluk `R-KILL-01`. |
+| `OPEN-45` | BingX WS ayrıntıları | Kapanış bayrağına güvenilmez: `m`, `m+1`'in ilk mesajı gelince kapanmış sayılır, REST ile uzlaştırılır (`OPEN-47`). Uç nokta/ping ayrıntısı doğrulama işi, karar değil. |
+| `OPEN-46` | İşlemsiz dakika | Sentetik mum üretilmez; sembol o dakikada `step`'e girmez — backtest ızgarasıyla aynı. REST de yoksa kill değil, `DATA` olayı loglanır. |
+| `OPEN-47` | WS ↔ REST uzlaştırma eşiği | Tam eşitlik. Her fark `R-KILL-01`. |
+| `OPEN-48` | `B`, `P`, kopma eşiği | `B = 10 sn`, `P = 30 sn`, kopma `60 sn` → `R-KILL-01`. |
+| `OPEN-49` | Kill eylemleri | Spec §6 tablosu. `R-RISK-05`, `R-KILL-02`, `R-KILL-03` kapatılamaz. `R-KILL-01`: yeni giriş durur, bekleyen girişler iptal, pozisyonlar felaket stopunda. `R-KILL-02/03`: tüm faaliyet durur, insan. |
+| `OPEN-50` | Aynı `client_order_id` ile ikinci gönderim | Aynı kimlik körlemesine yeniden gönderilmez: önce kimlikle sorgulanır. Sorgu cevapsızsa `R-KILL-02`. BingX'in davranışı fixture ile belgelenir. |
+| `OPEN-51` | Yetişmede doğan sinyaller | Giriş atılır ve loglanır. Kaçırılmış çıkış yetişme sonunda piyasa emriyle kapanır. |
+| `OPEN-52` | Felaket stopu | İç stop birincil. Canlıda borsaya `reduceOnly` felaket stopu, `1`'in `FELAKET_MESAFE` (başlangıç 0.10 leg) ötesinde. Paper'da gönderilmez, kaydedilir (spec `R-RISK-02`). |
+| `OPEN-53` | Canlı tespit: tüm geçmiş mi, pencere mi | Tüm geçmiş. Maliyet `OPEN-55` ölçümünde görülür. |
+| `OPEN-54` | Karar logu olayları, `NO_ACTION` sıklığı | §6: yeni olaylar eklenir; `NO_ACTION` yalnızca kararın değerlendirildiği dakikada. |
+| `OPEN-55` | Sunucu bütçesi | Kurulumdan önce yerelde ölçülür; servis `MemoryMax` ile sınırlı. |
+| `OPEN-56` | Sıfır bakiyeli LiveAdapter | API anahtarı `OPEN-38`'e kadar gerekmiyor; bu aşama yapılmaz. |
+| `OPEN-57` | Xeon | `OPEN-38` açılınca tanımlanır. |

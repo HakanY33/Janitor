@@ -1,3 +1,5 @@
+> **UYARI:** Bu ölçüm 30m look-ahead hatası taşır (commit 3fb2ff4 ve öncesi). Mutlak değerler geçersiz. Düzeltilmiş yeniden ölçüm: `docs/measurements/damga.md`.
+
 # TP yerleşimi — `R-EXIT-01` / `R-EXIT-02` tam seviyede mi, önce mi
 
 **Koşu:** `python -m scripts.bg scripts.tp_placement` · 2026-09-21

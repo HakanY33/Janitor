@@ -126,7 +126,8 @@ def dogrula(symbol: str, df: pd.DataFrame, n: int = 3_000) -> None:
                 continue
             for alan, sutun in (("mitigated_at", "mit"), ("filled_at", "dol")):
                 an = getattr(f, alan)
-                beklenen = an is not None and yer[an] - i <= h
+                # damga olay mumunun kapanışı (known_at düzeltmesi); `yer` açılışla indeksli
+                beklenen = an is not None and yer[an - pd.Timedelta(TF)] - i <= h
                 assert bool(satir[f"{sutun}_{h}"]) == beklenen, f"{sutun}_{h} @ {i}"
     print(f"  dogrulama: {len(fvgs):,} FVG, replay() ile birebir ayni", file=sys.stderr)
 

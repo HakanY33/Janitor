@@ -1,3 +1,5 @@
+> **UYARI:** Bu ölçüm 30m look-ahead hatası taşır (commit 3fb2ff4 ve öncesi). Mutlak değerler geçersiz. Düzeltilmiş yeniden ölçüm: `docs/measurements/damga.md`.
+
 # Ölçüm · R-RISK-05 eşik ızgarası
 
 Kural metni: `docs/STRATEGY_SPEC.md` — `R-RISK-05`, `R-RISK-01`, `R-ADD-03`, `OPEN-17`, `OPEN-28`.

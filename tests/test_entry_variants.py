@@ -19,7 +19,6 @@ from src.backtest.engine import (
     ENTRY_075,
     ENTRY_079,
     ENTRY_IND,
-    ENTRY_W3,
     Backtest,
 )
 from tests.test_backtest import bearish_ob, costs, short_zone, symbol_data
@@ -62,9 +61,9 @@ def test_variant_079_waits_for_band_top():
 
 def test_variant_075_misses_entry_when_price_never_reaches():
     """Derinleşen varyant girişi kaybedebilir — asıl ölçülen etki bu."""
-    res = kos([PRIMED, (172, 168), (173, 171), (202, 198)], ENTRY_075)
+    res = kos([PRIMED, (172, 168), (173, 171), (102, 98)], ENTRY_075)  # 0 çapası: ölür
     assert res.counters["entries"] == 0
-    assert res.counters["armed"] == 1
+    assert res.counters["armed"] == 0  # emir fiyatına hiç ulaşılmadı
     assert res.counters["unfilled"] == 1
     assert res.trades == []
 
@@ -98,37 +97,6 @@ def test_band_pos_midway_for_075():
     """175, 170–179 bandının (175−170)/9 = 0.5556'sı."""
     res = kos([PRIMED, (172, 168), (176, 174), (202, 198)], ENTRY_075)
     assert res.trades[0].band_pos == pytest.approx(5 / 9, abs=1e-6)
-
-
-# --- pencere varyanti ---------------------------------------------------------
-
-
-def test_window_variant_places_limit_at_best_seen_price():
-    """3 mum izlenir, bant içi en iyi (SHORT için en yüksek) fiyata limit konur.
-
-    Pencere: 172 → 177 → 174. En iyi 177. Limit oraya konur ve fiyat geri gelince dolar.
-    """
-    bars = [PRIMED, (172, 168), (177, 175), (174, 172), (178, 176), (202, 198)]
-    res = kos(bars, ENTRY_W3)
-    assert res.counters["entries"] == 1
-    assert res.trades[0].entry_price == Decimal("177")
-
-
-def test_window_variant_does_not_fill_retroactively():
-    """En iyi fiyat pencere içinde kalıp bir daha görülmezse giriş **olmaz**.
-
-    Look-ahead olsaydı 177'den dolardı (CLAUDE.md #3). Nedensel yol dolumu kaybeder.
-    """
-    bars = [PRIMED, (172, 168), (177, 175), (174, 172), (173, 171), (202, 198)]
-    res = kos(bars, ENTRY_W3)
-    assert res.counters["entries"] == 0
-    assert res.counters["unfilled"] == 1
-
-
-def test_window_variant_fill_is_never_better_than_best_seen():
-    bars = [PRIMED, (172, 168), (177, 175), (174, 172), (180, 176), (202, 198)]
-    res = kos(bars, ENTRY_W3)
-    assert res.trades[0].entry_price <= Decimal("179")  # bant dışına taşmaz
 
 
 # --- gosterge varyanti --------------------------------------------------------
@@ -178,14 +146,23 @@ def test_indicator_variant_mitigated_ob_is_ignored():
 def test_all_variants_require_050_precondition():
     """Ön koşul atlanamaz: 0.50 görülmeden hiçbir varyant giriş üretmez (§0)."""
     bars = [(172, 168), (176, 174), (180, 178)]
-    for rule in (ENTRY_070, ENTRY_075, ENTRY_079, ENTRY_W3, ENTRY_IND):
+    for rule in (ENTRY_070, ENTRY_075, ENTRY_079, ENTRY_IND):
         assert kos(bars, rule).counters["entries"] == 0, rule.name
 
 
-def test_all_variants_respect_zone_invalidation():
-    """Dolum beklenirken çapaya değilirse zone ölür, giriş olmaz (R-ZONE-05)."""
+def test_R_ENTRY_02_OPEN_41_capa_mumu_bekleyen_emri_doldurur_ve_stoplar():
+    """Emir `PRIMED` kapanışından beri defterde. `1` çapasına giden mum emri de geçer:
+    dolum + aynı mumda iç stop (§8 stop önce). Zone yine `INVALIDATED` (R-ZONE-05)."""
     bars = [PRIMED, (172, 168), (202, 198)]
-    for rule in (ENTRY_075, ENTRY_079, ENTRY_W3, ENTRY_IND):
+    for rule in (ENTRY_075, ENTRY_079, ENTRY_IND):
         res = kos(bars, rule)
-        assert res.counters["entries"] == 0, rule.name
-        assert res.counters["armed"] == 1, rule.name
+        assert res.counters["entries"] == 1 and res.counters["kill_bar_fills"] == 1, rule.name
+        t = res.trades[0]
+        assert t.reason == "STOP" and t.ambiguous, rule.name
+        assert t.exit_price == Decimal("200")  # tetik mumunun kapanışı (iç stop)
+
+
+def test_R_ENTRY_02_OPEN_41_capa_mumu_emir_yoksa_giris_yok():
+    """Gösterge kapısı kapalıyken emir yok: çapa mumu hiçbir şey doldurmaz."""
+    res = kos([PRIMED, (172, 168), (202, 198)], ENTRY_079, require_indicator=True)
+    assert res.counters["entries"] == 0

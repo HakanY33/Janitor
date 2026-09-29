@@ -180,7 +180,7 @@ def test_R_ENTRY_05_mitigation_is_touch_not_full_pierce():
     """Mitigasyon gövdeye dokunmaktır; delinme gibi tamamen geçilmesi gerekmez."""
     o = ob(top=178.0, bottom=172.0, impulse=1)
     df = bars([(200, 190), (200, 190), (200, 176), (200, 190)])  # 3. mum gövdeye giriyor
-    assert mitigation_time(o, df) == ts(2)
+    assert mitigation_time(o, df) == ts(2) + pd.Timedelta(TF)  # 3. mumun kapanışında bilinir
 
 
 def test_R_ENTRY_05_mitigation_ignores_bars_before_impulse():

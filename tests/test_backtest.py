@@ -201,7 +201,7 @@ def symbol_data(bars: list[tuple[float, float]], zone: Zone, obs=()) -> SymbolDa
         ob_top=np.array([o.top for o in obs], dtype=float),
         ob_bottom=np.array([o.bottom for o in obs], dtype=float),
         ob_bull=np.array([o.direction == "BULLISH" for o in obs], dtype=bool),
-        ob_impulse=np.array([np.datetime64(o.impulse_at.tz_localize(None)) for o in obs]),
+        ob_known=np.array([np.datetime64(o.known_at.tz_localize(None)) for o in obs]),
         ob_pierce=np.full(len(obs), uzak),
         ob_alive=np.ones(len(obs), dtype=bool),
     )
@@ -267,7 +267,9 @@ def test_R_RISK_02_stop_at_anchor_1_closes_in_loss():
 
 
 def test_R_ZONE_05_anchor_touch_before_entry_invalidates_without_trade():
-    res, _ = run([(152, 148), (202, 198)])
+    """`0` çapası girişten önce: zone ölür, işlem yok. (`1` çapasına giden mum bekleyen
+    emri de geçer ve dolum + stop üretir — `OPEN-41`, test_entry_variants.)"""
+    res, _ = run([(152, 148), (102, 98)])
     assert res.counters["entries"] == 0 and res.trades == []
 
 
@@ -415,7 +417,7 @@ def test_R_ADD_04_reduces_to_k_base_instead_of_exiting():
     t = res.trades[0]
     assert t.reason == "STOP"  # kucultme cikis nedeni degil
     assert t.reduces == 1
-    assert t.bars_after_reduce == 2
+    assert t.bars_after_reduce == 3  # iç stop tetik mumunun kapanışında çıkar (+1 mum)
     assert t.qty == pytest.approx(Decimal("47.0588"), abs=Decimal("0.0001"))  # max_qty
     kalan = -t.gross / Decimal("18.75")  # stop 200 − maliyet 181,25
     assert kalan * Decimal("181.25") == pytest.approx(Decimal("2002.35"),

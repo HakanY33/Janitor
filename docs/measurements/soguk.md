@@ -1,3 +1,5 @@
+> **UYARI:** Bu ölçüm 30m look-ahead hatası taşır (commit 3fb2ff4 ve öncesi). Mutlak değerler geçersiz. Düzeltilmiş yeniden ölçüm: `docs/measurements/damga.md`.
+
 # Sembol soğuk testi + kriter 2 (yeni tanım)
 
 **Tarih:** 2026-09-25 · **spec** v0.4 · **kod** 75518a4+kirli · betik `scripts/soguk.py`

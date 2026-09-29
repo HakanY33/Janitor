@@ -2,10 +2,17 @@
 
 | | |
 |---|---|
-| **Versiyon** | v0.4 |
+| **Versiyon** | v0.5 |
 | **Durum** | OTE modeli kapalı ve kodlanabilir. Açık parametre kalmadı; eşikler backtest'le kalibre edilecek. |
 | **Kapsam** | Kripto vadeli (perpetual), cross marjin, paper trading |
-| **Son güncelleme** | 2026-09-10 |
+| **Son güncelleme** | 2026-09-29 |
+
+> **UYARI — 30m look-ahead (düzeltildi 2026-09-29).** Commit 3fb2ff4 ve öncesindeki kod, zone/OB/FVG damgalarını (mumun açılışı) bilgi anı olarak kullanıyordu: her nesne bir 30m mum erken görünüyordu. Bu spec'te ve `docs/measurements/`'ta o koda dayanan **her ölçüm sayısı** bu hatayı taşır; mutlak değerler geçersizdir. Düzeltilmiş yeniden ölçüm: `docs/measurements/damga.md`. Kural: her HTF nesnesi `known_at` = mumun kapanışı taşır; bir mumdan çıkan hiçbir bilgi o mum kapanmadan kullanılamaz (CLAUDE.md #3).
+
+**v0.4'ten değişenler:** 30m look-ahead düzeltmesi (`known_at`, §0.1, `R-ZONE-09`, `R-RISK-02` iç stop kapanıştan) · `OPEN-41` kapandı (giriş emri `PRIMED` kapanışında bekleyen
+limit, `R-ENTRY-02`) · `OPEN-52` kapandı (borsada felaket stopu, `R-RISK-02`) · `OPEN-49`
+kapandı (§6 kill eylemleri; "her kill switch'in anahtarı var" ifadesi kaldırıldı) ·
+`OPEN-42`…`OPEN-57` kapandı (`docs/LIVE.md` §9)
 
 **v0.3'ten değişenler:** `OPEN-15` kapandı (ara derinlik serbest) · `OPEN-17` kapandı
 (`R-RISK-05` mesafe bazlı üç bölgeye çevrildi) · `R-RISK-02` netleşti (iç stop daima aktif)
@@ -70,11 +77,11 @@ Terimler burada tek anlama sabitlenir. Kod aynı isimleri kullanır.
 | **Leg (Bacak)** | Bir swing low'dan swing high'a (veya tersi) uzanan hareket. Fib'in çizildiği aralık. Uç tespiti `R-ZONE-02`. |
 | **Likidite bölgesi** | Leg'in başladığı/bittiği, önceki swing'in aşıldığı bölge. |
 | **İmpuls** | Normalden belirgin büyük gövdeli, tek yönlü hareket mumu. Ölçüt: gövde > `IMPULSE_MULT` × son 20 mumun **medyan** gövdesi. **`IMPULSE_MULT = 4.0`** (`OPEN-21` kapandı). OB tanımı buna dayanır. |
-| **OB (Order Block)** | İmpuls hareketi öncesindeki **son ters yönlü mumun gövdesi**. İki zaman damgası taşır: `created_at` (gövdenin zamanı) ve `impulse_at` (OB'nin bilinebilir olduğu an). Değerlendirme `impulse_at`'ten önceye bakamaz. |
-| **FVG** | Üç mumluk yapıda 1. mumun high'ı ile 3. mumun low'u arasındaki dokunulmamış boşluk (ters yön için simetrik). `created_at` = 3. mumun zamanı — boşluk ancak o mum kapanınca bilinir. |
-| **Mitigasyon** | Fiyatın bir FVG/OB bölgesine ilk temas etmesi. **Dolum** ise karşı sınırın geçilmesidir; ikisi ayrı kaydedilir. |
+| **OB (Order Block)** | İmpuls hareketi öncesindeki **son ters yönlü mumun gövdesi**. Damgalar: `created_at` (gövde mumunun açılışı), `impulse_at` (impuls mumunun açılışı) — kimliktir, bilgi anı değil. **Bilgi anı `known_at` = impuls mumunun kapanışı.** Değerlendirme `known_at`'ten önceye bakamaz. |
+| **FVG** | Üç mumluk yapıda 1. mumun high'ı ile 3. mumun low'u arasındaki dokunulmamış boşluk (ters yön için simetrik). `created_at` = 3. mumun açılışı; boşluk ancak o mum kapanınca bilinir: **`known_at` = 3. mumun kapanışı**. |
+| **Mitigasyon** | Fiyatın bir FVG/OB bölgesine ilk temas etmesi. **Dolum** ise karşı sınırın geçilmesidir; ikisi ayrı kaydedilir. Her ikisinin damgası olayın gerçekleştiği mumun **kapanışıdır**. |
 | **"OB içinde FVG"** | Kesişim yeterlidir, tam kapsama aranmaz (`R-ADD-05`). |
-| **Delinme** | OB'nin impuls mumlarıyla tamamen geçilmesi. Mum kapanışı beklenmez. Geçişin geçersiz sayılması için fiyatın OB'yi **tamamen geri alması** gerekir; yalnızca dokunmak yetmez — aksi hâlde "kapanış beklenmez" kuralıyla çelişir (`R-ADD-06`). |
+| **Delinme** | OB'nin impuls mumlarıyla tamamen geçilmesi. Mum kapanışı beklenmez (fitil yeter; kapanış *fiyatı* aranmaz). Bilgi anı son teyit mumunun **kapanışıdır**: "geri alma" o mumlar kapanmadan bilinmez. Geçişin geçersiz sayılması için fiyatın OB'yi **tamamen geri alması** gerekir; yalnızca dokunmak yetmez — aksi hâlde "kapanış beklenmez" kuralıyla çelişir (`R-ADD-06`). |
 | **Equity** | Bakiye + tüm açık pozisyonların gerçekleşmemiş PnL'i. Tüm risk hesapları buna göre. |
 | **Stop kaybı tavanı (`L`)** | Bir pozisyonun nihai stopa giderse realize edeceği kaybın equity'ye oranı tavanı. **`STOP_LOSS_CAP = 0.03`** (`L` = %3, `OPEN-33` kapandı). Ölçü notional değil, **stopta realize olacak kayıptır**; `R-ADD-02 · ADD-REJECT-E` hem eklemeye hem ilk girişe uygular. `0` = kural kapalı. |
 | **Zone object** | Kalıcı seviye nesnesi. Bir kez oluşturulur, durum makinesiyle takip edilir, her mumda yeniden hesaplanmaz. |
@@ -208,8 +215,11 @@ zone'u doğduğu anda öldürür. Ayrıca bir swing'in uç olduğu ancak pivot t
 (`R-ZONE-02`, `IMPL-01`).
 
 ```
-WATCH_FROM = max(anchor_1 HTF mumunun kapanışı, pivot teyit zamanı)
+WATCH_FROM = max(anchor_1 HTF mumunun kapanışı, pivot teyit mumunun kapanışı)
 ```
+
+`pivot_confirmed_at` teyit mumunun **açılışıdır**; pivot o mum kapanınca bilinir. Zone'un
+`known_at` değeri bu formüldür. 1m durum geçişleri de mumun **kapanışında** damgalanır.
 
 Leg tespiti elle yapıldığı sürece ilk terim taban olarak iş görür. **Tespit
 otomatikleştiğinde ikinci terim asıl kısıt olur** ve atlanırsa doğrudan look-ahead bias
@@ -228,8 +238,8 @@ sembollerde.
 Yön, leg ve likidite tek bir ilkelden türer: **swing noktası tespiti**. Üçü ayrı problem değil.
 
 **Swing tespiti.** Fraktal pivot `N = 2` (5 mumluk yapı) + minimum yer değiştirme filtresi
-`0.5 × ATR(14)`. İkisi de parametredir, backtest süpürecek. Bir swing ancak teyitlendiği
-mumda bilinir ve `pivot_confirmed_at` taşır (`R-ZONE-09` `WATCH_FROM` bunu kullanır).
+`0.5 × ATR(14)`. İkisi de parametredir, backtest süpürecek. Bir swing ancak teyit
+mumu **kapanınca** bilinir: `known_at = pivot_confirmed_at + TF` (`R-ZONE-09` `WATCH_FROM` bunu kullanır).
 
 **Etiketleme.** Her swing önceki aynı tip swing'e göre HH / HL / LH / LL etiketlenir.
 
@@ -289,6 +299,21 @@ Cross. İzole yasak.
 2. Bantta **FVG** varsa → doldurulması beklenebilir
 3. Gösterge yoksa → **0.70 teması** geçerli giriştir
 4. **Hacimliyse** → kaçırmamak için doğrudan 0.70 teması, bekleme yok
+
+**Emrin konma anı (`OPEN-41`, kapandı 2026-09-29).** "Temas anında girilir" ancak emir
+temastan **önce** defterdeyse mümkündür: temas mum kapanınca bilinir.
+
+- Giriş emri zone'un `PRIMED` olduğu 1m mumunun **kapanışında**, o anda bilinen bilgiyle
+  hesaplanan fiyata **bekleyen limit** olarak konur. Gösterge kapısı, fiyat, miktar ve
+  risk kontrolleri (`R-RISK-01/03/05`, `ADD-REJECT-E`) bu kapanıştaki değerlerle yapılır.
+- Her sonraki 1m kapanışında aynı hesap yeniden yapılır. Sonuç değiştiyse (yeni OB/FVG
+  oluştu, gösterge tüketildi, risk kapısı kapandı, boyut değişti) emir iptal edilip
+  yenilenir ya da yalnızca iptal edilir. Aynıysa dokunulmaz.
+- Emir, fiyat onu dolduran mumda doldurur (`§8` doluş kuralı); seviyeyi boşlukla atlayan mum
+  da doldurur (bekleyen limit), fiyat yine emir fiyatıdır. Zone'u öldüren mum
+  (`1` çapası) emri de geçmişse emir dolmuş **ve** aynı mumda nihai stoptan çıkılmış
+  sayılır — `§8` "stop önce" kuralının bekleyen emre uygulanışı.
+- Backtest bu davranışı **birebir** uygular. Canlı ile aynı `step` fonksiyonudur.
 
 ### R-ENTRY-05 · OB ve FVG uygunluğu `SETTLED`
 
@@ -494,6 +519,18 @@ kaybı** ölçen `ADD-REJECT-E`'dir (`R-ADD-02`).
 **Her zaman `1` seviyesi.** Borsaya emir olarak gönderilmez, bot içinde tutulur ve
 **pozisyon açıldığı andan itibaren daima aktiftir.**
 
+**Felaket stopu (`OPEN-52`, kapandı 2026-09-29).** İç stop **birincildir**. Canlıda
+ayrıca borsaya `reduceOnly` bir felaket stopu konur: `1` seviyesinin **ötesinde**, leg
+cinsinden `FELAKET_MESAFE` kadar (başlangıç `0.10` → `1.10` seviyesi). Görevi, süreç
+kapalıyken ya da kill switch faaliyeti durdurmuşken pozisyonu korumaktır; iç stopun
+yerine geçmez. Paper'da emir gönderilmez, seviyesi kayda yazılır. Backtest'te yoktur:
+iç stop her zaman önce tetiklenir.
+
+**İç stopun fiyatı (`OPEN-42`, 2026-09-29).** İç stop kapanmış 1m mumda izlenir: seviyeye
+dokunulduğu, mum kapanınca bilinir ve piyasa emri o anda gider. Backtest bu yüzden nihai
+stoptan ve breakeven'dan **seviyeden değil tetik mumunun kapanışından** (+ slippage) çıkar.
+Borsada bekleyen limitler (giriş, TP1, nihai TP) seviyeden dolar.
+
 > İnsan pratiğinde "likidasyon fiyatı görünmüyorken SL koymam" kuralı vardı. Bu kural
 > **borsaya gönderilen** stop emri hakkındaydı — botta zaten öyle bir emir yok.
 > Botun içindeki stop `1` seviyesi olarak her zaman bilindiği ve borsada iz bırakmadığı
@@ -605,8 +642,19 @@ Funding maliyeti backtest'te zorunlu olarak modellenir.
 `R-KILL-04` `R-RISK-05` ihlali · `R-KILL-05` anormal piyasa (`DEFERRED`, loglanır) ·
 `R-KILL-06` manuel durdurma
 
-Tüm kill switch'ler ve risk kuralları arayüzde **açık/kapalı switch** olarak sunulacak.
-Varsayılan: hepsi açık.
+**Eylemler (`OPEN-49`, kapandı 2026-09-29).**
+
+| Kill | Eylem | Kapatılabilir mi | Kim kaldırır |
+|---|---|---|---|
+| `R-KILL-01` | Yeni giriş durur · bekleyen giriş emirleri iptal · açık pozisyonlar felaket stopuyla (`R-RISK-02`) korunur | Evet | İnsan |
+| `R-KILL-02` | **Tüm faaliyet durur** · insan müdahalesi beklenir | **Hayır** | İnsan |
+| `R-KILL-03` | **Tüm faaliyet durur** · insan müdahalesi beklenir | **Hayır** | İnsan |
+| `R-KILL-04` | `R-RISK-05` KRİTİK davranışı (küçültme) | **Hayır** (`R-RISK-05`) | Kendiliğinden, bölge düzelince |
+| `R-KILL-05` | `DEFERRED` — yalnızca loglanır | — | — |
+| `R-KILL-06` | `R-KILL-02` ile aynı (elle tetiklenir) | — | İnsan |
+
+`R-RISK-05`, `R-KILL-02` ve `R-KILL-03` **hiçbir bayrakla kapatılamaz**. Diğerleri
+kapatılabilir; varsayılan hepsi açık. Kapatma kararın girdisi olarak loglanır.
 
 ---
 
@@ -628,7 +676,7 @@ Varsayılan: hepsi açık.
 | `OPEN-38` | Gerçek doluş ölçümü: küçük gerçek emirlerle post-only kuyruk davranışı | **Ertelendi (2026-09-27)** — F1 kriter 1'i geçemedi, doluş sorusu şu an bağlayıcı değil. `OPEN-37`'nin kuyruk sorusunun tek çözümü, borsaya giden küçük post-only emirlerle doluşu ölçmektir. Ölçülecek: seviyeye dokunan / 1–2 tick geçen / aynı mumda geri dönen mumlarda emrin dolup dolmadığı. **Kapsam kararı gerekiyor:** mevcut aşamada gerçek para kapsam dışı (CLAUDE.md). Emir boyutu, sembol, süre ve kayıp tavanı tanımlanmadan kod yazılmaz. `R-RISK-05` ve `ExecutionAdapter` kuralları aynen geçerlidir. |
 | `OPEN-39` | Kriter 2'de bağlayıcı sembol kümesi (orijinal 20 / soğuk 20 / ikisi birden) | Açık — yeni kriter 2 (§8 Kabul kriterleri) iki kümede de koşulur, karar kullanıcının. |
 | `OPEN-40` | Kriter 3 (aylık dağılım): kısmi aylar sayılır mı, ay sınırı hangi saat diliminde | **Kapandı 2026-09-29** — UTC takvim ayı; dilimde günlerinin yarısından azı kalan ay pay ve paydaya sayılmaz (§8 Kriter 3). |
-| `OPEN-41`…`OPEN-57` | Canlı döngü tasarım soruları (giriş emrinin zamanı, stop izleme, kill eylemleri, WS, yeniden başlatma, ortam) | Açık — liste ve gerekçeler `docs/LIVE.md` §9. |
+| `OPEN-41`…`OPEN-57` | Canlı döngü tasarım soruları (giriş emrinin zamanı, stop izleme, kill eylemleri, WS, yeniden başlatma, ortam) | **Kapandı 2026-09-29** — `OPEN-41` `R-ENTRY-02`, `OPEN-52` `R-RISK-02`, `OPEN-49` §6. Diğerleri en muhafazakâr varsayılanla; karar satırları `docs/LIVE.md` §9. |
 | `OPEN-33` | Ekleme merdiveninin boyut tavanı | **Kapandı** — `ADD-REJECT-E` (`R-ADD-02`). Tavan notional'da değil, stopta realize olacak kayıpta. |
 | `OPEN-13` | "Garantici mod" tetikleyicisi | Açık — v1'de kapalı, sonra eklenir |
 | `OPEN-16` | Günlük yeni-pozisyon durdurma eşiği | Backtest'le kalibre (başlangıç %10) |
@@ -637,6 +685,9 @@ Varsayılan: hepsi açık.
 | `OPEN-14` | Yeni listelenen coin stratejisi | Ayrı model, v2 |
 
 ### Ölçüm tarihçeleri
+
+> Aşağıdaki dosyaların hepsi (`earliest.md` ve `vst.md` hariç) 30m look-ahead hatası taşır
+> (commit 3fb2ff4 ve öncesi). Mutlak değerler geçersiz. Düzeltilmiş: `docs/measurements/damga.md`.
 
 Kurallar bu dosyada, onları üreten ölçümler ayrı dosyalarda:
 
@@ -649,6 +700,7 @@ Kurallar bu dosyada, onları üreten ölçümler ayrı dosyalarda:
 | Tanı koşusu — brüt/net beklenti, çıkış nedenleri | `docs/measurements/diagnose.md` |
 | Zone çözünürlüğü — `touch_count`, 1m temas, bias vekili | `docs/measurements/zones.md` |
 | Salınım tavanı · limit emri doluşu · gösterge kapısı (A/B/C/D kolları) | `docs/measurements/levers.md` |
+| **Düzeltilmiş zaman damgası** — A/C/D/E3/F1 yeniden ölçümü, bilgi anı denetimi | `docs/measurements/damga.md` |
 | TP yerleşimi (`R-EXIT-01/02`) · öteleme · piyasa emri · sembol yoğunlaşması | `docs/measurements/tp_placement.md` |
 | `ADD-REJECT-E` stop kaybı tavanı (`L`) · dayanıklılık (maliyet ×1.5) | `docs/measurements/add_reject_e.md` |
 | Breakeven komisyonu (`OPEN-35`) · komisyonun sonuç dağılımı · `R-ZONE-08` bölünmüş iç validasyon | `docs/measurements/robustness.md` |

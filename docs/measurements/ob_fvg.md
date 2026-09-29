@@ -1,3 +1,5 @@
+> **UYARI:** Bu ölçüm 30m look-ahead hatası taşır (commit 3fb2ff4 ve öncesi). Mutlak değerler geçersiz. Düzeltilmiş yeniden ölçüm: `docs/measurements/damga.md`.
+
 # Ölçüm · OB / FVG anlamlılığı
 
 Kural metni: `docs/STRATEGY_SPEC.md` — `R-ENTRY-05`, `R-ADD-05`, `R-ADD-06`, `OPEN-23`.

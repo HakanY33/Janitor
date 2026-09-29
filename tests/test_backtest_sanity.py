@@ -76,7 +76,7 @@ def symbol_data(bars, z: Zone, obs: list[OrderBlock] | None = None) -> SymbolDat
         ob_top=np.array([o.top for o in obs], dtype=float),
         ob_bottom=np.array([o.bottom for o in obs], dtype=float),
         ob_bull=np.zeros(len(obs), dtype=bool),  # hepsi BEARISH
-        ob_impulse=np.array([np.datetime64(o.impulse_at.tz_localize(None)) for o in obs]),
+        ob_known=np.array([np.datetime64(o.known_at.tz_localize(None)) for o in obs]),
         ob_pierce=np.full(len(obs), uzak),
         ob_alive=np.ones(len(obs), dtype=bool),
     )
@@ -318,12 +318,13 @@ def test_sanity_cross_equity_sums_both_positions():
            equity 17.000 → notional 17.000 / 170        -> qty_A 100
            komisyon 17.000 × 0.0005                     ->     8.50
            bakiye                                       -> 16.991.50
-    mum2 : A'nın markı 160 → gerçekleşmemiş +1.000 (short 170→160)
+    mum2 : A'nın markı (kapanış) 160 → gerçekleşmemiş +1.000 (short 170→160)
            equity = 16.991.50 + 1.000                   -> 17.991.50
-           B 100'e dokunur → notional 17.991.50 / 100   -> qty_B 179.9150
+    mum3 : B 100'e dokunur. Emir mum2 kapanışında boyutlandı (`OPEN-41`)
+           → notional 17.991.50 / 100                   -> qty_B 179.9150
            komisyon 17.991.50 × 0.0005                  ->     8.99575
            bakiye                                       -> 16.982.50425
-    mum3 : ikisi de stop
+    mum4 : ikisi de stop (iç stop kapanıştan: 200 ve 130, seviyeyle aynı)
            A brüt 100 × (170−200)                       -> −3.000   kom. 10.00
            B brüt 179.9150 × (100−130)                  -> −5.397.45 kom. 11.694475
            bakiye 16.982.50425 −3.000 −10 −5.397.45 −11.694475 -> 8.563.359775
@@ -331,8 +332,9 @@ def test_sanity_cross_equity_sums_both_positions():
     Ayırt edici nokta: motor A'nın gerçekleşmemiş kârını equity'ye **katmasaydı**
     qty_B = 16.991.50 / 100 = 169.9150 olurdu.
     """
-    a = symbol_data([(152, 148), (172, 168), (162, 158), (202, 198)], zone(SYM))
-    b = symbol_data([(82, 78), (92, 88), (102, 98), (132, 128)], zone(SYM_B, 30.0, 130.0))
+    a = symbol_data([(152, 148), (172, 168), (162, 158), (162, 158), (202, 198)], zone(SYM))
+    b = symbol_data([(82, 78), (92, 88), (92, 88), (102, 98), (132, 128)],
+                    zone(SYM_B, 30.0, 130.0))
     res = Backtest([a, b], costs(), start_balance=BALANCE).run()
 
     assert res.counters["entries"] == 2

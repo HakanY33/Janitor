@@ -1,3 +1,5 @@
+> **UYARI:** Bu ölçüm 30m look-ahead hatası taşır (commit 3fb2ff4 ve öncesi). Mutlak değerler geçersiz. Düzeltilmiş yeniden ölçüm: `docs/measurements/damga.md`.
+
 # F1 neden kaybetti — eğitim ve ayrılmış dilim karşılaştırması
 
 > **YALNIZCA AÇIKLAYICI. AYAR İÇİN KULLANILMAZ.** Ayrılmış dilim 2026-09-25'te okundu ve
