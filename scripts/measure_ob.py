@@ -65,7 +65,7 @@ MIN_BARS = 5_000  # (c) eğitim diliminde bundan az mumu olan sembol atlanır
 LIQ_PATH = Path("data") / EXCHANGE / "liquidity.json"  # universe/ disinda: orasi tarihli anlik goruntuler
 # BingX'in tokenlestirilmis emtia/endeks kontratlari (altin, gumus, WTI, Brent). Hacimde
 # ust siralarda ama kripto degil: farkli mikroyapi, farkli seans. Kapsam disi (CLAUDE.md).
-NON_CRYPTO = ("NCCO",)
+NON_CRYPTO = ("NCCO", "NCSI", "NCFX", "NCSK")  # BingX kripto disi: emtia, endeks, doviz, hisse
 
 out: list[str] = []
 
