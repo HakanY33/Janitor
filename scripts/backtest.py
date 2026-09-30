@@ -12,6 +12,7 @@ CLAUDE.md: "Backtest sonuçları `spec_version` ve `code_version` olmadan raporl
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -54,7 +55,9 @@ def code_version() -> str:
                                text=True, check=True).stdout.strip()
         return f"{h}{'+kirli' if kirli else ''}"
     except Exception:
-        return "bilinmiyor"
+        # Sunucuda git yok: kurulum tar'ı gönderirken sürümü ortam değişkenine yazar
+        # (docs/SERVER.md §7). Yoksa "bilinmiyor" — sessizce uydurulmaz.
+        return os.environ.get("JANITOR_CODE_VERSION", "bilinmiyor")
 
 
 def correlation_report(symbols: list[str], exchange: str) -> tuple[float, dict]:

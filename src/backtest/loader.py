@@ -72,6 +72,8 @@ class SymbolData:
     # 1m islem hacmi (baz varlik). `OPEN-36` kosullu taker kolu okur; defter verisi
     # olmadigi icin emrin onundeki kuyrugun **vekili**dir.
     volume: np.ndarray = field(default_factory=lambda: np.array([]))
+    # 1m açılış. Stopu boşlukla geçen mumun doluş fiyatı (R-RISK-02, 2026-09-30).
+    open: np.ndarray = field(default_factory=lambda: np.array([]))
 
 
 def _build_symbol(
@@ -128,6 +130,7 @@ def build_from_frames(symbol: str, d30, d1) -> SymbolData:
         fvgs=fvgs,
         pierce_at={},
         volume=d1.volume.to_numpy(dtype=float),
+        open=d1.open.to_numpy(dtype=float),
     )
     set_ob_arrays(sd, d30)
     set_bias(sd, d30)

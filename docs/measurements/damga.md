@@ -45,10 +45,9 @@ mum kapanmadan kullanılamaz.
 | 18 | Dolum modelleri: `entry_fill="kapanis"`, `OPEN-36` hacim kolu | dolum mumunun kapanış/hacmi | Karar değil dolum modeli (ölçüm kolları); değişmedi |
 | 19 | `scripts/measure_fvg.py` doğrulaması | `mitigated_at` açılış indeksi | Kapanışa göre düzeltildi (`an − TF`) |
 
-**Ayrı bulgu (düzeltilmedi, ayrı karar):** zone çapa teması ve breakeven tetiği `low ≤
-seviye ≤ high` (temas). Önceki kapanıştan seviyenin ötesine **boşlukla** açılan 1m mumu
-stopu tetiklemez. 1m'de nadir ama iyimser taraf. Bekleyen giriş emri için "ulaştı"
-ölçütüne geçildi (`OPEN-41`).
+**Boşluklu stop (düzeltildi 2026-09-30):** `1` çapası ve breakeven artık "ulaştı"
+ölçütüyle tetiklenir (temas ya da ötesine boşluk). Boşlukta doluş mumun açılışından,
+temasta kapanışından (`Zone.stop_reached`, `Backtest._stop_fiyati`). F1'e etkisi −0,65.
 
 ## Sonuçlar — kaldıraç zinciri (eğitim dilimi)
 
@@ -89,6 +88,7 @@ Kriter 3: ay = çıkış ayı (UTC); giriş ayıyla sayılar aynı. Dilimin son 
 | + bilgi anı (damga) düzeltmesi | −3.738 | 2.833 |
 | + iç stop tetik mumunun kapanışından | −4.519 | 2.833 |
 | + `OPEN-41` bekleyen giriş emri | **−8.646** | 3.565 |
+| + boşluklu mumda stop, açılıştan (2026-09-30) | −8.646 (Δ −0,65) | 3.565 |
 
 `OPEN-41` farkı (−4.127, +732 giriş) sayaçlardan: emri en az bir kez aktif olan zone
 3.088 → 3.600 (+512). Eski kod emri **bir kez**, `TOUCHED` mumunda kuruyordu; gösterge
@@ -96,5 +96,5 @@ kapısında o an kalan zone bir daha denenmiyordu. `OPEN-41` her kapanışta yen
 değerlendirir: temastan **sonra** bantta oluşan OB/FVG ile kapıyı geçen zone'lar emir
 alıyor ve bu geç girişler kaybettiriyor. Çapa mumunda dolum + stop yalnızca 26 işlem.
 Sembol meşgulken reddedilen zone da artık sonra girebiliyor (eskiden tek şans). F1
-zaten dondurulmuş: karar değişmiyor. Kod `4cac1eb9` parmak izli işlem listesi
+zaten dondurulmuş: karar değişmiyor. İşlem listesi (parmak izi `4cac1eb9`):
 `logs/f1check/f1_open41_trades.txt`.

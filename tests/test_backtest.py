@@ -196,6 +196,7 @@ def symbol_data(bars: list[tuple[float, float]], zone: Zone, obs=()) -> SymbolDa
         high=np.array([b[0] for b in bars], dtype=float),
         low=np.array([b[1] for b in bars], dtype=float),
         close=np.array([(b[0] + b[1]) / 2 for b in bars], dtype=float),
+        open=np.array([b[2] if len(b) > 2 else (b[0] + b[1]) / 2 for b in bars], dtype=float),
         zones=[zone], obs=list(obs), fvgs=[],
         pierce_at={o.ob_id: None for o in obs},
         ob_top=np.array([o.top for o in obs], dtype=float),
@@ -271,6 +272,35 @@ def test_R_ZONE_05_anchor_touch_before_entry_invalidates_without_trade():
     emri de geçer ve dolum + stop üretir — `OPEN-41`, test_entry_variants.)"""
     res, _ = run([(152, 148), (102, 98)])
     assert res.counters["entries"] == 0 and res.trades == []
+
+
+def _slipsiz(bars):
+    return Backtest([symbol_data(bars, short_zone())], costs(Decimal("0"))).run()
+
+
+def test_R_RISK_02_stop_temasla_kapanistan_cikar():
+    """Seviyeye dokunan mum: tetik kapanışta bilinir, çıkış kapanıştan (200)."""
+    t = _slipsiz([(152, 148), (172, 168), (202, 198)]).trades[0]
+    assert (t.reason, t.exit_price) == ("STOP", Decimal("200"))
+
+
+def test_R_RISK_02_stop_bosluklu_mumda_acilistan_cikar():
+    """Stop 200. Mum 205–212, açılış 206: seviyeye dokunmadan geçti → stop, açılıştan."""
+    t = _slipsiz([(152, 148), (172, 168), (175, 173), (212, 205, 206)]).trades[0]
+    assert (t.reason, t.exit_price) == ("STOP", Decimal("206"))
+
+
+def test_R_RISK_02_breakeven_bosluklu_mumda_acilistan_cikar():
+    """TP1 (150) sonrası stop maliyette (170). 175–180, açılış 176 → breakeven, açılıştan."""
+    t = _slipsiz([(152, 148), (172, 168), (152, 148), (180, 175, 176)]).trades[0]
+    assert (t.reason, t.exit_price) == ("BREAKEVEN", Decimal("176"))
+
+
+def test_R_RISK_02_girisden_once_bosluk_bekleyen_emri_doldurup_stoplar():
+    """PRIMED sonrası 205–212 boşluğu: 0.70'teki bekleyen emir de geçildi (`OPEN-41`).
+    Emir fiyatından dolum, stop açılıştan (206)."""
+    t = _slipsiz([(152, 148), (160, 158), (212, 205, 206)]).trades[0]
+    assert (t.entry_price, t.reason, t.exit_price) == (Decimal("170"), "STOP", Decimal("206"))
 
 
 def test_costs_are_charged_on_every_trade():

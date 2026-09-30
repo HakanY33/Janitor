@@ -265,6 +265,14 @@ class Zone:
         return (low <= level - self.tp_tick if self.bias == "SHORT"
                 else high >= level + self.tp_tick)
 
+    def stop_reached(self, high: float, low: float) -> bool:
+        """`1` çapasına **ulaşıldı** mı: temas ya da seviyenin ötesine boşluk (R-RISK-02).
+
+        Seviyeye dokunmadan ötesinde açılıp kapanan mum da stoptur — muhafazakâr taraf
+        (2026-09-30). SHORT'ta `1` yukarıda, LONG'da aşağıda.
+        """
+        return high >= self.anchor_1_price if self.bias == "SHORT" else low <= self.anchor_1_price
+
     def _progress(self, high: float, low: float) -> ZoneState | None:
         """Bu mumun tetiklediği *tek* ilerleme; yoksa None (R-ZONE-04).
 
@@ -307,7 +315,7 @@ class Zone:
         tp0 = (self._tp_filled(self.tp_final, high, low)
                if self.state in (S.ENTERED, S.TP1_HIT)
                else touches(self.anchor_0_price, high, low))
-        if tp0 or touches(self.anchor_1_price, high, low):
+        if tp0 or self.stop_reached(high, low):
             if self._progress(high, low) is not None:
                 self.kill_wins += 1  # aynı mumda ilerleme de vardı, öldürme kazandı
             # R-ZONE-05: giriş öncesi sıra bozuldu → zone ölür. Pozisyon varken aynı temas
