@@ -147,6 +147,14 @@ belirtir. `ccxt` zaten soyutladığı için maliyeti düşük.
 
 `logs/decisions/{yyyy-mm-dd}.jsonl` — her satır bir karar olayı. Dosya asla değiştirilmez.
 
+**Olaylar (`OPEN-54`, 2026-09-30).** Motor (`Backtest._karar`): `ENTRY`, `ENTRY_REJECTED`,
+`EXIT` (kısmi dahil) — backtest ve paper'da aynı satırlar (D1). Paper çekirdeği: `ORDER`
+(`outcome`: `KOY` / `IPTAL` / `YENILE`, bekleyen giriş emri her 1m kapanışında) ve
+`NO_ACTION` (yalnızca sembolde `PRIMED`/`TOUCHED` zone ya da açık pozisyon varken, olay
+yazılmayan dakikada). Ağ kabuğu: `DATA` (eksik mum, WS ↔ REST farkı), `KILL`. `FILL`
+satırları ayrı dosyada: `logs/fills/`. `decision_id` satır içeriğinin `uuid5`'i.
+`RECONCILE` ve `ADD*` henüz yazılmıyor (paper'da borsa yok; ekleme v1'de kapalı).
+
 Neden JSON: karar kaydının şeması sürekli genişleyecek (yeni feature, yeni kural).
 Şemasız append bunu ağrısız yapar. Grep'lenebilir, replay edilebilir, DuckDB doğrudan okur.
 
@@ -157,7 +165,7 @@ Neden JSON: karar kaydının şeması sürekli genişleyecek (yeni feature, yeni
   "decision_id": "uuid",
   "ts": "2026-09-10T14:32:00Z",
   "symbol": "BTC-USDT",
-  "event": "ENTRY | ADD | ADD_REJECTED | EXIT | KILL | NO_ACTION",
+  "event": "ENTRY | ENTRY_REJECTED | ADD | ADD_REJECTED | EXIT | ORDER | FILL | KILL | DATA | RECONCILE | NO_ACTION",
   "zone_id": "uuid",
 
   "inputs": {

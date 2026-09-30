@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Durum** | 2026-09-29. §9 kapandı (spec v0.5). Ö1–Ö3, `OPEN-41` ve 30m look-ahead düzeltmesi kodda. D0 ve D1 geçiyor (`tests/test_parity.py`, `tests/test_parity_d1.py`). WS/REST, SQLite durum ve PaperAdapter kodu yok. |
+| **Durum** | 2026-09-30. Minimal paper döngüsü kodda: `src/live/paper.py` (ağsız çekirdek: `PaperCore`, SQLite `Durum`, `PaperAdapter`, karar logu) + `scripts/paper.py` (WS 1m + REST). D0, D1, D2 geçiyor (`tests/test_parity*.py`, `tests/test_paper.py`). Yerel 24 saat koşusu 2026-09-30 07:25 UTC'de başladı; sunucu kurulumu ondan sonra. Yok: defter/işlem akışı kaydı (§4 tam hâli), yeniden başlatmada WS yetişmesi dışında uzlaştırma, `LiveAdapter`. |
 | **Otorite** | `STRATEGY_SPEC.md` > `ARCHITECTURE.md` > bu belge. Çelişkide üstteki kazanır. |
 | **Aşama** | CLAUDE.md çalışma sırası adım 7 (PaperAdapter + canlı döngü). Adım 5 (`src/risk/`) ve 6 bitmeden kod yazılmaz. |
 
@@ -68,8 +68,18 @@ Bu tablonun dışında kalan her fark bir hatadır.
 | Defter | WS derinlik, yalnızca açık simüle emri olan semboller | Yalnızca `PaperAdapter` doluş kaydı |
 | Uzlaştırma | REST `klines`, periyodik | Mum doğrulama |
 
-WS uç noktası, sıkıştırma, ping/pong ve kline'da "kapandı" bayrağının olup olmadığı BingX
-belgesinden ve deneme bağlantısıyla doğrulanacak → `OPEN-45`.
+**WS doğrulandı (`OPEN-45`, deneme bağlantısı 2026-09-30).** Uç nokta
+`wss://open-api-swap.bingx.com/swap-market`; mesajlar gzip ikili; sunucu 5 sn'de bir `Ping`
+gönderir, istemci `Pong` döner; abonelik `{"reqType": "sub", "dataType": "BTC-USDT@kline_1m"}`.
+Kline mesajı `{o, h, l, c, v, T}`, `T` mumun açılışı, saniyede ~2 güncelleme. **Kapandı
+bayrağı yok.** Mum `m`, `m+1`'in ilk mesajıyla kapanmış sayılır.
+
+**Uygulama (`scripts/paper.py`).** WS yalnızca kapanış zamanlaması ve canlılık içindir;
+`step`'e giden mum REST'ten gelir ve REST bir sonraki mumu da döndürünce kesin sayılır.
+Gerekçe: WS'in son güncellemesi kapanmış mumun son hâli olmak zorunda değil; eski
+"tam eşitlik → `R-KILL-01`" kararı normal veride tetiklenirdi. **`OPEN-47` kapandı
+(2026-09-30, kullanıcı):** WS ↔ REST farkı yalnızca `DATA` olayıdır, kill değildir
+(spec §6).
 
 ### Kapanış ve dakika bariyeri
 
@@ -89,9 +99,14 @@ canlıda:
 | **Gecikmiş mum** | Bariyer süresi `B` dolduğunda sembolün `m` mumu yok | REST'ten çek. Gelirse devam, `late_bar` sayacı artar. Gelmezse → eksik. |
 | **Eksik mum** | Dakika dizisinde atlama (`m-1`'den sonra `m+1`) ya da REST'te de yok | REST'ten doldur. Borsada da yoksa (işlemsiz dakika) → `OPEN-46`. Doldurulamazsa → **`R-KILL-01`**. |
 | **Bağlantı kopması** | `P` saniye boyunca mesaj yok ya da ping yanıtsız | Yeniden bağlan. Arada kalan dakikalar REST'ten alınır ve **sırayla** `step`'ten geçer (§3 "yetişme"). Kopma süresi eşiği aşarsa → **`R-KILL-01`**. |
-| **WS ≠ REST** | Periyodik uzlaştırmada aynı dakikanın OHLCV'si farklı | → **`R-KILL-01`**. Eşik (tam eşitlik mi, tolerans mı) → `OPEN-47`. |
+| **WS ≠ REST** | Aynı dakikanın WS son görüntüsü REST mumundan farklı | Kill **değil**: `DATA` olayı (`ws_rest_fark`). Karara REST mumu girer (`OPEN-47`). |
 | **Yapısal bozukluk** | `low ≤ open,close ≤ high`, mükerrer damga, UTC dışı (§3.1 "her bulgu hata") | → **`R-KILL-01`** |
 | **İşlem akışında boşluk** | `fillId` atlaması (`trades_logger` ile aynı yöntem) | Kill **değil**: karar girdisi değil. O aralıktaki doluş kayıtları `incomplete` işaretlenir. |
+
+**Toparlanma (spec §6, 2026-09-30).** Veri kaynaklı `R-KILL-01` kendiliğinden kalkar: veri
+geri gelir, eksik dakikalar REST'ten yetişilir, sonra 10 ardışık temiz canlı dakika →
+`RESUME` olayı. REST üstel beklemesi ~60 sn. Beklenmeyen kod hatası ve `R-KILL-02/03` insan
+ister. Kod: `scripts/paper.py` `Dongu.izle`, test `tests/test_kill_toparlanma.py`.
 
 `B = 10 sn`, `P = 30 sn`, kopma eşiği `60 sn` (`OPEN-48`). `R-KILL-*` eylemleri spec §6
 tablosunda (`OPEN-49`).
@@ -99,6 +114,15 @@ tablosunda (`OPEN-49`).
 ---
 
 ## 3. Durum ve yeniden başlatma
+
+**Minimal uygulama (2026-09-30, `src/live/paper.py:Durum`).** Aşağıdaki tam tasarımın
+yerine paper için daha küçük bir biçim: SQLite'ta gelen her kesin 1m ve 30m mum, imleç
+(dakikanın mumlarıyla **tek transaction**) ve her 30m kapanışında motorun anlık görüntüsü
+(pickle). Yeniden başlatma = son görüntü + sonraki kayıtlı dakikaların aynı `dakika`'dan
+geçirilmesi + REST'ten yetişme. Paper'da borsa tarafı olmadığı için tam; `LiveAdapter`
+için aşağıdaki `orders` tablosu ve uzlaştırma yine gerekir. D2 testi: `tests/test_paper.py`.
+Çökmeden sonra aynı dakikanın karar satırı yeniden yazılabilir; `decision_id` içerikten
+türetildiği için okuyan tekilleştirir.
 
 ### SQLite'ta ne tutulur
 
@@ -308,9 +332,9 @@ diğerleri en muhafazakâr varsayılan.
 | `OPEN-44` | Şüpheli mum karantinası canlıda (A12) | Karar girdisi değil (ikisinde de). Yalnızca sonradan işaretlenir; yapısal bozukluk `R-KILL-01`. |
 | `OPEN-45` | BingX WS ayrıntıları | Kapanış bayrağına güvenilmez: `m`, `m+1`'in ilk mesajı gelince kapanmış sayılır, REST ile uzlaştırılır (`OPEN-47`). Uç nokta/ping ayrıntısı doğrulama işi, karar değil. |
 | `OPEN-46` | İşlemsiz dakika | Sentetik mum üretilmez; sembol o dakikada `step`'e girmez — backtest ızgarasıyla aynı. REST de yoksa kill değil, `DATA` olayı loglanır. |
-| `OPEN-47` | WS ↔ REST uzlaştırma eşiği | Tam eşitlik. Her fark `R-KILL-01`. |
+| `OPEN-47` | WS ↔ REST uzlaştırma eşiği | **Kapandı 2026-09-30 (kullanıcı):** WS yalnızca zamanlama/canlılık; karar değerleri REST'ten. Fark yalnızca `DATA` olayı, kill değil (spec §6). İlk karar (tam eşitlik → `R-KILL-01`) WS'te kapanış bayrağı olmadığı için uygulanamazdı (§2). |
 | `OPEN-48` | `B`, `P`, kopma eşiği | `B = 10 sn`, `P = 30 sn`, kopma `60 sn` → `R-KILL-01`. |
-| `OPEN-49` | Kill eylemleri | Spec §6 tablosu. `R-RISK-05`, `R-KILL-02`, `R-KILL-03` kapatılamaz. `R-KILL-01`: yeni giriş durur, bekleyen girişler iptal, pozisyonlar felaket stopunda. `R-KILL-02/03`: tüm faaliyet durur, insan. |
+| `OPEN-49` | Kill eylemleri | Spec §6 tablosu. `R-RISK-05`, `R-KILL-02`, `R-KILL-03` kapatılamaz. `R-KILL-01`: yeni giriş durur, bekleyen girişler iptal, pozisyonlar felaket stopunda; veri kaynaklıysa 10 temiz dakikada kendiliğinden kalkar (2026-09-30). `R-KILL-02/03`: tüm faaliyet durur, insan. |
 | `OPEN-50` | Aynı `client_order_id` ile ikinci gönderim | Aynı kimlik körlemesine yeniden gönderilmez: önce kimlikle sorgulanır. Sorgu cevapsızsa `R-KILL-02`. BingX'in davranışı fixture ile belgelenir. |
 | `OPEN-51` | Yetişmede doğan sinyaller | Giriş atılır ve loglanır. Kaçırılmış çıkış yetişme sonunda piyasa emriyle kapanır. |
 | `OPEN-52` | Felaket stopu | İç stop birincil. Canlıda borsaya `reduceOnly` felaket stopu, `1`'in `FELAKET_MESAFE` (başlangıç 0.10 leg) ötesinde. Paper'da gönderilmez, kaydedilir (spec `R-RISK-02`). |
