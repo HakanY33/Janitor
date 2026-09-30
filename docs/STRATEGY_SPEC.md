@@ -5,14 +5,15 @@
 | **Versiyon** | v0.5 |
 | **Durum** | OTE modeli kapalı ve kodlanabilir. Açık parametre kalmadı; eşikler backtest'le kalibre edilecek. |
 | **Kapsam** | Kripto vadeli (perpetual), cross marjin, paper trading |
-| **Son güncelleme** | 2026-09-29 |
+| **Son güncelleme** | 2026-09-30 |
 
 > **UYARI — 30m look-ahead (düzeltildi 2026-09-29).** Commit 3fb2ff4 ve öncesindeki kod, zone/OB/FVG damgalarını (mumun açılışı) bilgi anı olarak kullanıyordu: her nesne bir 30m mum erken görünüyordu. Bu spec'te ve `docs/measurements/`'ta o koda dayanan **her ölçüm sayısı** bu hatayı taşır; mutlak değerler geçersizdir. Düzeltilmiş yeniden ölçüm: `docs/measurements/damga.md`. Kural: her HTF nesnesi `known_at` = mumun kapanışı taşır; bir mumdan çıkan hiçbir bilgi o mum kapanmadan kullanılamaz (CLAUDE.md #3).
 
 **v0.4'ten değişenler:** 30m look-ahead düzeltmesi (`known_at`, §0.1, `R-ZONE-09`, `R-RISK-02` iç stop kapanıştan) · `OPEN-41` kapandı (giriş emri `PRIMED` kapanışında bekleyen
 limit, `R-ENTRY-02`) · `OPEN-52` kapandı (borsada felaket stopu, `R-RISK-02`) · `OPEN-49`
 kapandı (§6 kill eylemleri; "her kill switch'in anahtarı var" ifadesi kaldırıldı) ·
-`OPEN-42`…`OPEN-57` kapandı (`docs/LIVE.md` §9)
+`OPEN-42`…`OPEN-57` kapandı (`docs/LIVE.md` §9) · `OPEN-47` yeniden kapandı 2026-09-30
+(WS yalnızca zamanlama, değerler REST'ten, fark `DATA`, §6) · `R-KILL-01` kendiliğinden toparlanır (§6)
 
 **v0.3'ten değişenler:** `OPEN-15` kapandı (ara derinlik serbest) · `OPEN-17` kapandı
 (`R-RISK-05` mesafe bazlı üç bölgeye çevrildi) · `R-RISK-02` netleşti (iç stop daima aktif)
@@ -529,6 +530,9 @@ iç stop her zaman önce tetiklenir.
 **İç stopun fiyatı (`OPEN-42`, 2026-09-29).** İç stop kapanmış 1m mumda izlenir: seviyeye
 dokunulduğu, mum kapanınca bilinir ve piyasa emri o anda gider. Backtest bu yüzden nihai
 stoptan ve breakeven'dan **seviyeden değil tetik mumunun kapanışından** (+ slippage) çıkar.
+Mum seviyeye dokunmadan **boşlukla** ötesine geçerse stop yine tetiklenir ve doluş o mumun
+**açılışındandır** (muhafazakâr taraf, 2026-09-30). Aynı "ulaştı" ölçütü `1` çapasının
+giriş öncesi geçersizliğinde de geçerlidir.
 Borsada bekleyen limitler (giriş, TP1, nihai TP) seviyeden dolar.
 
 > İnsan pratiğinde "likidasyon fiyatı görünmüyorken SL koymam" kuralı vardı. Bu kural
@@ -646,12 +650,27 @@ Funding maliyeti backtest'te zorunlu olarak modellenir.
 
 | Kill | Eylem | Kapatılabilir mi | Kim kaldırır |
 |---|---|---|---|
-| `R-KILL-01` | Yeni giriş durur · bekleyen giriş emirleri iptal · açık pozisyonlar felaket stopuyla (`R-RISK-02`) korunur | Evet | İnsan |
+| `R-KILL-01` | Yeni giriş durur · bekleyen giriş emirleri iptal · açık pozisyonlar felaket stopuyla (`R-RISK-02`) korunur | Evet | **Kendiliğinden** (toparlanma, aşağıda) ya da insan |
 | `R-KILL-02` | **Tüm faaliyet durur** · insan müdahalesi beklenir | **Hayır** | İnsan |
 | `R-KILL-03` | **Tüm faaliyet durur** · insan müdahalesi beklenir | **Hayır** | İnsan |
 | `R-KILL-04` | `R-RISK-05` KRİTİK davranışı (küçültme) | **Hayır** (`R-RISK-05`) | Kendiliğinden, bölge düzelince |
 | `R-KILL-05` | `DEFERRED` — yalnızca loglanır | — | — |
 | `R-KILL-06` | `R-KILL-02` ile aynı (elle tetiklenir) | — | İnsan |
+
+**`R-KILL-01` toparlanması (kullanıcı, 2026-09-30).** Veri kaynaklı `R-KILL-01`
+(REST, WS kopması, gelmeyen mum) kendiliğinden kalkar, üçü birden sağlanınca: (1) veri geri
+geldi, (2) eksik dakikalar REST'ten tamamlandı (imleç canlıya yetişti), (3) ardından **10
+ardışık temiz canlı dakika** (her sembolün REST mumu var, WS bağlı). Kalkış `RESUME` olayı
+olarak loglanır. REST yeniden denemesi üstel beklemeyle ~60 sn (2+4+8+16+30), sonra kill.
+Kodda beklenmeyen hatadan doğan `R-KILL-01` kendiliğinden **kalkmaz** (veri değil kod
+sorunu). `R-KILL-02` ve `R-KILL-03` değişmedi: insan müdahalesi.
+
+**Canlı mum kaynağı (`OPEN-47`, kapandı 2026-09-30).** WS yalnızca **zamanlama ve
+canlılık** içindir (kapanış anı, bağlantı). Karara giren her OHLCV değeri **REST**'ten gelir
+(backtest verisiyle aynı kaynak). WS ↔ REST farkı yalnızca `DATA` olayı olarak loglanır;
+`R-KILL-01` **tetiklemez**. Gerekçe: BingX WS'inde kapanış bayrağı yok, son görüntü
+kapanmış mumun kesin hâli değil (`docs/LIVE.md` §2). Veri bütünlüğü kill'i REST mumunun
+kendisine bakar (eksik, yapısal bozukluk).
 
 `R-RISK-05`, `R-KILL-02` ve `R-KILL-03` **hiçbir bayrakla kapatılamaz**. Diğerleri
 kapatılabilir; varsayılan hepsi açık. Kapatma kararın girdisi olarak loglanır.
@@ -861,6 +880,18 @@ geriye dönük uygulanması yalnızca açıklayıcıdır.
 günlerinin yarısından azı kalan ay (ör. 31 günlük ayın ≤ 15 günü) kriter 3'ün ne payına
 (A1'deki pozitif ay sayısı) ne paydasına (A1'deki ay sayısı, A2'deki karşılaştırma) sayılır.
 Bu tanım da yeni hiçbir stratejinin sonucu görülmeden sabitlendi.
+
+### Sonuç — mekanik OTE (2026-09-30)
+
+**Düzeltilmiş zaman damgalarıyla mekanik OTE'nin hiçbir kolunda brüt edge yok (eğitim
+dilimi). Ters çevirme de sürtünmeyi karşılamaz. Mevcut OHLCV verisi üzerinde yeni
+filtre/parametre araştırması durduruldu.**
+
+Ters çevirme naif hesaptır: brüt işareti çevrilir, sürtünme aynı kalır. Eklemesiz ve
+tek girişli kollarda en iyi değer **D'de +0,92**; E3 +0,36, F1 +0,12, F1 kapısız +0,26,
+A +0,05. C'nin naif tersi +1,07 çıkar, ama C ekleme merdivenli ve salınımlıdır: ters
+çevrilmiş merdiven aynı doluşu ve aynı sürtünmeyi üretmez, bu sayı ölçüm değildir.
+Kaynak: `docs/measurements/damga.md`.
 
 ### Zorunlu sayaçlar
 
