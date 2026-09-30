@@ -2,74 +2,122 @@
 
 Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
 
-**Son güncelleme:** 2026-09-29
+**Son güncelleme:** 2026-09-30
 
 ---
 
 ## Şu an
 
-**Görev:** Canlı döngü ön koşulları (`docs/LIVE.md` Ö1–Ö3) yapıldı, F1 birebir korundu.
-D0 yazıldı. **D1 ve `OPEN-41` kodu kullanıcı kararını bekliyor: motorda look-ahead bulundu.**
+**Görev:** Paper döngüsü **sunucuda** 24 saat koşuyor (2026-09-30 10:20 UTC → **10-01
+10:20 UTC**), sonra sunucuda `python -m scripts.kalp_ozet` (`SERVER.md` §7). Ön kayıtlar
+`docs/HYPOTHESES.md`: H1 (order flow, 40 sembol, n ≥ 503, tahmini ~2026-11-20) dilim
+2026-10-01 → 12-31; H2 keşifte düştü.
 
-**2026-09-29 (2. oturum):**
-- `OPEN-41`…`OPEN-57` kapandı, spec **v0.5** (`R-ENTRY-02` emir anı, `R-RISK-02` felaket
-  stopu, §6 kill eylemleri). Karar satırları `docs/LIVE.md` §9.
-- Ö3 deterministik kimlik (`src/features/ids.py`, `uuid5`) · Ö1 `Backtest.start/step/finish`
-  · Ö2 `src/execution/adapter.py` (`ExecutionAdapter`, `SimAdapter`). Her adımdan sonra F1
-  eğitim: net **2.376,0853**, 2.251 işlem, işlem parmak izi ve tüm sayaçlar birebir aynı.
-- **Look-ahead (CLAUDE.md #3).** 30m damgaları mumun **açılışı**; motor bunları "bilinir
-  oldu" anı gibi kullanıyor: zone `pivot_confirmed_at` (→ `watch_from`), OB `impulse_at`,
-  FVG `created_at` bir 30m mum erken görünüyor. `htf_bias` doğru (`known_at = ts + TF`).
-  Damgalar kapanışa kaydırılınca (yalnızca ölçüm, `src` değişmedi) F1 eğitim
-  **+2.376 → −3.721**, işlem 2.251 → 2.832. Tespit fonksiyonları nedensel (D0 geçiyor);
-  hata tüketen tarafta. D1 bu hatayla geçemez.
-  Ayrıştırma: yalnızca zone damgası → **+1.973** (1.946 işlem); yalnızca OB/FVG damgaları →
-  **−3.930** (3.219 işlem). Gösterge kaydırması iki yönlü: oluşum geç görünür (iyimserlik
-  kalkar) **ve** `filled_at`/`mitigated_at` geç görünür (açılış damgasının kötümserliği
-  kalkar, kapı daha çok zone geçirir). İkisi ayrı ölçülmedi. Betik: `logs/f1check/`.
+**2026-09-30 (3. oturum):**
+- **H1 eşiği 503** (%97,5, güç %80), **sembol seti 40** — ikisi de tarihli, işlem akışına
+  bakılmadan. 40 sembolle ~305 emilimli temas/ay varsayımı → 503'e ~2026-11-20.
+- **Kayıtçılar 40 sembol** (spread + trades, sunucu 10:19 UTC). 20 sembolde işlem akışı
+  ~80 MB/gün, defter ~3 MB/gün; disk 68 GB boş. `pull_book` glob ile 40'ı kapsıyor.
+- **`R-KILL-01` toparlanması** (spec §6): REST üstel bekleme ~60 sn; canlıya yetişince 10
+  ardışık temiz dakika → `RESUME`. Beklenmeyen kod hatası ve `R-KILL-02/03` insan ister.
+  `tests/test_kill_toparlanma.py` (7).
+- **Sunucuya kuruldu:** `janitor-paper` (`MemoryMax=700M`, 20 sembol) + `janitor-funding.timer`
+  (4 saatte bir, ilk koşu 20/20). Kod `d341574+kirli`. Minecraft'a dokunulmadı.
+  Sunucuda ilk tam tespit **2.070 sn** (yerel 1.545); başlangıç 10:20 UTC, sonra REST'ten yetişme.
+  Soğuk 20 ilk 35 dk: işlem 2,7 MB (~110 MB/gün kaba, küçük dosya yükü dahil), `trades_gap` 0.
+- **Göç planı** (Xeon) `SERVER.md` "Göç planı": önce kurulum, 48 saat örtüşme, ayrı kökte
+  çekme + birleştirme, geçiş kapısı. `scripts/birlestir.py` henüz yok.
+- `OPEN-59`: bazı semboller 4 saatlik funding (ORDI), `costs.py` 8 saat ızgarası yarısını
+  kaçırıyor. `OPEN-60`: eski sunucu 48 saatten önce kapanırsa.
 
-**Durum: F1 donduruldu.** Kriter 1 kaldı (K1–K3), sonuç kabul edildi (spec §8).
-2026-05-08 → 09-11 dilimi artık örneklem içi. **Yeni doğrulama yalnızca 2026-09-11
-sonrası veride yapılabilir.** `OPEN-38` ertelendi.
+**2026-09-30 (2. oturum):**
+- **`OPEN-47` kapandı (kullanıcı):** WS yalnızca zamanlama/canlılık, değerler REST'ten; fark
+  yalnızca `DATA`, kill değil. Spec §6 + `LIVE.md` §2/§9.
+- **`HYPOTHESES.md` → `HYPOTHESES.md`.** H1 güven sınırı %97,5 (iki hipotez); eşik 396
+  kaldı (güç ~%70, %80 için 503). Yetersiz örnek: 01-01'de yalnızca `n`; `n < 396` →
+  kararsız, dilim bir kez 2027-03-31'e uzar.
+- **H2 ön kaydı** (4h unmitige OB, post-only yakın kenar, borsa stopu karşı kenar + 1 tick,
+  2R, %3 stop kaybı; gereken n 1.570) → **keşif** (`scripts/h2_kesif.py`, eğitim, sıfır
+  ayar): 1.335 işlem, kazanma %27,9, brüt R ort −0,16, net −0,48, brüt −5.727 / net −10.000,
+  kriter 3 kaldı. **Brüt negatif → ileriye dönük testten çıkarıldı** (§8.4).
+- **Funding:** `scripts/paper.py` eğrileri her 30m kapanışında diskten tazeler, 9 saatten
+  bayatsa `DATA funding_bayat`. Sunucuda yazan `janitor-funding.timer` (4 saatte bir,
+  `SERVER.md` §6b, kurulmadı). Çalışan yerel süreç eski kodla (yeniden başlatılmadı).
+- **Yerel paper'da `R-KILL-01`** 08:58 UTC: REST `NetworkError`, üç deneme (~6 sn) tükendi.
+  Kural gereği; o andan beri giriş yok, kalp atışı sürüyor. İlk 2 saat: canlı gecikme p95
+  2,5 sn, rss tepe 459 MB, `ws_rest_fark` 26.
 
-- **Neden** (`docs/measurements/neden.md`, yalnızca açıklayıcı): sürtünme sabit kaldı
-  (6,9 → 7,0 bps). İşlem başı brüt 10,6'dan 1,1 bps'e düştü. Kaybın yarısı isabetten,
-  yarısı kazanan işlemin küçülmesinden. İşlem sayısı oranı etkilemiyor. Eğitimin son iki
-  ayı zaten eksiydi.
-- **Isınma varsayımı:** 3 işlem, −123. Sonucu açıklamıyor.
-- **İşlem akışı:** `janitor-trades-logger` 2026-09-27'de kuruldu, 20 sembol. BingX
-  işlem geçmişi vermiyor, yalnızca son 1.000 işlem geliyor. İlk 2,5 saatte 0 boşluk,
-  ~85 MB/gün.
+**2026-09-30:**
+- **Boşluklu stop:** `1` çapası ve breakeven "ulaştı" ile tetiklenir; boşlukta doluş
+  açılıştan, temasta kapanıştan. F1 etkisi −0,65 (1m'de nadir).
+- **Spec §8 sonuç:** düzeltilmiş damgayla mekanik OTE'de brüt edge yok; ters çevirme de
+  karşılamaz; OHLCV üzerinde yeni filtre/parametre araştırması **durduruldu**. Naif tersin
+  C kolunda 1,07 çıktığı not edildi (ekleme merdiveni — ölçüm değil).
+- **`docs/HYPOTHESES.md`:** birincil hipotez emilim (5 dk agresif karşı hacim ≥ 3×
+  60 dk medyanı, bant içi ilerleme ≤ %50). Tek ölçüt: emilimli temaslarda ortalama net R'nin
+  tek yönlü %95 alt sınırı > 0. Gereken ≥ 396 emilimli temas (~1.015 temas/ay).
+- **Paper döngüsü:** `src/live/paper.py` (`PaperCore`, SQLite `Durum`, `PaperAdapter`,
+  karar logu) + `scripts/paper.py` (WS 1m + REST 1m/30m). D2 testi (çökme + geri yükleme)
+  geçiyor. Karar logu olayları `ARCHITECTURE.md` §4.1'e işlendi (`OPEN-54`).
+- **`OPEN-45` doğrulandı:** WS'te kapanış bayrağı yok. **`OPEN-47` uygulanamıyor** (WS son
+  görüntüsü kesin değil) → fark `DATA` olarak yazılıyor, karar bekliyor.
+- Bulunan hata: canlı sırada 30m tespiti emir değerlendirmesinden **önce** bitmeli; aksi hâlde
+  gösterge önbelleği eski listeyi tutuyordu. `test_paper` yakaladı, düzeltildi.
 
-**2026-09-29:**
-- `pull_book` işlem verisini de çekiyor (`trades/`, üzerine yazma koruması `id` ile). İlk
-  tam çekim: 80 dosya, 0 hata, 45 sn.
-- Spec §8'e **kriter 3** (aylık dağılım ön kapısı) eklendi. `OPEN-40` kapandı: UTC takvim
-  ayı, dilimde günlerinin yarısından azı kalan ay sayılmaz.
-- **`docs/LIVE.md`** canlı döngü tasarımı (kod yok). Ön koşullar: `step` çıkarımı,
-  doluşun `ExecutionAdapter` arkasına alınması, deterministik `zone_id`/`ob_id`. Merkez:
-  parite testi D0–D3. Açık sorular `OPEN-41`…`OPEN-57`.
-- **VST demo `OPEN-37`'yi cevaplayamaz** (`docs/measurements/vst.md`). Ayrı defter, ayrı
-  işlem akışı, ortak `fillId` 0. DOGE'de orta fiyat 12 bps ayrışıyor. Demo anahtarının
-  gerçek hesaba erişip erişmediği doğrulanamadı. Demo doluş testi yapılmadı.
+Önceki durum: 30m look-ahead düzeltildi, `OPEN-41` kodda, D0 ve D1 geçiyor. Kaldıraç zinciri
+düzeltilmiş damgayla yeniden ölçüldü (`docs/measurements/damga.md`, açıklayıcı).
+
+**Durum: hiçbir kolda brüt edge yok.** Düzeltilmiş kodla (eğitim dilimi) A −9.998 ·
+C −9.936 · D −8.435 · E3 −6.165 · F1 −4.519. Brüt fiyat PnL'i her kolda negatif; kriter 3
+her kolda kaldı. Önceki pozitif sonuçlar (F1 +2.376, soğuk küme +4.187, E3 brüt +5.097)
+look-ahead'dendi. F1 zaten dondurulmuştu; karar değişmiyor.
+
+**2026-09-29 (3. oturum):**
+- **Bilgi anı (CLAUDE.md #3).** Her HTF nesnesi `known_at` = mumun kapanışı taşır (Swing,
+  Zone, OB, FVG). `mitigated_at`, `filled_at`, delinme ve 1m zone geçişleri kapanışta
+  damgalanır. Denetim tablosu (19 yer) `docs/measurements/damga.md`.
+- **İç stop kapanıştan** (`R-RISK-02`, `OPEN-42`): nihai stop ve breakeven tetik mumunun
+  kapanışından piyasa emriyle. F1'e etkisi −781.
+- **`pierce_time`** artık teyit mumları kapanmadan delinme döndürmüyor (önek-değişmez). D1
+  bu farkı ilk koşuda yakaladı.
+- **`OPEN-41` kodu.** `Backtest.order_for` (saf: kapanış görüntüsü + o an bilinen
+  gösterge), `_kapanis` (gün sınırı + portföy görüntüsü), çapa mumunda dolum + stop,
+  boşluklu mum da doldurur. Backtest emri tembel hesaplar (yalnızca fiyat emre ulaşınca);
+  sonuç aynı. `window` giriş varyantı silindi (bekleyen emirle tanımsız).
+  F1 −4.519 → **−8.646** (+732 giriş): kapıda kalan zone'lar sonradan oluşan OB/FVG ile emir
+  alıyor ve kaybettiriyor.
+- **Testler:** `tests/test_known_at.py` (değişmez: nesne kendi `known_at`'inde kapanmış
+  mumlardan üretilebilmeli; eski damgalarla 144/144 zone kırılıyor) · D0'a delinme eklendi ·
+  **D1** `tests/test_parity_d1.py` (sentetik, `src/live/replay.py`, ~2 dk).
+- `docs/measurements/` altındaki 17 dosyaya ve spec'e look-ahead uyarısı (commit 3fb2ff4 ve
+  öncesi).
 
 **Sunucu:** `janitor-spread-logger` · `janitor-trades-logger` (sürekli) ·
 `janitor-earliest.timer` (03:00 UTC) · `janitor-ohlcv30m.timer` (03:30 UTC). Hepsi
 `janitor` kullanıcı servisi (`docs/SERVER.md`).
 
-**İlgili dosyalar:** `scripts/neden.py` · `tests/test_neden.py` · `scripts/trades_logger.py` ·
-`tests/test_trades_logger.py` · `docs/measurements/neden.md`
+**İlgili dosyalar:** `scripts/damga.py` · `logs/damga.txt` · `docs/measurements/damga.md` ·
+`src/live/replay.py` · `tests/test_known_at.py` · `tests/test_parity.py` ·
+`tests/test_parity_d1.py` · `logs/f1check/` (F1 parmak izi betiği)
 
 ---
 
 ## Bildiklerimiz (kısa)
 
+> Aşağıda **"düzeltilmiş"** yazmayan her satır 30m look-ahead hatasını taşır (commit 3fb2ff4
+> ve öncesi). Yönleri bile yeniden ölçülmeden kullanılmaz.
+
 | Bulgu | Sonuç |
 |---|---|
-| **F1 eğitim edge'i look-ahead'den** | damgalar kapanışa alınınca +2.376 → **−3.721**. Önceki tüm backtest sayıları aynı hatayı taşıyor |
-| `pierce_time` önek-değişmez değil | tasarım gereği (veri geçişten hemen sonra biterse delinme sayılır, kötümser); D0 dışında |
-| **Backtest girişi temas mumunda kurup dolduruyor** | canlıda emir önceden defterde olmalı → `OPEN-41` |
-| Zone/OB kimliği `uuid4` | canlı ↔ backtest eşleştirilemez; deterministik kimlik ön koşul |
+| **Düzeltilmiş: brüt edge yok** | A/C/D/E3/F1 brüt fiyat PnL'i −438 / −5.010 / −4.004 / −1.619 / −488; brüt/sürtünme ≤ −0,05 |
+| **Düzeltilmiş: gösterge kapısı kaybı azaltıyor, edge üretmiyor** | D − C net +1.501 (brüt +1.006); F1 − kapısız net +4.301 (brüt +1.331) |
+| **Düzeltilmiş: F1 ayrıştırması** | +2.376 → damga −3.738 → iç stop kapanıştan −4.519 → `OPEN-41` −8.646 |
+| Düzeltilmiş: kuyruk riski | maks DD D %86,6 → E3 %63,6 → F1 %49,0 (`ADD-REJECT-E` ve ekleme kapatma hâlâ işliyor) |
+| Düzeltilmiş: kriter 3 | her kolda kaldı; en iyisi D 4/11 pozitif ay |
+| Düzeltilmiş: boşluklu 1m mum | stop artık tetikleniyor, doluş açılıştan (2026-09-30); F1 Δ −0,65 |
+| **H2 (4h OB, 2R) brüt negatif** | keşif, eğitim: 1.335 işlem, kazanma %27,9 < %33,3, brüt R 12 ayın 9'unda eksi → ileriye dönük testten çıkarıldı |
+| **Mekanik OTE araştırması durduruldu** | spec §8 (2026-09-30). Sıradaki soru order flow, veri görülmeden ön kayıtlı |
+| Paper ↔ backtest paritesi | D1 (oynatma ve paper yolu), D2 (çökme) birebir; karar logu motor satırları birebir |
 | **VST ≠ gerçek piyasa** | ayrı defter/işlem akışı, DOGE orta fiyat +12 bps, spread 26 bps. Demo doluşu kuyruk ölçümü değil |
 | **F1 donduruldu** | olumsuz sonuç kabul edildi 2026-09-27. Doğrulama yalnızca 09-11 sonrası veride |
 | Brüt/sürtünme çöküşü paydan | sürtünme 6,9 → 7,0 bps sabit; brüt 10,6 → 1,1 bps. Yarısı isabet (−3 puan), yarısı kazanan küçülmesi (açıklayıcı) |
@@ -142,14 +190,16 @@ sonrası veride yapılabilir.** `OPEN-38` ertelendi.
 
 ## Sıradaki
 
-1. **Karar kullanıcının:** F1 donduruldu. Sonraki strateji değişikliği yalnızca
-   2026-09-11 sonrası veride doğrulanabilir. Bu veri birikiyor.
-2. İşlem akışını birkaç gün izle: `trades_gap` sayısı ve disk kullanımı. Boşluk
-   çıkarsa `--cycle` kısaltılır ya da yoklama paralelleştirilir.
-3. **Karar kullanıcının:** look-ahead düzeltmesi (damga + TF'yi "bilinir" anı yap). F1
-   sayısı değişir. Sonra: `OPEN-41` kodu + F1 fark raporu, D1 (`ReplayFeed` + artımlı
-   tespit), `ARCHITECTURE.md` §4.1 olay listesi (`OPEN-54`).
-4. Görev Zamanlayıcı'ya `pull_book`'u kaydet.
+1. 10-01 10:20 UTC sonrası sunucuda `kalp_ozet`; soğuk 20 sembolün günlük disk kullanımını
+   tam bir günle ölç (`du -cb data/bingx/*/trades/2026-10-01.parquet`).
+2. **`OPEN-58` (kullanıcı):** H2 stopu "karşı kenarın 1 tick ötesi" — H2 düştüğü için artık
+   yalnızca kayıt; kapatılabilir.
+3. Order flow (H1) özellik/sonuç kodu **dilime bakmadan**, sentetik veriyle
+   (`HYPOTHESES.md` §6). 2027-01-01'de önce yalnızca `n`.
+4. H1 sonuç hesabı 1m ister; sunucu yalnızca 30m topluyor. Borsanın 1m başlangıcı sabit
+   (`earliest`), yani sonradan backfill yeterli olmalı — 2027-01-01'den önce doğrula.
+5. Ekleme yolu (`_try_add`) hâlâ temas mumunda karar veriyor; v1'de kapalı (`damga.md` #16).
+6. İşlem akışını izle (`trades_gap`, disk). Görev Zamanlayıcı'ya `pull_book`'u kaydet.
 
 **Uyarı:** Ayrılmış %20 harcandı (2026-09-25). 2026-05-08 → 09-11 örneklem içidir.
 
@@ -165,13 +215,15 @@ sonrası veride yapılabilir.** `OPEN-38` ertelendi.
 | Klasör | İçerik |
 |---|---|
 | `src/data/` | Toplama, doğrulama, Parquet |
-| `src/features/` | `structure.py` swing/bias · `ob.py` · `fvg.py` · `candles.py` · `ids.py` deterministik kimlik |
-| `src/zones/` | `model.py` FSM · `store.py` SQLite · `detect.py` leg → zone |
+| `src/features/` | `structure.py` swing/bias · `ob.py` · `fvg.py` · `candles.py` · `ids.py` deterministik kimlik. Her nesne `known_at` taşır |
+| `src/zones/` | `model.py` FSM (`known_at`, `STATE_BAR`) · `store.py` SQLite · `detect.py` leg → zone |
 | `src/strategy/` | `entry.py` `R-ENTRY-05` filtreleri |
-| `src/backtest/` | `loader.py` sembol hazırlığı + önbellek · `engine.py` olay döngüsü (`start`/`step`/`finish`) · `portfolio.py` cross equity · `costs.py` kalem defteri |
+| `src/backtest/` | `loader.py` `build_from_frames` + önbellek · `engine.py` olay döngüsü (`start`/`step`/`finish`, `order_for`, `add_zones`) · `portfolio.py` cross equity · `costs.py` kalem defteri |
 | `src/execution/` | `adapter.py` `ExecutionAdapter` arayüzü, `SimAdapter` (backtest doluş modeli) |
-| `scripts/` | `diagnose.py` · `sweep.py` · `entry_variants.py` · `terminate.py` · `reconcile.py` · `branches.py` · `levers.py` A/B/C/D · `tp_placement.py` D1-D4 TP yerleşimi · `add_reject_e.py` stop kaybı tavanı · `spread_logger.py` canlı emir defteri · `robustness.py` breakeven ücreti + komisyon dağılımı + `R-ZONE-08` iç validasyon · `f_kollari.py` F1/F2 · `slippage_stres.py` OPEN-32 (d) · `maker_stres.py` OPEN-36 · `post_only.py` OPEN-37 · `ayrilmis.py` kriter 1 · `neden.py` eğitim/ayrılmış açıklayıcı · `trades_logger.py` işlem akışı · `bg.py` |
-| `docs/measurements/` | Ölçüm tarihçeleri — spec'te yalnızca tek satırlık referans var |
+| `src/live/` | `replay.py` artımlı tespit (`kapanis`) + oynatma (`oynat`) — D1 · `paper.py` `PaperCore`, `Durum` (SQLite), `PaperAdapter`, `JsonlGunluk` |
+| `scripts/paper.py` | Paper ağ kabuğu: WS 1m (zamanlama), REST (mum), bariyer, kill, kalp atışı |
+| `scripts/` | `h2_kesif.py` H2 keşif · `kalp_ozet.py` paper kalp atışı özeti · `paper.py` `Dongu.izle` R-KILL-01 toparlanması · `damga.py` düzeltilmiş kaldıraç zinciri · `diagnose.py` · `sweep.py` · `entry_variants.py` · `terminate.py` · `reconcile.py` · `branches.py` · `levers.py` A/B/C/D · `tp_placement.py` D1-D4 TP yerleşimi · `add_reject_e.py` stop kaybı tavanı · `spread_logger.py` canlı emir defteri · `robustness.py` breakeven ücreti + komisyon dağılımı + `R-ZONE-08` iç validasyon · `f_kollari.py` F1/F2 · `slippage_stres.py` OPEN-32 (d) · `maker_stres.py` OPEN-36 · `post_only.py` OPEN-37 · `ayrilmis.py` kriter 1 · `neden.py` eğitim/ayrılmış açıklayıcı · `trades_logger.py` işlem akışı · `bg.py` |
+| `docs/measurements/` | Ölçüm tarihçeleri — spec'te yalnızca tek satırlık referans var. `damga.md` dışındakiler look-ahead taşır |
 
 Spec kuralı gerekiyorsa baştan okuma: `grep -n "R-ADD-04" docs/STRATEGY_SPEC.md`
 Bir kuralın ölçümü gerekiyorsa: kuralın altındaki `Ölçüm:` satırını izle.
