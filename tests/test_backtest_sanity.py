@@ -72,6 +72,7 @@ def symbol_data(bars, z: Zone, obs: list[OrderBlock] | None = None) -> SymbolDat
         high=np.array([b[0] for b in bars], dtype=float),
         low=np.array([b[1] for b in bars], dtype=float),
         close=np.array([(b[0] + b[1]) / 2 for b in bars], dtype=float),
+        open=np.array([(b[0] + b[1]) / 2 for b in bars], dtype=float),
         zones=[z], obs=obs, fvgs=[], pierce_at={o.ob_id: None for o in obs},
         ob_top=np.array([o.top for o in obs], dtype=float),
         ob_bottom=np.array([o.bottom for o in obs], dtype=float),

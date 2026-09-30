@@ -59,7 +59,8 @@ def oynat(bt: Backtest, d30: dict[str, pd.DataFrame], d1: dict[str, pd.DataFrame
     bt.start()
     semboller = list(bt.data)
     ts1 = {s: d1[s].ts.dt.tz_convert("UTC").dt.tz_localize(None).to_numpy() for s in semboller}
-    hlcv = {s: d1[s][["high", "low", "close", "volume"]].to_numpy(dtype=float) for s in semboller}
+    ohlcv = {s: d1[s][["open", "high", "low", "close", "volume"]].to_numpy(dtype=float)
+             for s in semboller}
     kapanis30 = {s: (d30[s].ts + TD).dt.tz_convert("UTC").dt.tz_localize(None).to_numpy()
                  for s in semboller}
     grid = np.unique(np.concatenate([ts1[s] for s in semboller]))
@@ -77,8 +78,7 @@ def oynat(bt: Backtest, d30: dict[str, pd.DataFrame], d1: dict[str, pd.DataFrame
             i = ptr[s]
             if i < len(ts1[s]) and ts1[s][i] == t:
                 ptr[s] = i + 1
-                h, lo, c, v = hlcv[s][i]
-                bars[s] = (float(h), float(lo), float(c), float(v))
+                bars[s] = tuple(float(x) for x in ohlcv[s][i])
         bt.step(t, bars)
         if gi % 1440 == 0:
             bt.equity_curve.append((pd.Timestamp(t, tz="UTC"), bt.pf.equity_f(bt.marks)))

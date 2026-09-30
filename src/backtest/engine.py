@@ -306,6 +306,7 @@ class Backtest:
         # Leg geometrisi zone tespitinde sabitlenir — karar aninda bilinir (CLAUDE.md #3).
         self.min_leg_pct = min_leg_pct
         self._vol: dict[str, float] = {}
+        self._acilis: dict[str, float] = {}  # sembol -> bu 1m mumun açılışı
         # `reduce_once`: R-ADD-04 kucultmesi pozisyon basina bir kez tetiklenir ve
         # sonraki eklemeler tetigi **yeniden kurmaz**.
         self.reduce_once = reduce_once
@@ -355,6 +356,8 @@ class Backtest:
         self._gosterge_onbellek: dict[str, tuple] = {}  # zone -> (30m kovası, ob, fvg, hedef)
         self._bant_onbellek: dict[str, tuple] = {}  # zone -> ((n_ob, n_fvg), bant OB, bant FVG)
         self._snap: dict | None = None  # son 1m kapanışının portföy görüntüsü (`_kapanis`)
+        self.log = None  # karar logu yazıcısı (callable); backtest'te yok
+        self.kill: str | None = None  # R-KILL-01 aktifse nedeni; toparlanma scripts/paper.py (spec §6)
         self.pf = Portfolio(balance=start_balance, start_balance=start_balance, mmr=mmr)
         self.pf.peak_equity_f = float(start_balance)
         self.trades: list[Trade] = []
@@ -390,6 +393,7 @@ class Backtest:
             "kacan_giris": 0,
             # OPEN-41 · zone'u `1` çapasıyla öldüren mumda bekleyen emir doldu, aynı mumda stop
             "kill_bar_fills": 0,
+            "rejected_kill": 0,  # R-KILL-01 açıkken emir fiyatına ulaşan zone
         }
         self._day_start_equity = float(start_balance)
         self._day_blocked = False
@@ -493,7 +497,9 @@ class Backtest:
         Gösterge damgalarının hepsi (`known_at`, `mitigated_at`, `filled_at`) 30m
         kapanışıdır: sonuç bir 30m kovası içinde değişmez. Kova başına bir kez hesaplanır —
         yaklaşım değil, birebir aynı sonuç. ponytail: hizasız damga gelirse önbellek yanılır;
-        `known_at` her zaman TF kapanışı olduğu sürece geçerli.
+        `known_at` her zaman TF kapanışı olduğu sürece geçerli. **Canlıda şart:** kovanın
+        30m kapanışındaki artımlı tespit, o kovadaki ilk değerlendirmeden önce bitmeli
+        (`PaperCore.dakika` sırası; ters sıra eski listeyi önbelleğe alır — `test_paper`).
         """
         kova = at.value // _KOVA_NS
         c = self._gosterge_onbellek.get(z.zone_id)
@@ -551,6 +557,8 @@ class Backtest:
         emrin fiyatı, kapısı ve boyutu yalnızca `at` durumuna bağlı olduğu için sonuç
         aynıdır. ponytail: her kapanışta her zone'u hesaplamak koşuyu saatlere çıkarırdı.
         """
+        if self.kill is not None:  # R-KILL-01 · yeni giriş yok, bekleyen emirler iptal (§6)
+            return None, "rejected_kill"
         s = self._snap
         had_ob, had_fvg, hedef = self._gosterge(z, sd, at)
         if self.require_indicator and not (had_ob or had_fvg):
@@ -596,6 +604,7 @@ class Backtest:
             if neden is not None and (z.zone_id, neden) not in self._red:
                 self._red.add((z.zone_id, neden))
                 self.counters[neden] += 1
+                self._karar("ENTRY_REJECTED", z, ts, reason=neden, hedef=hedef)
             return
         if z.zone_id not in self._armed:
             self._armed.add(z.zone_id)
@@ -644,9 +653,50 @@ class Backtest:
         self.counters["entries"] += 1
         self.counters["entries_with_ob"] += emir["had_ob"]
         self.counters["entries_with_fvg"] += emir["had_fvg"]
+        self._karar("ENTRY", z, ts, hedef=hedef, fiyat=price, qty=qty, maker=maker,
+                    had_ob=emir["had_ob"], had_fvg=emir["had_fvg"], kill_bar=kill)
         if kill:
             self.counters["kill_bar_fills"] += 1
-            self._close(z, pos, self.marks[z.symbol], ts + STATE_BAR, "STOP")
+            self._close(z, pos, self._stop_fiyati(z.symbol, z.anchor_1_price, high, low),
+                        ts + STATE_BAR, "STOP")
+
+    def _karar(self, event: str, z: Zone, ts, **alanlar) -> None:
+        """Karar logu satırı (`ARCHITECTURE.md` §4.1, `OPEN-54`). `self.log` yoksa hiçbir şey.
+
+        Kararın **girdisi** yazılır: o anki kapanış görüntüsü (`_snap`) ve zone durumu.
+        Kimlik, sürüm ve yazma `self.log`'un işidir (`src/live/paper.py:KararLogu`).
+        """
+        if self.log is None:
+            return
+        s = self._snap or {}
+        self.log({
+            "ts": pd.Timestamp(ts).isoformat(), "symbol": z.symbol, "event": event,
+            "zone_id": z.zone_id,
+            "inputs": {
+                "price": self.marks.get(z.symbol),
+                "equity": str(s.get("equity")), "notional": str(s.get("notional")),
+                "risk05": s.get("risk05"), "gun_blok": s.get("gun_blok"), "kill": self.kill,
+                "zone": {"bias": z.bias, "state": z.state.value, "level_050": z.level_050,
+                         "level_070": z.level_070, "level_079": z.level_079,
+                         "anchor_0": z.anchor_0_price, "anchor_1": z.anchor_1_price},
+            },
+            "outcome": event,
+            **{k: (str(v) if isinstance(v, Decimal) else v) for k, v in alanlar.items()},
+        })
+
+    def __getstate__(self) -> dict:
+        """Durum anlık görüntüsü (`src/live/paper.py`): log yazıcısı dosya tutar, taşınmaz."""
+        d = self.__dict__.copy()
+        d["log"] = None
+        return d
+
+    def _stop_fiyati(self, symbol: str, seviye: float, high: float, low: float) -> float:
+        """İç stopun (R-RISK-02) doluş fiyatı.
+
+        Mum seviyeye dokunduysa tetik mum kapanınca bilinir: kapanıştan piyasa emri
+        (`OPEN-42`). Dokunmadan boşlukla geçtiyse **açılıştan** (muhafazakâr, 2026-09-30).
+        """
+        return self.marks[symbol] if low <= seviye <= high else self._acilis[symbol]
 
     # --- ekleme --------------------------------------------------------------
 
@@ -830,6 +880,8 @@ class Backtest:
             # R-RISK-05 yapısal maliyeti: aleyhte hareketin dibinde zorla küçültmek.
             # Likidasyon riskinin karşısına konabilmesi için ayrı kalem (spec §4 notu).
             self.deleverage_realized += pnl - fee
+        self._karar("EXIT", z, ts, reason=reason, seviye=price_level, fiyat=price, qty=qty,
+                    kalan=pos.qty, pnl=pnl - fee, maker=maker)
 
         if pos.qty > 0:
             return  # kısmi çıkış — pozisyon açık kalır
@@ -1005,7 +1057,7 @@ class Backtest:
         """Bir kapanmış 1m dakikasını işler — backtest ve canlı döngünün **tek** gövdesi.
 
         `docs/LIVE.md` Ö1. `t`: dakikanın açılış damgası (tz-naive UTC `datetime64`).
-        `bars`: o dakikada mumu olan semboller → `(high, low, close, volume)`;
+        `bars`: o dakikada mumu olan semboller → `(open, high, low, close, volume)`;
         `volume` yoksa `None`. Mumu olmayan sembol o dakikada işlenmez (`OPEN-46`).
         Semboller `self.data` sırasıyla işlenir (§2 dakika bariyeri).
 
@@ -1022,8 +1074,9 @@ class Backtest:
             if bar is None:
                 continue
             sd = self.data[s]
-            high, low, close, volume = bar
+            acilis, high, low, close, volume = bar
             self.marks[s] = close
+            self._acilis[s] = acilis
             if volume is not None:
                 self._vol[s] = volume
 
@@ -1120,7 +1173,8 @@ class Backtest:
                 if i >= len(sd.ts) or sd.ts[i] != t:
                     continue
                 ptr[s] = i + 1
-                bars[s] = (float(sd.high[i]), float(sd.low[i]), float(sd.close[i]),
+                bars[s] = (float(sd.open[i]), float(sd.high[i]), float(sd.low[i]),
+                           float(sd.close[i]),
                            float(sd.volume[i]) if len(sd.volume) else None)
             self.step(t, bars)
             if gi % 1440 == 0:
@@ -1153,7 +1207,7 @@ class Backtest:
 
         # §8 · intrabar belirsizliği: aynı mumda hem hedef hem stop görüldü mü
         if pos is not None:
-            hit_stop = low <= z.anchor_1_price <= high
+            hit_stop = z.stop_reached(high, low)
             hedef = z.tp_final if z.state is S.TP1_HIT else z.tp_050
             hit_target = low <= hedef <= high or low <= z.tp_final <= high
             if hit_stop and hit_target:
@@ -1191,11 +1245,12 @@ class Backtest:
             if pos is not None and pos.tp1_done:
                 # R-EXIT-01 · ilk TP sonrası stop maliyete çekilir.
                 be = self._breakeven(z, pos)
-                if low <= be <= high:
+                if (low <= be) if pos.side == LONG else (high >= be):  # temas ya da boşluk
                     # İç stop (R-RISK-02): tetik mum kapanınca bilinir, piyasa emri kapanışta
-                    # gider — seviyeden değil kapanıştan çıkılır (CLAUDE.md #3, OPEN-42).
+                    # gider — seviyeden değil kapanıştan (boşlukta açılıştan) çıkılır.
                     kapanis = ts + STATE_BAR
-                    self._close(z, pos, self.marks[z.symbol], kapanis, "BREAKEVEN")
+                    self._close(z, pos, self._stop_fiyati(z.symbol, be, high, low), kapanis,
+                                "BREAKEVEN")
                     if z.state not in TERMINAL:
                         z.transition(S.CLOSED, kapanis)
                     return
@@ -1210,7 +1265,8 @@ class Backtest:
             self.counters["entry_candidates"] += 1
             self._temas.add(z.zone_id)
             self._try_fill(z, sd, ts, high, low, t64)
-        elif after is S.INVALIDATED and before in (S.PRIMED, S.TOUCHED)                 and low <= z.anchor_1_price <= high:
+        elif after is S.INVALIDATED and before in (S.PRIMED, S.TOUCHED) \
+                and z.stop_reached(high, low):
             # OPEN-41 · bekleyen emir `PRIMED` kapanışından beri defterde: `1`'e giden mum
             # onu da geçti. Dolum + aynı mumda iç stop (§8 stop önce).
             self._try_fill(z, sd, ts, high, low, t64, kill=True)
@@ -1223,9 +1279,9 @@ class Backtest:
             # Çapa teması: 0 = nihai TP, 1 = nihai stop. İkisi de vurulduysa stop kazanır (§8).
             # Nihai TP borsada bekleyen limittir, seviyeden dolar. Nihai stop iç stoptur
             # (R-RISK-02): mum kapanınca bilinir, kapanıştan piyasa emriyle çıkılır.
-            stop = low <= z.anchor_1_price <= high
-            if stop:
-                self._close(z, pos, self.marks[z.symbol], ts + STATE_BAR, "STOP")
+            if z.stop_reached(high, low):  # temas ya da boşluk; ikisi birden → stop (§8)
+                self._close(z, pos, self._stop_fiyati(z.symbol, z.anchor_1_price, high, low),
+                            ts + STATE_BAR, "STOP")
             else:
                 self._close(z, pos, z.tp_final, ts, "FINAL_TP")
 
