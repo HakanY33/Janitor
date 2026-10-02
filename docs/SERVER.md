@@ -245,11 +245,34 @@ systemctl --user start janitor-funding.service   # ilk koşu, paper'dan önce
 4 saat: 8 saatlik funding anından en geç ~4 saat sonra disktedir; 9 saatlik bayatlık
 eşiği bir kaçan koşuyu tolere eder. İlk koşu 2026-09-30 10:19 UTC: 20/20 sembol.
 
-**Bilinen açık:** bazı semboller 4 saatlik funding aralığında (ORDI: 1.000 kayıt yalnızca
-2026-04-16'ya iniyor). `costs.py` `FUNDING_INTERVAL = 8h` sabit ızgara kullanıyor; bu
-sembollerde funding anlarının yarısı sayılmıyor (`OPEN-59`).
+**`OPEN-59` kapandı (2026-09-30).** Funding anları artık sembolün borsadan gelen aralığıyla
+(`fundingIntervalHours`, `fees.json` → `funding_h`): kapsam içinde ölçülen anlar, dışında o
+aralıkla ızgara. 40 sembolün **12'si 4 saatlik** (HYPE, JUP, ORDI, ENA, KAS, WIF, BANANA,
+NOT, IMX, ETHFI, 1000BONK, TURBO). `funding_h` yoksa `load_funding` hata verir.
 
-### 7 · Paper döngüsü (`janitor-paper`) — kuruldu 2026-09-30 10:19 UTC
+**Kod güncellemesinde sıra:** yeni kod → önce `systemctl --user start janitor-funding.service`
+(`fees.json`'a `funding_h` yazar) → sonra `restart janitor-paper`. Tersi sırada paper'ın
+ilk funding tazelemesi `KeyError` ile düşer. Zamanlayıcı `--symbols` ile yalnızca 20 sembol
+yazıyor; H1 (40 sembol) maliyet modelini yerel `fees.json`'dan (40) okur — sunucudaki
+dosya PC'ye çekilirse üzerine yazmasın ya da zamanlayıcı 40 sembole genişletilsin.
+
+### 7 · Paper döngüsü (`janitor-paper`) — kuruldu 2026-09-30 10:19 UTC · **DURDURULDU 2026-10-01**
+
+> **Durduruldu ve devre dışı (2026-10-01 14:10 UTC, kullanıcı).** Bellek büyümesi
+> `MemoryMax=700M`'yi her ~1,5 saatte aşıyordu (`paper_yeniden.log`: 11:36 ve 13:06
+> `oom-kill`); makinede swap kullanımı Minecraft'la ortak belleği sıkıştırıyordu.
+> `systemctl --user stop` + `disable`: ne `Restart=always` ne açılış onu geri getirmez.
+>
+> **Kural (kullanıcı, 2026-10-01):** paper **hiçbir sunucuda** çalışmaz, ta ki **ardışık
+> 3 tespit döngüsünde bellek düz** kalana kadar. Bu sunucuda (Minecraft) paper **kapalı
+> kalır**. TR-SSD 2'de kabul ölçümü göç sırasının 3. adımıdır (`scripts/sizinti.py`).
+>
+> **Teşhis (2026-10-01, lokal, `scripts/sizinti.py --iz`):** referans sızıntısı yok
+> (tracemalloc Δ döngü 2–3: +0,03 / +0,02 MB). Her 30m kapanışı tüm geçmişi yeniden
+> kuruyor; büyük geçici tahsis iş parçacığında (`to_thread`) yapılıyor → glibc
+> parçalanması. **İki satırlık önlem:** birimde `MALLOC_ARENA_MAX=2`, her 30m tespitinden
+> sonra `malloc_trim(0)` (`scripts/paper.py` `bellek_birak`, yalnızca Linux). Yetmezse
+> artımlı tespit (`LIVE.md` §2 "Artımlı tespit — ertelendi").
 
 Kullanıcı kararıyla yerel 24 saat bitmeden kuruldu; 24 saatlik ölçüm sunucuda yapılır
 (`OPEN-55`). `MemoryMax=700M`: yerel ilk 2 saatin tepesi 459 MB × 1,5 ≈ 690. Emir
@@ -285,10 +308,17 @@ After=network-online.target
 Type=simple
 WorkingDirectory=%h/janitor
 Environment=PYTHONUNBUFFERED=1
+# glibc arena sayisini sinirlar; 30m tespitinden sonra malloc_trim(0) ile birlikte (2026-10-01)
+Environment=MALLOC_ARENA_MAX=2
 EnvironmentFile=%h/.config/janitor-paper.env
 ExecStart=%h/janitor/.venv/bin/python -m scripts.paper --symbols <spread_logger ile ayni 20 sembol>
 Restart=always
 RestartSec=30
+# Gecici onlem (2026-09-30): bellek buyumesi arastirilirken 4 saatte bir kayitli durumdan
+# yeniden baslar (D2). Her baslama ve durus logs/paper_yeniden.log'a yazilir.
+RuntimeMaxSec=4h
+ExecStartPre=/bin/sh -c 'echo "$(date -u +%%FT%%TZ) basladi" >> %h/janitor/logs/paper_yeniden.log'
+ExecStopPost=/bin/sh -c 'echo "$(date -u +%%FT%%TZ) durdu sonuc=$SERVICE_RESULT kod=$EXIT_CODE/$EXIT_STATUS" >> %h/janitor/logs/paper_yeniden.log'
 MemoryMax=<yerel tepe x 1,5>
 Nice=10
 
@@ -298,35 +328,171 @@ WantedBy=default.target
 
 - **Yeniden başlatma güvenli:** durum `data/paper/f1.db`'de; süreç son anlık görüntüden
   devam eder ve aradaki dakikaları REST'ten yetişir (`docs/LIVE.md` §3).
-- **R-KILL-01** kendiliğinden kalkmaz: `systemctl --user stop janitor-paper`, sonra bir kez
+- **`MALLOC_ARENA_MAX=2`** (2026-10-01): mevcut sunucunun birim dosyasına da eklendi
+  (`daemon-reload`, servis başlatılmadı; yedek `janitor-paper.service.bak-arena`).
+  `malloc_trim(0)` kodda, birimde değil.
+- **`RuntimeMaxSec=4h` geçici** (2026-09-30, kullanıcı): bellek büyümesi çözülene kadar.
+  `logs/paper_yeniden.log` satırları: `durdu sonuc=timeout` = planlı 4 saat, `oom-kill` =
+  bellek sınırı, `exit-code` = süreç hatası. Kalkınca bu satırlar birimden silinir.
+- **Kod hatasından doğan R-KILL-01** kendiliğinden kalkmaz (veri kaynaklı olan kalkar, spec §6):
+  `systemctl --user stop janitor-paper`, sonra bir kez
   `.venv/bin/python -m scripts.paper --kill-kaldir --symbols ...` (insan kararı, spec §6).
 - 30m kapanışlarında tespit 20 sembolde ~3–4 dk CPU alır (`Nice=10`: Minecraft öncelikli).
 
-## Göç planı — Xeon sunucusu
+## PC yedek planı — sunucu uzatılmazsa
+
+Amaç: H1 dilimi (10-01 → 12-31, uzarsa 03-31) boyunca işlem akışı kaydı **kesintisiz**.
+İşlem akışının geçmişi yok (son 1.000 işlem); PC'nin kapalı olduğu her dakika kalıcı kayıptır
+ve H1'de o temas `dislandi_bosluk` olur. Aşağıdakilerin hepsi yönetici PowerShell'inde, bir kez.
+
+**Ön koşul.** Sunucu ile PC **aynı anda** kaydetmez (iki ayrı kopya birleşmez; göç planındaki
+birleştirme betiği yok). Geçiş: sunucudan son veriyi çek (`pull_book`) → PC kayıtçılarını başlat
+→ ilk `pc-trades-*.log` satırlarını ve yeni parquet'leri gör → sunucuyu durdur. Arada kalan
+dakikalar `trades_gap` olarak sayılır; bu beklenir ve raporlanır.
+
+**1 · Uyku, hazırda bekletme, kapak.**
+
+```powershell
+powercfg /change standby-timeout-ac 0
+powercfg /change hibernate-timeout-ac 0
+powercfg /change disk-timeout-ac 0
+powercfg /hibernate off                       # hızlı başlatmayı da kapatır
+powercfg /setacvalueindex SCHEME_CURRENT SUB_BUTTONS LIDACTION 0   # kapak: hiçbir şey yapma
+powercfg /setactive SCHEME_CURRENT
+powercfg /a                                   # doğrula: "Hibernate" yok
+```
+
+Yalnızca prizde (`-ac`); pilde uyumak doğru davranıştır. Ağ bağdaştırıcısında "güç tasarrufu
+için bu aygıtı kapat" (Aygıt Yöneticisi → ağ kartı → Güç Yönetimi) kaldırılır.
+
+**2 · Windows Update yeniden başlatması.** Önlenemez, yalnızca ertelenir ve **kurtarılır**:
+
+```powershell
+$k = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU"
+New-Item $k -Force | Out-Null
+Set-ItemProperty $k NoAutoRebootWithLoggedOnUsers 1 -Type DWord   # oturum açıkken zorla yok
+```
+
+Ayarlar → Windows Update → Etkin saatler: el ile 18 saatlik pencere. Asıl güvence 3. adım:
+yeniden başlatma olsa da kayıtçı **oturum açılmadan** geri gelir. Kesintiyi bir yeniden başlatma
+süresine (~2–5 dk) indirir, sıfırlamaz.
+
+**3 · Kayıtçılar Windows açılışında (oturum açmadan).** `scripts/pc_kayit.ps1` kayıtçıyı
+döngüde çalıştırır: çıkarsa (ağ, hata) 30 sn sonra yeniden, her çıkış `logs/pc-*.log`'a.
+
+```powershell
+$dir = "C:\Users\Hakan\Desktop\Projects\Janitor"
+$py  = (Get-Command python).Source
+$p   = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType S4U -RunLevel Limited
+$set = New-ScheduledTaskSettingsSet -ExecutionTimeLimit 0 -MultipleInstances IgnoreNew `
+         -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
+         -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1)
+$t   = New-ScheduledTaskTrigger -AtStartup
+foreach ($k in "trades", "spread") {
+  $a = New-ScheduledTaskAction -Execute "powershell.exe" -WorkingDirectory $dir -Argument `
+         "-NoProfile -ExecutionPolicy Bypass -File scripts\pc_kayit.ps1 -Kayitci $k -Python `"$py`""
+  Register-ScheduledTask -TaskName "Janitor $k" -Action $a -Trigger $t -Principal $p -Settings $set
+}
+Start-ScheduledTask "Janitor trades"; Start-ScheduledTask "Janitor spread"
+```
+
+`S4U`: oturum açılmadan, parola saklamadan çalışır (yalnızca genel internete çıkar, yeter).
+`IgnoreNew`: ikinci kopya açılmaz — aynı sembolü iki süreç yazmaz. `ExecutionTimeLimit 0`:
+72 saat sonra öldürülmez. Durdurmak: `Stop-ScheduledTask "Janitor trades"` (tampon en fazla
+`--flush-every` = 5 dk kaybolur). Sembol listesi betikte: `liquidity.json` ilk 20 +
+`liquidity_soguk.json` ilk 20 = sunucudaki 40.
+
+Doğrulama: yeniden başlat, **oturum açmadan** 5 dk bekle, sonra
+`Get-ScheduledTask "Janitor *" | Get-ScheduledTaskInfo` (`LastTaskResult` 267009 = çalışıyor) ve
+en yeni `data\bingx\*\trades\*.parquet` zamanı.
+
+**4 · Boşluk izleme.** Kayıtçı her `fillId` atlamasını `logs/collect/{gün}.jsonl`'a
+`trades_gap` olarak yazar. Günlük (içerik değil, yalnızca bütünlük — H1 §6):
+
+```powershell
+$g = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd")
+Select-String "logs\collect\$g.jsonl" -Pattern '"trades_gap"' | Measure-Object | % Count
+Get-ChildItem data\bingx\*\trades\$g.parquet | Sort LastWriteTime | Select -First 3 Name, LastWriteTime
+Select-String "logs\pc-trades-*.log" -Pattern "cikti" | Select -Last 5    # yeniden başlamalar
+```
+
+Alarm eşiği: en eski dosyanın `LastWriteTime`'ı 10 dk'dan eskiyse (yazım 5 dk'da bir) o
+sembolün kaydı durmuş; `cikti` satırı sık görünüyorsa ağ ya da borsa sorunu.
+
+**Bilinen sınırlar.** Elektrik kesintisi (UPS yok) ve ev interneti kopması kapsanmaz;
+ikisi de `trades_gap` olarak sayılır. Paper döngüsü bu plana dahil değil (H1 için gerekmez).
+
+## Göç planı — verunix TR-SSD 2 (Ubuntu 24.04)
 
 Amaç: kayıtçılar ve paper döngüsü mevcut sunucudan (`179.61.147.81`, Minecraft ile ortak)
-Xeon'a taşınır. **Veri serisi kesilmez**: işlem akışının geçmişi yok (son 1.000 işlem),
+TR-SSD 2'ye taşınır. **Veri serisi kesilmez**: işlem akışının geçmişi yok (son 1.000 işlem),
 kaçan dakika kalıcıdır.
 
-### Sıra (bağlayıcı)
+**Süre (kullanıcı, 2026-09-30).** Sabit tarih yok. Kurulum (§0–§7) yaklaşık **bir saat**.
+**Örtüşme**, TR-SSD 2'de kayıtçılar başladıktan eski sunucu kapanana kadar geçen süredir —
+ne kadarsa o kadar. **Asgari şart:** iki sunucunun paralel kaydı doğrulanmış olmalı, yani
+**aynı işlem kimlikleri (`fillId`) iki tarafta da görünüyor** (`birlestir --kuru` →
+"iki sunucuda ortak id" her sembolde > 0). Bu şart sağlanmadan eski sunucu kapanırsa göç
+"doğrulanmamış" olarak kaydedilir. `OPEN-60` bu kuralla kapandı.
 
-1. **Xeon, Minecraft sunucusu kapanmadan önce kurulur.** Eski sunucuya bu süreçte
-   dokunulmaz (Minecraft dahil). Kapanış tarihi 48 saatlik örtüşmeye yetmeyecekse ne
-   yapılacağı açık (`OPEN-60`).
-2. Xeon'da §1–§7 aynen: `janitor` kullanıcısı (sudo yok, `enable-linger`), `~/janitor`,
-   `.venv`, birim dosyaları **aynı sembol listeleriyle** (40 kayıtçı, 20 paper/funding).
-   Kod aynı `tar` akışıyla; iki sunucuda `sha256sum scripts/*.py src/**/*.py` eşit olmalı.
-3. **Tüm kayıtçılar iki sunucuda en az 48 saat örtüşerek çalışır:** `spread-logger`,
-   `trades-logger`, `earliest.timer`, `ohlcv30m.timer`, `funding.timer`, `paper`. Xeon'un
-   paper'ı ayrı durum dosyasıyla koşar (`--db data/paper/f1_xeon.db`), eski sunucunun
-   durumuna dokunmaz.
-4. Örtüşme kontrolü (aşağıda) geçerse **geçiş**: `pull_book` / zamanlayıcı Xeon'a döner,
+### 0 · İlk adım: BingX API erişimi (TR-SSD 2 hazır olunca, kurulumdan önce)
+
+Sunucu Türkiye'de; BingX'in o IP'den erişilebilir olduğu **varsayılmaz**. Kurulumdan önce,
+`root`/ilk kullanıcıyla, venv gerekmeden:
+
+```bash
+for u in "https://open-api.bingx.com/openApi/swap/v2/quote/premiumIndex?symbol=BTC-USDT" \
+         "https://open-api.bingx.com/openApi/swap/v2/quote/trades?symbol=BTC-USDT&limit=5" \
+         "https://open-api.bingx.com/openApi/swap/v2/quote/depth?symbol=BTC-USDT&limit=5" \
+         "https://open-api.bingx.com/openApi/swap/v3/quote/klines?symbol=BTC-USDT&interval=30m&limit=2"; do
+  curl -sS -m 15 -o /tmp/b.json -w "%{http_code} %{time_total}s " "$u"; head -c 120 /tmp/b.json; echo
+done
+python3 - <<'PY'   # WS (paper): el sıkışma, yalnızca stdlib
+import asyncio, ssl
+async def main():
+    r, w = await asyncio.wait_for(asyncio.open_connection("open-api-swap.bingx.com", 443,
+                                  ssl=ssl.create_default_context()), 15)
+    w.write(b"GET /swap-market HTTP/1.1\r\nHost: open-api-swap.bingx.com\r\nUpgrade: websocket\r\n"
+            b"Connection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n")
+    print((await asyncio.wait_for(r.readline(), 15)).decode().strip())
+asyncio.run(main())
+PY
+```
+
+Geçer: dört REST satırı `200` ve JSON'da `"code":0`, WS satırı `HTTP/1.1 101`. `403`/`451`,
+coğrafi engel mesajı ya da zaman aşımı → **kurulum yapılmaz**, sunucu H1 için kullanılamaz
+(işlem akışı REST'ten); karar kullanıcının. Kurulumdan sonra ayrıca `.venv` ile ccxt yoklaması:
+`.venv/bin/python -c "import ccxt; e=ccxt.bingx(); e.load_markets(); print(len(e.fetch_trades('ORDI/USDT:USDT')), e.fetch_funding_rate('ORDI/USDT:USDT')['info']['fundingIntervalHours'])"`.
+
+### Sıra (bağlayıcı, kullanıcı 2026-10-01)
+
+Eski sunucuya bu süreçte dokunulmaz (Minecraft dahil). TR-SSD 2 olabildiğince erken kurulur
+(örtüşme o kadar uzar). `janitor` kullanıcısı (sudo yok, `enable-linger`), `~/janitor`,
+`.venv`, birim dosyaları **aynı sembol listeleriyle** (40 kayıtçı, 20 funding/paper). Kod aynı
+`tar` akışıyla; iki sunucuda `sha256sum scripts/*.py src/**/*.py` eşit olmalı.
+
+1. **BingX erişim kontrolü** (§0). Geçmezse kurulum yok.
+2. **Kayıtçılar + bellek örnekleyici:** §3 `spread-logger`, §6 `trades-logger`,
+   `janitor-bellek-ornek.service` (`logs/bellek/ornek.sh`, dakikada bir rss+swap →
+   `logs/bellek/rss2.log`). Ardından §4–§6b zamanlayıcıları (`earliest`, `ohlcv30m`, `funding`).
+3. **Paralel kayıt doğrulaması:** her sembolde iki sunucunun ortak işlem kimliği (`fillId`)
+   sayısı > 0 (`birlestir --kuru`, aşağıda 1a). Kayıttan ~10 dk sonra yapılabilir.
+4. **Bellek kabulü (paper'dan önce):** `scripts/sizinti.py` ile, iki satırlık önlem açıkken,
+   paper'ın 20 sembolünde ısınma + 3 tespit döngüsü:
+   ```bash
+   MALLOC_ARENA_MAX=2 nice -n 10 .venv/bin/python -m scripts.sizinti --symbols <paper ile ayni 20 sembol>
+   ```
+   Gerekenler §7'deki gibi (`fees.json`, `funding/`, 30m geçmişi). Çıktı ve döngü süreleri
+   `docs/measurements/goc.md`'ye yazılır.
+5. **Karar:** `GECTI` (her döngünün RSS'i 1. döngünün ±10 MB'ı içinde) → §7 birimi kurulur,
+   paper ayrı durum dosyasıyla açılır (`--db data/paper/f1_yeni.db`), ilk 3 gerçek döngüde
+   `rss2.log` ile teyit. `KALDI` → paper açılmaz, artımlı tespite geçilir (`LIVE.md` §2).
+   Döngü süresi > 10 dk çıkarsa da artımlı tespit tetiklenir.
+6. Örtüşme kontrolü (aşağıda) geçerse **geçiş**: `pull_book` / zamanlayıcı TR-SSD 2'ye döner,
    eski sunucuda servisler `stop` (SIGINT, tampon yazılır), son bir kez eskiden çekilir,
-   birleştirilir.
-5. Paper devamlılığı: eski `janitor-paper` durdurulur, `data/paper/f1.db` ve `logs/decisions`,
-   `logs/fills`, `logs/paper` Xeon'a kopyalanır, Xeon'da `f1_xeon.db` koşusu durdurulup
-   `f1.db` ile başlatılır. Aradaki dakikalar REST'ten yetişilir (`LIVE.md` §3) — kill değil.
-6. Eski sunucudaki `~/janitor/data` birleştirmeden sonra **silinmez**: özet listesi
+   birleştirilir. Eski sunucuda paper 2026-10-01'den beri kapalı: `f1.db` taşınmaz; TR-SSD 2'nin
+   paper'ı (açıldıysa) kendi durumuyla sürer.
+7. Eski sunucudaki `~/janitor/data` birleştirmeden sonra **silinmez**: özet listesi
    (`sha256sum`) PC'ye alınır, silme ayrı ve açık bir karardır.
 
 ### Veri birleştirme
@@ -336,37 +502,52 @@ koruması iki kaynağı çakışma sayıp durur):
 
 ```powershell
 python -m scripts.pull_book --host janitor@179.61.147.81 --root göç/eski
-python -m scripts.pull_book --host janitor@<xeon>       --root göç/xeon
+python -m scripts.pull_book --host janitor@<tr-ssd-2>       --root göç/yeni
 ```
 
 | Veri | Anahtar | Birleştirme | Çakışma |
 |---|---|---|---|
 | İşlem `trades/` | sembol + `id` (`fillId`, ardışık) | birleşim, `id`'ye göre tekil | aynı `id` farklı `ts/price/qty/side` → **hata**, dosya yazılmaz |
-| Defter `book/` | sembol + `ts` dakikası | birleşim; aynı dakika iki kaynakta varsa **geçişe kadar eski**, sonra Xeon (kaynak kolonu `host`) | aynı dakikanın farklı değeri beklenir (farklı anlık görüntü) — hata değil, sayılır |
+| Defter `book/` | sembol + `ts` dakikası | birleşim; aynı dakika iki kaynakta varsa **geçişe kadar eski**, sonra TR-SSD 2 (kaynak kolonu `host`) | aynı dakikanın farklı değeri beklenir (farklı anlık görüntü) — hata değil, sayılır |
 | 30m OHLCV | sembol + `ts` | birleşim | kapanmış mum iki kaynakta farklıysa **hata** (REST aynı mumu vermeli) |
 | funding | sembol + `ts` | birleşim | farklı oran → **hata** |
 | `earliest` | tarih + sembol + TF | iki sunucunun satırları ayrı saklanır | fark borsanın penceresi hakkında bilgi — raporlanır |
 
-Birleştirme betiği (`scripts/birlestir.py`) **göçten önce** yazılır, sentetik iki kaynakla
-test edilir (çakışma, boşluk, tekrar). Şu an yok.
+Birleştirme `scripts/birlestir.py` (2026-09-30, `tests/test_birlestir.py` sentetik: boşluk
+doldurma, çakışma → dosya yazılmaz, hedefteki satır korunur, defter önceliği geçişte döner,
+ikinci koşu boş). Önce `--kuru` (geçiş kapısı raporu), sonra yaz:
+
+```powershell
+python -m scripts.birlestir --kaynak eski=göç/eski --kaynak yeni=göç/yeni --gecis <geçiş anı, UTC> --kuru
+```
+
+Sıra önemli: ilk `--kaynak` eski sunucu. Hedefteki mevcut `data/` en düşük öncelikli kaynak
+sayılır; hiçbir satır silinmez. İlk yazımda defter dosyalarına `host` kolonu eklenir.
+`pull_book` 30m ve funding'i çekmez; o ikisi için sunucudan `data/*/*/{30m,funding}` ayrıca
+`scp`/`tar` ile aynı köklere alınır.
 
 ### Tekrar (örtüşme) kontrolü — geçiş kapısı
 
-48 saatlik örtüşme penceresinde, sembol başına:
+Örtüşme penceresinde, sembol başına. **Yalnızca 1a bağlayıcıdır** (asgari şart); geri
+kalanlar süre yettiği kadar ölçülür ve kaydedilir, geçişi durdurmaz.
 
-1. **İşlem akışı:** iki kaynağın `id` kümeleri. Birleşimdeki `id` boşlukları
+1a. **Paralel kayıt (bağlayıcı):** her sembolde iki sunucunun ortak `id` sayısı > 0
+   (`python -m scripts.birlestir ... --kuru`, "paralel kayıt" satırı). Yeni sunucu kayda
+   başladıktan ~10 dk sonra ilk kontrol yapılabilir (yazım 5 dk'da bir).
+1b. **İşlem akışı:** iki kaynağın `id` kümeleri. Birleşimdeki `id` boşlukları
    (`trades_gap` yöntemi) her kaynağın tek başına boşluğundan **az ya da eşit** olmalı.
    Yalnızca bir kaynakta olan `id` sayısı ve o kaynağın boşluk kaydı eşleşmeli
    (açıklanamayan fark → geçiş yok). Çakışan `id` = 0.
 2. **Defter:** dakika kapsaması iki kaynakta ≥ %99; eksik dakikalar `logs/collect/`
    hatalarıyla açıklanmalı.
 3. **30m / funding:** çakışan satırlarda fark = 0.
-4. **Paper:** iki döngünün karar logunda aynı `(ts, event, symbol, outcome)` kümeleri; fark
+4. **Paper** (2026-10-01'den beri uygulanamaz: eski sunucuda paper kapalı): iki döngünün karar logunda aynı `(ts, event, symbol, outcome)` kümeleri; fark
    varsa nedeni (REST farkı, `DATA` olayı, kill) yazılmadan geçiş yok.
-5. **Disk ve bellek:** Xeon'da `du -sh data/bingx`, `systemctl --user status` bellek
+5. **Disk ve bellek:** TR-SSD 2'de `du -sh data/bingx`, `systemctl --user status` bellek
    tepeleri; `kalp_ozet` iki sunucuda.
 
-Sonuç `docs/measurements/goc.md`'ye yazılır; bir madde kalırsa örtüşme uzar, geçiş olmaz.
+Sonuç `docs/measurements/goc.md`'ye yazılır: 1a'nın sonucu, örtüşme süresi ve ölçülebilen
+diğer maddeler. 1a sağlanmışsa geçiş eski sunucunun kapanışıyla olur.
 
 ## İşletim (`janitor` ile)
 
