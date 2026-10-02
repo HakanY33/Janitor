@@ -84,3 +84,20 @@ def test_R_KILL_01_rest_backoff_60s(monkeypatch):
 
     with pytest.raises(ConnectionError):
         paper.rest(Olu(), "X", "1m", T)
+
+
+def test_bellek_birak_yalnizca_linuxta_malloc_trim(monkeypatch):
+    """SERVER.md §7 · 30m tespitinden sonra malloc_trim(0); Linux dışında libc'ye dokunulmaz."""
+    cagri = []
+
+    class Libc:
+        def malloc_trim(self, n):
+            cagri.append(n)
+
+    monkeypatch.setattr(paper.ctypes, "CDLL", lambda ad: Libc())
+    monkeypatch.setattr(paper.sys, "platform", "win32")
+    paper.bellek_birak()
+    assert cagri == []
+    monkeypatch.setattr(paper.sys, "platform", "linux")
+    paper.bellek_birak()
+    assert cagri == [0]

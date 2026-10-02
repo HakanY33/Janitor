@@ -88,6 +88,18 @@ def rss_mb() -> float:
     return float("nan")
 
 
+def bellek_birak() -> None:
+    """30m tespitinden sonra glibc'nin boş yığınını işletim sistemine geri verir.
+
+    Tespit her kapanışta tüm geçmişi yeniden kurar; büyük geçici tahsis RSS'te kalıyordu
+    (parçalanma, referans sızıntısı değil — `SERVER.md` §7). Birimdeki `MALLOC_ARENA_MAX=2`
+    ile birlikte. glibc yalnızca Linux'ta: başka platformda iş yok. Linux'ta libc
+    yüklenemezse hata yükselir (CLAUDE.md #8).
+    """
+    if sys.platform.startswith("linux"):
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+
+
 def ws_adi(s: str) -> str:
     return s.split(":")[0].replace("/", "-")  # BTC/USDT:USDT -> BTC-USDT
 
@@ -299,6 +311,8 @@ class Dongu:
             # İş parçacığında: 30m tespiti dakikalar sürebilir; WS ping/pong beklemesin.
             self.izle(t, temiz)  # kill kalkarsa bu dakikanın kapanış emirleri de geçerli
             await asyncio.to_thread(self.core.dakika, t, bars)
+            if sinir:
+                bellek_birak()
             self.kalp_yaz(t, simdi, time.time() - c0, mod)
             t = t + DAKIKA
 
