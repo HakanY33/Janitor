@@ -2,12 +2,17 @@
 
 | | |
 |---|---|
-| **Versiyon** | v0.5 |
+| **Versiyon** | v0.6 |
 | **Durum** | OTE modeli kapalı ve kodlanabilir. Açık parametre kalmadı; eşikler backtest'le kalibre edilecek. |
 | **Kapsam** | Kripto vadeli (perpetual), cross marjin, paper trading |
-| **Son güncelleme** | 2026-09-30 |
+| **Son güncelleme** | 2026-10-02 |
 
 > **UYARI — 30m look-ahead (düzeltildi 2026-09-29).** Commit 3fb2ff4 ve öncesindeki kod, zone/OB/FVG damgalarını (mumun açılışı) bilgi anı olarak kullanıyordu: her nesne bir 30m mum erken görünüyordu. Bu spec'te ve `docs/measurements/`'ta o koda dayanan **her ölçüm sayısı** bu hatayı taşır; mutlak değerler geçersizdir. Düzeltilmiş yeniden ölçüm: `docs/measurements/damga.md`. Kural: her HTF nesnesi `known_at` = mumun kapanışı taşır; bir mumdan çıkan hiçbir bilgi o mum kapanmadan kullanılamaz (CLAUDE.md #3).
+
+**v0.5'ten değişenler (2026-10-02):** `R-RISK-02` iç stop ve breakeven intrabar, **seviyeden**
+(+ slippage; kullanıcı kararı) · `R-ZONE-05` izleme öncesi pencere (`0`/`1`'e teyit
+sırasında ulaşılmışsa zone kurulmaz) · `R-ENTRY-03` borsa emir kısıtları (adım, asgari) ·
+`OPEN-61`…`OPEN-63` açıldı
 
 **v0.4'ten değişenler:** 30m look-ahead düzeltmesi (`known_at`, §0.1, `R-ZONE-09`, `R-RISK-02` iç stop kapanıştan) · `OPEN-41` kapandı (giriş emri `PRIMED` kapanışında bekleyen
 limit, `R-ENTRY-02`) · `OPEN-52` kapandı (borsada felaket stopu, `R-RISK-02`) · `OPEN-49`
@@ -171,6 +176,14 @@ durumundayken `1`'e temas bir geçersizlik değil, bir **işlem sonucudur** (sto
 
 **Ara derinlik serbest.** `PRIMED` durumunda fiyat 0.50'yi geçip 0.40'a, 0.30'a inebilir;
 zone geçerliliğini korur. Zone'u yalnızca `0` veya `1` teması öldürür.
+
+**İzleme öncesi pencere (2026-10-02).** `anchor_1` mumunun kapanışı ile `WATCH_FROM`
+arasındaki (pivot teyidi) HTF mumları da sırayı bozar: bu pencerede `0`'a veya `1`'e
+ulaşılmışsa ("ulaştı" = temas ya da ötesi, `R-RISK-02` ölçütü) zone **kurulmaz**. O mumlar
+`WATCH_FROM`'da kapanmıştır; look-ahead değildir. Eskiden pencere görülmüyordu ve sırası
+çoktan bozulmuş zone `ACTIVE` doğuyordu (inceleme #9, NEAR; F1'de 3.565 işlemin 96'sı).
+Kod: `src/zones/detect.py:izleme_oncesi_oldu`. Aynı penceredeki `0.50`/`0.70` temasları
+`OPEN-61`.
 
 `0.50`'ye temas etmeden `0`'a ulaşılırsa pozisyon zaten açılmamış olur — zarar yok.
 Bu durum ya OTE'nin çalışmadığı ya da yanlış çizildiği anlamına gelir ve
@@ -341,6 +354,12 @@ farklı risk üretir. Notional sabit tutulunca sorun kalkar:
 |---|---|---|---|
 | BTC | 125x | %0.8 | 1.0 × equity |
 | Altcoin | 20x | %5.0 | 1.0 × equity |
+
+**Borsa emir kısıtları (2026-10-02).** Her emir miktarı (giriş ve kısmi kapanış) borsanın
+miktar adımına **aşağı** yuvarlanır; asgari miktarı (`limits.amount.min`) ya da asgari
+tutarı (`limits.cost.min`) karşılamayan emir **gönderilmez ve sayılır** (`rejected_min_order`,
+`rejected_min_close`). Değerler borsadan (`fees.json`, CLAUDE.md #5). Tam kapanış
+(`reduceOnly`, kalan miktarın tamamı) kısıta takılmaz. Kısmi TP'nin reddi `OPEN-63`.
 
 İkisi **aynı risk**. Marjin yüzdesi yanıltıcı, notional değil.
 
@@ -527,11 +546,13 @@ kapalıyken ya da kill switch faaliyeti durdurmuşken pozisyonu korumaktır; iç
 yerine geçmez. Paper'da emir gönderilmez, seviyesi kayda yazılır. Backtest'te yoktur:
 iç stop her zaman önce tetiklenir.
 
-**İç stopun fiyatı (`OPEN-42`, 2026-09-29).** İç stop kapanmış 1m mumda izlenir: seviyeye
-dokunulduğu, mum kapanınca bilinir ve piyasa emri o anda gider. Backtest bu yüzden nihai
-stoptan ve breakeven'dan **seviyeden değil tetik mumunun kapanışından** (+ slippage) çıkar.
-Mum seviyeye dokunmadan **boşlukla** ötesine geçerse stop yine tetiklenir ve doluş o mumun
-**açılışındandır** (muhafazakâr taraf, 2026-09-30). Aynı "ulaştı" ölçütü `1` çapasının
+**İç stopun fiyatı (kullanıcı kararı, 2026-10-02 — `OPEN-42`'nin kapanıştan kuralının
+yerine).** Fiyat `1` çapasına **intrabar** değdiği anda stop tetiklenir; doluş **seviye +
+slippage**. Breakeven (`R-EXIT-01`) aynıdır: ücret dahil maliyet seviyesine değdiği anda,
+seviye + slippage. Mum seviyeye dokunmadan **boşlukla** ötesine geçerse stop yine
+tetiklenir ve doluş o mumun **açılışındandır** (muhafazakâr taraf, 2026-09-30). Canlıda
+intrabar tetiğin nasıl uygulanacağı (borsada `reduceOnly` stop emri mi, akıştan izleme mi)
+`OPEN-62`; o karar verilene kadar paper aynı kuralı kapanmış 1m mumdan geriye dönük uygular. Aynı "ulaştı" ölçütü `1` çapasının
 giriş öncesi geçersizliğinde de geçerlidir.
 Borsada bekleyen limitler (giriş, TP1, nihai TP) seviyeden dolar.
 
@@ -663,7 +684,7 @@ geldi, (2) eksik dakikalar REST'ten tamamlandı (imleç canlıya yetişti), (3) 
 ardışık temiz canlı dakika** (her sembolün REST mumu var, WS bağlı). Kalkış `RESUME` olayı
 olarak loglanır. REST yeniden denemesi üstel beklemeyle ~60 sn (2+4+8+16+30), sonra kill.
 Kodda beklenmeyen hatadan doğan `R-KILL-01` kendiliğinden **kalkmaz** (veri değil kod
-sorunu). `R-KILL-02` ve `R-KILL-03` değişmedi: insan müdahalesi.
+sorunu; **kullanıcı onayı 2026-09-30**): insan hatayı inceleyip süreci yeniden başlatır. `R-KILL-02` ve `R-KILL-03` değişmedi: insan müdahalesi.
 
 **Canlı mum kaynağı (`OPEN-47`, kapandı 2026-09-30).** WS yalnızca **zamanlama ve
 canlılık** içindir (kapanış anı, bağlantı). Karara giren her OHLCV değeri **REST**'ten gelir
@@ -698,6 +719,9 @@ kapatılabilir; varsayılan hepsi açık. Kapatma kararın girdisi olarak loglan
 | `OPEN-41`…`OPEN-57` | Canlı döngü tasarım soruları (giriş emrinin zamanı, stop izleme, kill eylemleri, WS, yeniden başlatma, ortam) | **Kapandı 2026-09-29** — `OPEN-41` `R-ENTRY-02`, `OPEN-52` `R-RISK-02`, `OPEN-49` §6. Diğerleri en muhafazakâr varsayılanla; karar satırları `docs/LIVE.md` §9. |
 | `OPEN-33` | Ekleme merdiveninin boyut tavanı | **Kapandı** — `ADD-REJECT-E` (`R-ADD-02`). Tavan notional'da değil, stopta realize olacak kayıpta. |
 | `OPEN-13` | "Garantici mod" tetikleyicisi | Açık — v1'de kapalı, sonra eklenir |
+| `OPEN-61` | İzleme öncesi pencerede `0.50` / `0.70` / TP1 temasları | **Açık (2026-10-02)** — zone `WATCH_FROM`'dan önce kendi geçmişini görmez (`R-ZONE-09`); `0`/`1` teması artık öldürüyor (`R-ZONE-05`), ama teyit sırasında `0.50`'ye değmiş zone yine `ACTIVE` doğar ve sıfırdan `0.50` bekler. F1 eğitim koşusunda 3.565 işlemin **1.617**'sinde (%45) pencerede `0.50` teması, **1.193**'ünde ardından `0.70` da var (30m, mum içi sıra yok). Seçenekler: (a) bugünkü hâl, (b) `0.50` görülmüşse zone `PRIMED` doğar, (c) `0.50` → `0.70` görülmüşse setup tüketilmiş sayılır, zone kurulmaz. İnceleme #2 bunun örneği. Karar kullanıcının. |
+| `OPEN-62` | Canlıda intrabar iç stop | **Açık (2026-10-02)** — `R-RISK-02` artık seviyeden doluş varsayıyor; bot kapanmış 1m mumla çalışıyor. Ya borsaya `1` seviyesinde `reduceOnly` stop-market (felaket stopu `1.10`'un yerine ya da yanına) ya da WS işlem akışından izleme. Paper sonucu bu karar verilene kadar seviyeden doluşun simülasyonudur. |
+| `OPEN-63` | Asgariyi karşılamayan kısmi TP | **Açık (2026-10-02)** — kod: emir gönderilmez, sayılır, pozisyon tam kalır ve zone `TP1_HIT`'e geçtiği için stop yine maliyete çekilir. Alternatif: tamamını 0.50'de kapat. 100 USDT koşusunda sayaç `rejected_min_close` raporlanır. |
 | `OPEN-16` | Günlük yeni-pozisyon durdurma eşiği | Backtest'le kalibre (başlangıç %10) |
 | `OPEN-17` | Likidasyon tamponu eşikleri | Backtest'le kalibre (başlangıç %50 / %15) |
 | `OPEN-12` | Harmonik oran tablosu + stop kanadı | v2 modülü |
