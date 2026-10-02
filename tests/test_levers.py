@@ -344,10 +344,10 @@ def test_R_EXIT_01_breakeven_varsayilan_ucret_dahildir():
     t = kos(BE_TAM, costs=fee_only(), limit_orders=True).trades[0]
     ham = kos(BE_TAM, costs=fee_only(), limit_orders=True, breakeven_fees=False).trades[0]
     assert t.reason == ham.reason == "BREAKEVEN"
-    # İç stop: seviye tetiği belirler, çıkış tetik mumunun kapanışından (169,75) piyasa
-    # emriyle olur (CLAUDE.md #3, OPEN-42). Ücret dahil seviye 170 × (1 − oran) = 169,88
-    # ve ham seviye 170, ikisi de bu mumda tetiklenir.
-    assert t.exit_price == ham.exit_price == Decimal("169.75")
+    # İç stop intrabar, seviyeden (R-RISK-02, 2026-10-02). Ham seviye 170; ücret dahil
+    # seviye 170 × (1 − (maker + taker)) — ikisi de bu mumda tetiklenir.
+    assert ham.exit_price == Decimal("170")
+    assert float(t.exit_price) == pytest.approx(170 * (1 - 0.0007))
 
 
 def test_R_EXIT_01_breakeven_otelemesi_maliyete_donmeden_tetikler():
@@ -360,18 +360,16 @@ def test_R_EXIT_01_breakeven_otelemesi_maliyete_donmeden_tetikler():
     assert otel.reason == "BREAKEVEN"
 
 
-def test_R_EXIT_01_breakeven_otelemesi_tetigi_degistirir_fiyati_degil():
-    """Çıkış kapanıştan olduğu için öteleme fiyatı değil yalnızca tetik anını değiştirir.
-
-    İkisi aynı mumda tetiklenince PnL aynıdır; fark `BE_ERKEN`'de görülür (ham kol hiç
-    tetiklenmez).
-    """
+def test_R_EXIT_01_breakeven_otelemesi_cikis_fiyatini_kar_tarafina_ceker():
+    """Çıkış seviyeden olduğu için öteleme artık fiyatı da değiştirir: SHORT'ta ücret dahil
+    seviye ham maliyetin altındadır → aynı mumda tetiklenen iki koldan ötelenmiş olan
+    komisyonu karşılar (brüt kâr > 0, ham kolda brüt 0)."""
     ham = kos(BE_TAM, costs=fee_only(), limit_orders=True,
               breakeven_fees=False).trades[0]
     otel = kos(BE_TAM, costs=fee_only(), limit_orders=True,
                breakeven_fees=True).trades[0]
-    assert otel.exit_price == ham.exit_price
-    assert otel.pnl == ham.pnl
+    assert otel.exit_price < ham.exit_price
+    assert otel.pnl > ham.pnl
 
 
 def _pozisyon(side: str, avg: str) -> Position:
