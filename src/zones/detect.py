@@ -109,6 +109,23 @@ def zones_from_swings(
     return out
 
 
+def izleme_oncesi_oldu(z: Zone, df: pd.DataFrame) -> bool:
+    """R-ZONE-05 · `0` veya `1` çapasına izleme başlamadan ulaşıldı mı.
+
+    Pencere `anchor_1` mumunun kapanışı → `watch_from` (pivot teyidi). O mumlar
+    `watch_from`'da kapanmıştır: bilgi anında bilinir, look-ahead değil (CLAUDE.md #3).
+    Eskiden pencere görülmüyordu ve sırası çoktan bozulmuş zone ACTIVE doğuyordu
+    (inceleme #9, NEAR 2026-03-29: `0` teyit mumunda kırıldı, sonra işlem açıldı).
+    "Ulaştı" = temas ya da ötesi (R-RISK-02 ölçütü). `1` fraktal teyidi gereği bu
+    pencerede aşılamaz; simetri için yine bakılır.
+    """
+    i0, i1 = df.ts.searchsorted([z.anchor_1_time + pd.Timedelta(z.timeframe), z.watch_from])
+    p = df.iloc[i0:i1]  # `ts` sıralı (`detect_swings` sözleşmesi); maske her zone'da O(n)
+    if z.bias == "SHORT":
+        return bool((p.low <= z.anchor_0_price).any() or (p.high >= z.anchor_1_price).any())
+    return bool((p.high >= z.anchor_0_price).any() or (p.low <= z.anchor_1_price).any())
+
+
 def detect_zones(
     df: pd.DataFrame,
     symbol: str,
@@ -119,6 +136,9 @@ def detect_zones(
 
     `df` **tespit** zaman dilimidir (R-ZONE-09: 5m ve üstü). Durum geçişleri ayrıdır
     ve 1m mumlarla beslenir — bu fonksiyon zone'u yalnızca kurar, ilerletmez.
+
+    İzleme başlamadan çapası alınmış zone kurulmaz (`izleme_oncesi_oldu`, R-ZONE-05).
     """
     require_detect_tf(timeframe)
-    return zones_from_swings(detect_swings(df, symbol, timeframe), symbol, timeframe, hysteresis)
+    zones = zones_from_swings(detect_swings(df, symbol, timeframe), symbol, timeframe, hysteresis)
+    return [z for z in zones if not izleme_oncesi_oldu(z, df)]
