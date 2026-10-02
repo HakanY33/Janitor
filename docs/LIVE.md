@@ -111,6 +111,41 @@ ister. Kod: `scripts/paper.py` `Dongu.izle`, test `tests/test_kill_toparlanma.py
 `B = 10 sn`, `P = 30 sn`, kopma eşiği `60 sn` (`OPEN-48`). `R-KILL-*` eylemleri spec §6
 tablosunda (`OPEN-49`).
 
+### Artımlı tespit — ertelendi (kullanıcı, 2026-10-01)
+
+**Neden düşünüldü.** Canlı tespit her 30m kapanışında tüm geçmişi yeniden kurar (`OPEN-53`).
+Lokal teşhis (`scripts/sizinti.py --iz`, 3 sembol): referans sızıntısı yok (tracemalloc Δ
++0,03 / +0,02 MB), ama döngü başına ~30 MB geçici tahsis (3 sembol) ve döngü süresi ısınmayla
+aynı (~207 sn). Sunucudaki RSS büyümesi glibc parçalanmasıyla tutarlı. Önce iki satırlık
+önlem uygulandı (`MALLOC_ARENA_MAX=2` + `malloc_trim(0)`, `SERVER.md` §7).
+
+**Uygulama şartı** — biri gerçekleşmeden yazılmaz:
+1. Canlı tespit gerçek bir strateji için gerektiğinde (H1 kabul edilirse ya da tarayıcı modu
+   kurulursa);
+2. 30m tespit döngüsü 10 dakikayı aşarsa (`sizinti.py` ve kalp atışı `islem_sn` gösterir);
+3. Yeni sunucuda iki satırlık önlemle bellek kabulü `KALDI` çıkarsa (`SERVER.md` göç sırası 5).
+
+**Tasarım.** Dayanak D0: `f(seri[:k+1])` = `f(seri[:k])` + `known_at`'i `k+1`. mumun
+kapanışı olan nesneler + açık nesnelerin yalnızca yeni muma bağlı durum güncellemeleri. Her
+dedektör "durum + `adim(mum)`" biçimine geçer; toplu sürüm aynı `adim`'in satırlar üzerinde
+katlanmasıdır — backtest ve paper tek kod yolu (§1).
+
+| Parça | Taşınan durum | Mum başına iş |
+|---|---|---|
+| `detect_swings` | son 2n+1 high/low, ATR (önceki kapanış, ewm değeri, sayaç), `kabul[-1]`, `son_ayni` | `i-n`'deki pivotu teyit, O(n) |
+| `zones_from_swings` | swing listesi, `gorulen` | yalnızca yeni swing gelince bir zone denemesi |
+| `detect_order_blocks` | son 20 gövde (referans medyan), son `OB_SEARCH` mum, son `created_at` | yeni mum impuls mu; öyleyse geriye arama |
+| `detect_fvgs` | son 2 mum + referans gövde | O(1) |
+| `replay_obs` / fvg `replay` | açık nesnelerin dizileri | yalnızca yeni mum, vektörel |
+| `pierce_time` | delinmemiş OB başına durum makinesi (`entered`, bekleyen aday, son `confirm_bars` mum) | yalnızca yeni mum (bugün her döngü impulstan yeniden tarar) |
+| `htf_bias` | açık 4h kovası + 4h swing adımcısı | 4h kovası kapanınca bir adım |
+| `set_ob_arrays`, `PaperCore.otuz` | — | dizilere sona ekleme; SQLite'tan tüm geçmiş yeniden okunmaz |
+
+**Test (koddan önce).** **D-ART:** her kesim `k`'da dedektör durumu pickle'lanır, geri
+yüklenir, kalan mumlar adımlanır; sonuç tam seri toplu çıktısına kimlik + alan bazında eşit
+(`D0` ile aynı kesimler ve alanlar). D0, `test_known_at`, D1, D2 aynen kalır. Kabul:
+`scripts/sizinti.py` 20 sembol, Linux, 3 döngü `GECTI` ve döngü süresi ısınmadan belirgin kısa.
+
 ---
 
 ## 3. Durum ve yeniden başlatma
