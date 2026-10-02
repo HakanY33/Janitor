@@ -70,7 +70,7 @@ from src.backtest.loader import (  # noqa: F401  (geriye donuk yeniden disari ve
     reset_for_rerun,
 )
 from src.backtest.portfolio import LONG, SHORT, Portfolio, Position
-from src.execution.adapter import ENTRY_FILLS, SimAdapter  # noqa: F401  (ENTRY_FILLS yeniden disari)
+from src.execution.adapter import ENTRY_FILLS, SimAdapter, emir_miktari  # noqa: F401  (ENTRY_FILLS yeniden disari)
 from src.strategy.entry import band, eligible_fvgs, eligible_obs
 from src.zones.model import STATE_BAR, TERMINAL, Zone, ZoneState as S
 
@@ -90,7 +90,8 @@ maliyet bandın ötesine, nihai stopun (`1`) tarafına çekilmiş olur. Daha kat
 okuma (maliyet `1`'i geçsin) ağırlıklı ortalamayla hiçbir çarpanda erişilemez;
 daha gevşeği (maliyet `1`'in altında kalsın) her zaman sağlanır ve kural ölür."""
 FUNDING_INTERVAL = pd.Timedelta("8h")
-"""Funding tahsilat araligi. Eskiden funding yalnizca cikista tek seferde isleniyordu;
+"""Funding egrisi olmayan sembolde tahsilat araligi; egri varsa onun `interval`'i
+(`OPEN-59`, sembol basina borsadan). Eskiden funding yalnizca cikista tek seferde isleniyordu;
 `OPEN-29` funding tavani kurali birikmis maliyeti **pozisyon acikken** okumak zorunda
 oldugu icin tahsilat gercek takvimine tasindi. Toplam maliyet ayni, zamanlamasi dogru:
 funding 8 saatte bir nakit akisidir ve equity'yi o anda etkiler."""
@@ -394,6 +395,8 @@ class Backtest:
             # OPEN-41 · zone'u `1` çapasıyla öldüren mumda bekleyen emir doldu, aynı mumda stop
             "kill_bar_fills": 0,
             "rejected_kill": 0,  # R-KILL-01 açıkken emir fiyatına ulaşan zone
+            # Borsa kısıtı (adım, asgari miktar/tutar) karşılanmadı: giriş / kısmi kapanış
+            "rejected_min_order": 0, "rejected_min_close": 0,
         }
         self._day_start_equity = float(start_balance)
         self._day_blocked = False
@@ -578,7 +581,12 @@ class Backtest:
         notional = equity * self.k  # R-ENTRY-03 · ölçü birimi notional
         if s["notional"] + notional > NOTIONAL_CAP * equity:
             return None, "rejected_risk01"  # R-RISK-01
-        qty = notional / Decimal(str(hedef))
+        f = self.costs.fees[z.symbol]
+        qty = emir_miktari(notional / Decimal(str(hedef)), Decimal(str(hedef)),
+                           f.step, f.min_qty, f.min_cost)
+        if qty is None:
+            return None, "rejected_min_order"
+        notional = qty * Decimal(str(hedef))
         # ADD-REJECT-E ilk girise de uygulanir (R-ADD-02).
         if self.stop_loss_cap and \
                 self._stop_loss(z, qty, Decimal(str(hedef))) > self.stop_loss_cap * equity:
@@ -691,12 +699,13 @@ class Backtest:
         return d
 
     def _stop_fiyati(self, symbol: str, seviye: float, high: float, low: float) -> float:
-        """İç stopun (R-RISK-02) doluş fiyatı.
+        """İç stopun (R-RISK-02) doluş fiyatı, slippage öncesi.
 
-        Mum seviyeye dokunduysa tetik mum kapanınca bilinir: kapanıştan piyasa emri
-        (`OPEN-42`). Dokunmadan boşlukla geçtiyse **açılıştan** (muhafazakâr, 2026-09-30).
+        Mum seviyeye dokunduysa stop intrabar tetiklenir: **seviyeden** (kullanıcı kararı
+        2026-10-02; eskiden kapanıştan, `OPEN-42`). Dokunmadan boşlukla geçtiyse
+        **açılıştan** (muhafazakâr, 2026-09-30). Slippage `_close`'ta eklenir.
         """
-        return self.marks[symbol] if low <= seviye <= high else self._acilis[symbol]
+        return seviye if low <= seviye <= high else self._acilis[symbol]
 
     # --- ekleme --------------------------------------------------------------
 
@@ -858,7 +867,21 @@ class Backtest:
 
     def _close(self, z: Zone, pos: Position, price_level: float, ts: pd.Timestamp,
                reason: str, fraction: Decimal = Decimal("1")) -> None:
-        """Pozisyonun tamamını veya bir kısmını kapatır, maliyetleri işler."""
+        """Pozisyonun tamamını veya bir kısmını kapatır, maliyetleri işler.
+
+        Kısmi kapanışın miktarı borsa adımına yuvarlanır; asgariyi karşılamıyorsa emir
+        gönderilmez, `rejected_min_close` sayılır ve pozisyon olduğu gibi kalır.
+        Tam kapanış (`reduceOnly`, kalan miktarın tamamı) kısıta takılmaz.
+        """
+        if fraction < 1:
+            f = self.costs.fees[pos.symbol]
+            q = emir_miktari(pos.qty * fraction, Decimal(str(price_level)),
+                             f.step, f.min_qty, f.min_cost)
+            if q is None:
+                self.counters["rejected_min_close"] += 1
+                self._karar("EXIT_REJECTED", z, ts, reason=reason, seviye=price_level)
+                return
+            fraction = q / pos.qty
         self._charge_funding(pos, ts)
         # Limit kolunda TP'ler ve kucultme limit emridir: kendi fiyatindan dolar,
         # slippage yok, maker komisyonu. Stop ve zorunlu cikislar piyasa emridir.
@@ -1118,7 +1141,9 @@ class Backtest:
             # pozisyon acikken okumak zorundadir.
             _ts_f: pd.Timestamp | None = None
             for _p in self.pf.positions.values():
-                if t - np.datetime64(_p.last_funding_at.tz_localize(None)) >= _FUNDING_NP:
+                _c = self.costs.funding.get(_p.symbol)
+                _adim = np.timedelta64(_c.interval.value, "ns") if _c else _FUNDING_NP
+                if t - np.datetime64(_p.last_funding_at.tz_localize(None)) >= _adim:
                     if _ts_f is None:
                         _ts_f = pd.Timestamp(t, tz="UTC")
                     self._charge_funding(_p, _ts_f)
@@ -1246,8 +1271,7 @@ class Backtest:
                 # R-EXIT-01 · ilk TP sonrası stop maliyete çekilir.
                 be = self._breakeven(z, pos)
                 if (low <= be) if pos.side == LONG else (high >= be):  # temas ya da boşluk
-                    # İç stop (R-RISK-02): tetik mum kapanınca bilinir, piyasa emri kapanışta
-                    # gider — seviyeden değil kapanıştan (boşlukta açılıştan) çıkılır.
+                    # İç stop (R-RISK-02): intrabar tetik, seviyeden (boşlukta açılıştan).
                     kapanis = ts + STATE_BAR
                     self._close(z, pos, self._stop_fiyati(z.symbol, be, high, low), kapanis,
                                 "BREAKEVEN")
@@ -1278,7 +1302,7 @@ class Backtest:
         elif after is S.CLOSED and pos is not None:
             # Çapa teması: 0 = nihai TP, 1 = nihai stop. İkisi de vurulduysa stop kazanır (§8).
             # Nihai TP borsada bekleyen limittir, seviyeden dolar. Nihai stop iç stoptur
-            # (R-RISK-02): mum kapanınca bilinir, kapanıştan piyasa emriyle çıkılır.
+            # (R-RISK-02): intrabar tetik, seviyeden + slippage (boşlukta açılıştan).
             if z.stop_reached(high, low):  # temas ya da boşluk; ikisi birden → stop (§8)
                 self._close(z, pos, self._stop_fiyati(z.symbol, z.anchor_1_price, high, low),
                             ts + STATE_BAR, "STOP")
