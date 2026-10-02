@@ -15,13 +15,27 @@ değiştirir; tick değeri buradan verilir (`tp_tick`).
 from __future__ import annotations
 
 import hashlib
-from decimal import Decimal
+from decimal import ROUND_FLOOR, Decimal
 from typing import Protocol
 
 # OPEN-37 · post-only giris emrinin dolus kriteri (yalnizca `limit_orders` acikken).
 # `tick1` seviye 1 tick gecilmeli (mevcut) · `tick2` 2 tick · `kapanis` 1 tick gecilmeli
 # **ve** mum seviyenin otesinde kapanmali (ayni mumda geri donen mum doldurmaz).
 ENTRY_FILLS = ("tick1", "tick2", "kapanis")
+
+
+def emir_miktari(qty: Decimal, price: Decimal, step: Decimal, min_qty: Decimal,
+                 min_cost: Decimal) -> Decimal | None:
+    """Borsaya gidecek miktar: adıma **aşağı** yuvarlanır; asgari miktar ya da asgari tutar
+    karşılanmıyorsa `None` (emir reddedilir, çağıran sayar). CLAUDE.md #4, #5.
+
+    Aşağı yuvarlama boyutu ve riski hiçbir zaman büyütmez. `step = 0` yuvarlamaz.
+    """
+    if step > 0:
+        qty = (qty / step).to_integral_value(ROUND_FLOOR) * step
+    if qty <= 0 or qty < min_qty or qty * price < min_cost:
+        return None
+    return qty
 
 
 class ExecutionAdapter(Protocol):

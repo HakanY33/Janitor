@@ -52,6 +52,14 @@ def write_fees(ex, exchange_name: str, symbols: list[str]) -> Path:
     `tick` = `precision["price"]`. BingX `precisionMode` TICK_SIZE olduğu için bu değer
     doğrudan fiyat adımıdır; ondalık basamak sayısı değildir. Limit emri kolunun
     "seviyeyi 1 tick geç" kuralı bunu okur — elle yazılmış hassasiyet tablosu yok.
+
+    `funding_h` = BingX `premiumIndex` yanıtındaki `fundingIntervalHours` (ccxt bunu
+    `interval` olarak ayrıştırmıyor, ham `info`'dan okunur). 4 saatlik semboller var
+    (ORDI); maliyet modeli sabit 8 saat varsaymaz (`OPEN-59`).
+
+    `step` = `precision["amount"]` (miktar adımı), `min_qty` = `limits.amount.min`,
+    `min_cost` = `limits.cost.min` (USDT). Backtest emir miktarını bunlarla yuvarlar ve
+    karşılanamayan emri reddeder (`src/execution/adapter.py:emir_miktari`).
     """
     path = Path("data") / exchange_name / "fees.json"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -64,7 +72,11 @@ def write_fees(ex, exchange_name: str, symbols: list[str]) -> Path:
     for s in symbols:
         m = ex.market(s)
         fees[s] = {"taker": float(m["taker"]), "maker": float(m["maker"]),
-                   "tick": float(m["precision"]["price"])}
+                   "tick": float(m["precision"]["price"]),
+                   "step": float(m["precision"]["amount"]),
+                   "min_qty": float(m["limits"]["amount"]["min"] or 0),
+                   "min_cost": float(m["limits"]["cost"]["min"] or 0),
+                   "funding_h": int(ex.fetch_funding_rate(s)["info"]["fundingIntervalHours"])}
     path.write_text(json.dumps(
         {"as_of": pd.Timestamp.now("UTC").isoformat(), "fees": fees}, indent=1
     ), encoding="utf-8")
