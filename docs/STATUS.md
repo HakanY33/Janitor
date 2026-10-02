@@ -2,20 +2,109 @@
 
 Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
 
-**Son güncelleme:** 2026-09-30
+**Son güncelleme:** 2026-10-02
 
 ---
 
 ## Şu an
 
-**Görev:** Paper döngüsü **sunucuda** 24 saat koşuyor (2026-09-30 10:20 UTC → **10-01
-10:20 UTC**), sonra sunucuda `python -m scripts.kalp_ozet` (`SERVER.md` §7). Ön kayıtlar
-`docs/HYPOTHESES.md`: H1 (order flow, 40 sembol, n ≥ 503, tahmini ~2026-11-20) dilim
-2026-10-01 → 12-31; H2 keşifte düştü.
+**Görev:** Göç — verunix TR-SSD 2 (Ubuntu 24.04), **10-10'dan önce**, 48 saat örtüşme
+(`SERVER.md` "Göç planı": önce BingX API doğrulaması, kurulum ≤ 10-06, örtüşme ≤ 10-07).
+**Paper durdu (2026-10-01, bellek)**; artımlı tespit tasarımı onay bekliyor.
+H1 (`HYPOTHESES.md`, 40 sembol, n ≥ 503) dilim 10-01 → 12-31, **tek bakış 2027-01-01**
+(kod kilidi). H2 keşifte düştü.
+
+**2026-10-02 — öncelik tespitin doğruluğu** (kullanıcı 30 işlemi inceledi, `docs/inceleme/notlar.md`:
+OTE çapaları 28/30 yanlış, doğru çizilen #25 ve #30 kazandı; OB/FVG tespitinde de hata):
+- **Spec v0.6.** `R-RISK-02`: iç stop ve breakeven intrabar, **seviye + slippage** (kullanıcı
+  kararı; boşlukta açılıştan). `R-ZONE-05`: pivot teyit penceresinde `0`/`1`'e ulaşılmışsa
+  zone kurulmaz. `R-ENTRY-03`: miktar adıma aşağı, asgari miktar/tutar karşılanmazsa red ve sayaç.
+  Yeni açıklar `OPEN-61` (teyit penceresinde 0.50/0.70 — işlemlerin %45'i), `OPEN-62` (canlıda
+  intrabar stop), `OPEN-63` (asgari altı kısmi TP).
+- **Hata avı** `docs/inceleme/v2/hata_avi.md`: #9 gerçek hata (`0` teyit penceresinde kırılmış,
+  zone görmüyordu) → `detect.py:izleme_oncesi_oldu`, 96/3.565 işlem. #2, #6 hata değil (30m
+  mumunda sıra görünmüyor; #2'nin "0.5→0.7→0.5"'i teyitten önce).
+- **`fees.json`** artık `step`/`min_qty`/`min_cost` taşıyor (`scripts/funding.py`); `load_fees`
+  bunlar yoksa hata verir. **Sunucuya dağıtımda önce `python -m scripts.funding --fees-only`.**
+- **Hesap tabanı 100 USDT** (`SONUCLAR.md` #25): 27,92 $ (−%72,1), 2.987 işlem, kazanma %48,1;
+  535 giriş + 247 kısmi TP asgariden reddedildi. 10.000 $ ile aynı kod (#24): −8.305.
+- **Etiketleme v2** `docs/inceleme/v2/index.html` (`scripts/inceleme_v2.py`): 4h 14 gün + 30m 300
+  mum, doğru 0/1 alanları, `etiketler.json` indirme. **Swing adayları** `docs/inceleme/v2/adaylar.md`
+  (ön kayıt: A büyük fraktal, B ATR zigzag, C pencere ucu + süpürme, D 4h çapa; ölçüt çift
+  isabet + zamanında). Testler 473 + 11 yeni.
+
+**2026-10-01:**
+- **Paper sunucuda durduruldu + `disable`** (14:10 UTC). 11:36 ve 13:06'da `oom-kill`
+  (`MemoryMax=700M`). Kural `SERVER.md` §7: sızıntı düzelip 3 tespit döngüsünde bellek düz
+  kalana kadar paper hiçbir sunucuda yok; TR-SSD 2'ye ilk kayıtçılar kurulur.
+- 15 dk sonra: boş 1.918 MB (önce 1.513), swap 736 → 477 MB; kayıtçılar düz (trades
+  ~250 MB rss+swap, spread ~207 MB, 16 saatlik `rss2.log`'da eğim yok). Minecraft java'sı
+  13:31'de yeniden başlamış (neden `janitor`'dan görünmüyor).
+- **Lokal teşhis** (tracemalloc 1 çerçeve, BTC/ETH/SOL, ısınma + 3 döngü): traced Δ
+  +0,03 / +0,02 MB (döngü 2–3) → **referans sızıntısı yok**. Döngü başına geçici tepe
+  ~29,5 MB (3 sembol), RSS 196 → 228 → 238 → 236 (Windows). Her döngü tüm geçmişi
+  yeniden kuruyor (~207 sn, ısınmayla aynı). Sunucudaki büyüme glibc parçalanmasıyla tutarlı
+  (tespit `to_thread` iş parçacığında) — Linux'ta henüz kanıtlanmadı. Artımlı tespit tasarımı
+  kullanıcı onayı bekliyor; kod yazılmadı.
+- **18:03 UTC kayıtçı teyidi — düz.** `rss2.log` 09-30 21:48 → 10-01 18:02 (1.214 örnek),
+  saatlik rss+swap: trades 234–293 MB (tek örnekte 361/380 MB ani tepe, geri döndü), spread
+  ~250 → ~195–215 MB (rss swap'a kaydı, toplam artmıyor). Paper durduktan sonra da eğim yok.
+  `janitor-paper` inactive + disabled. Bellek: boş 2.657 / kullanılabilir 3.238 MB, **swap
+  1.440 MB** (14:25'te 477) — artışın 1,27 GB'ı **Minecraft java**'sında; java **15:37'de
+  yeniden başlamış** (bugün ikinci kez, ilki 13:31; paper o sırada kapalıydı). Kayıtçıların
+  swap'ı ~147 MB, değişmedi. Minecraft'a dokunulmadı.
+- **İki satırlık önlem (kullanıcı):** `scripts/paper.py` `bellek_birak()` — her 30m
+  tespitinden sonra `malloc_trim(0)`, yalnızca Linux (test `test_kill_toparlanma.py`);
+  birimde `MALLOC_ARENA_MAX=2` (sunucu birimine eklendi, servis kapalı kalır). Testler 464/464.
+- **Artımlı tespit ertelendi:** tasarım + D-ART `LIVE.md` §2; şart: H1 kabulü / tarayıcı modu,
+  30m döngüsü > 10 dk ya da yeni sunucuda bellek kabulü `KALDI`.
+- **`scripts/sizinti.py`** (bellek kabulü, üretim yolu: iş parçacığı + `bellek_birak`).
+  **Yeni sunucu sırası** `SERVER.md`: BingX → kayıtçılar + örnekleyici → paralel kayıt
+  (ortak `fillId`) → `sizinti.py` 20 sembol 3 döngü → ±10 MB ise paper, değilse artımlı.
+
+- **İnceleme paketi** `docs/inceleme/index.html` (`scripts/inceleme.py`; `--kos` F1 eğitim
+  koşusu → `logs/inceleme/f1.pkl`, sonra sayfa): 30 işlem (R'ye göre en kötü 10 kaybeden,
+  rastgele 10 kaybeden, rastgele 10 kazanan, tohum 20261001), 30m PNG, not alanı + `notlar.md`.
+  Yeniden koşu kayıtlıyla aynı 3.565 giriş/çıkış; net −8.649 (`OPEN-59` funding, Δ −2,46).
+  Kazanma %53,2. En kötü 10'un hepsi `STOP`, −2,4…−2,9 R: iç stop tetik mumunun
+  kapanışından (R-RISK-02) ve kısa leg (%0,2–3,9) → kayıp stop mesafesinin katları.
+  `matplotlib` yalnızca lokal (requirements'ta değil).
+- **`docs/SONUCLAR.md`:** test edilen her strateji tek satır (23 satır); güvenilir yalnızca
+  F1 dürüst (#22) ve H2 keşif (#23). Her yeni test buraya eklenir.
+
+**2026-09-30 (5. oturum):**
+- **H1 kararları (kullanıcı, veri görülmeden, `HYPOTHESES.md` tarihli):** net R'ye funding
+  dahil (sembolün gerçek aralığı); kriter 3 "en iyi" = çıkınca kalan ortalamayı en çok düşüren
+  grup; **kilit 2027-01-01**. `h1_test.py` + test (12) güncellendi.
+- **Sunucu `kalp_ozet`** (10:20 → 12:28, 129 dk, 62 canlı / 67 yetişme): gecikme p95 2,7 sn,
+  kill 0, `DATA` 14 (`ws_rest_fark`), 1 işlem, equity 10.004,57. **rss 400 → 626 MB, her 30m
+  tespitinde +25–50 MB, düşmüyor; cgroup tepesi 700M = `MemoryMax`.** Bu hızla ~1–2 saatte
+  OOM. Karar gerekiyor: `MemoryMax` artışı (makinede ~1,2 GB boş) ya da sızıntı araştırması.
+- **OPEN-59 sunucuda:** kod (4 dosya, sha eşit) → `janitor-funding.service` (20/20, `funding_h`
+  yazıldı; HYPE/JUP/ORDI 4h) → `restart janitor-paper` (12:34, durumdan geri yüklendi, imleç 12:28).
+  Kayıtçılara dokunulmadı. 24 saatlik ölçüm bu yeniden başlatmayla bölündü.
+- **`scripts/birlestir.py`** + `tests/test_birlestir.py` (6, sentetik). Göç bölümü TR-SSD 2'ye
+  güncellendi; 0. adım API doğrulaması (REST 4 uç + WS el sıkışması, PC'den denendi: 200 / 101).
+
+**2026-09-30 (4. oturum):**
+- **Yerel paper durduruldu** (PID 15560, `scripts.bg scripts.paper`, 10:54'ten beri `R-KILL-01`'de).
+  Paper yalnızca sunucuda.
+- **Spec §6:** kod hatasından doğan `R-KILL-01` kendiliğinden kalkmaz — kullanıcı onayı yazıldı.
+- **`OPEN-59` kapandı:** funding anları sembolün borsa aralığıyla (`fundingIntervalHours` →
+  `fees.json` `funding_h`); kapsam içinde ölçülen anlar, dışında o aralıkla ızgara. 40'ın 12'si
+  4 saatlik. Motor tahsilatı da sembol aralığıyla. Yerel `fees.json` 40 sembolle yenilendi.
+  **Sunucuya dağıtımda sıra** `SERVER.md` §6b (önce funding servisi, sonra paper).
+- **H1 boşluk kuralı** `HYPOTHESES.md` §5 tarihli: 65 dk pencerede `trades_gap` → dışla, ayrı say.
+- **`scripts/h1_test.py`** + `tests/test_h1.py` (11, sentetik): yerleştirilmiş etki KABUL
+  (alt sınır +0,27), etkisiz RET (−0,14), boşluk/kapsam/`A_60=0` dışlama, sonuç kuralları,
+  olay tespiti `Zone.on_bar` ile 300 rastgele yolda aynı. **Kilit** (5. oturumda 2027-01-01'e
+  alındı); `n < 503` → R hesaplanmaz.
+- **PC yedek planı** `SERVER.md` + `scripts/pc_kayit.ps1` (kurulmadı).
+- Açık sorular 5. oturumda kapandı.
 
 **2026-09-30 (3. oturum):**
 - **H1 eşiği 503** (%97,5, güç %80), **sembol seti 40** — ikisi de tarihli, işlem akışına
-  bakılmadan. 40 sembolle ~305 emilimli temas/ay varsayımı → 503'e ~2026-11-20.
+  bakılmadan. 40 sembolle ~305 emilimli temas/ay varsayımı → 503'e ~1,65 ay.
 - **Kayıtçılar 40 sembol** (spread + trades, sunucu 10:19 UTC). 20 sembolde işlem akışı
   ~80 MB/gün, defter ~3 MB/gün; disk 68 GB boş. `pull_book` glob ile 40'ı kapsıyor.
 - **`R-KILL-01` toparlanması** (spec §6): REST üstel bekleme ~60 sn; canlıya yetişince 10
@@ -27,8 +116,7 @@ Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
   Soğuk 20 ilk 35 dk: işlem 2,7 MB (~110 MB/gün kaba, küçük dosya yükü dahil), `trades_gap` 0.
 - **Göç planı** (Xeon) `SERVER.md` "Göç planı": önce kurulum, 48 saat örtüşme, ayrı kökte
   çekme + birleştirme, geçiş kapısı. `scripts/birlestir.py` henüz yok.
-- `OPEN-59`: bazı semboller 4 saatlik funding (ORDI), `costs.py` 8 saat ızgarası yarısını
-  kaçırıyor. `OPEN-60`: eski sunucu 48 saatten önce kapanırsa.
+- `OPEN-59` (4. oturumda kapandı). `OPEN-60`: eski sunucu 48 saatten önce kapanırsa.
 
 **2026-09-30 (2. oturum):**
 - **`OPEN-47` kapandı (kullanıcı):** WS yalnızca zamanlama/canlılık, değerler REST'ten; fark
@@ -190,15 +278,17 @@ look-ahead'dendi. F1 zaten dondurulmuştu; karar değişmiyor.
 
 ## Sıradaki
 
-1. 10-01 10:20 UTC sonrası sunucuda `kalp_ozet`; soğuk 20 sembolün günlük disk kullanımını
-   tam bir günle ölç (`du -cb data/bingx/*/trades/2026-10-01.parquet`).
-2. **`OPEN-58` (kullanıcı):** H2 stopu "karşı kenarın 1 tick ötesi" — H2 düştüğü için artık
-   yalnızca kayıt; kapatılabilir.
-3. Order flow (H1) özellik/sonuç kodu **dilime bakmadan**, sentetik veriyle
-   (`HYPOTHESES.md` §6). 2027-01-01'de önce yalnızca `n`.
-4. H1 sonuç hesabı 1m ister; sunucu yalnızca 30m topluyor. Borsanın 1m başlangıcı sabit
-   (`earliest`), yani sonradan backfill yeterli olmalı — 2027-01-01'den önce doğrula.
-5. Ekleme yolu (`_try_add`) hâlâ temas mumunda karar veriyor; v1'de kapalı (`damga.md` #16).
+0. **Kullanıcı:** v2 sayfasında 30 işlemi etiketle → `docs/inceleme/v2/etiketler.json`. Sonra
+   `adaylar.md`'deki 4 aday uygulanır ve ölçülür (seçim kâra göre değil). Karar bekleyen:
+   `OPEN-61`, `OPEN-62`, `OPEN-63`.
+1. **Paper belleği:** `MemoryMax` artışı mı sızıntı araştırması mı (kullanıcı). Tepe izlenir:
+   `systemctl --user show janitor-paper -p MemoryPeak -p NRestarts`.
+2. **Göç (10-10'dan önce):** TR-SSD 2 hazır olunca `SERVER.md` Göç §0 API doğrulaması → kurulum
+   (§1–§7, 40 kayıtçı) ≤ 10-06 → 48 saat örtüşme → `birlestir --kuru` geçiş kapısı → geçiş.
+   30m/funding için `pull_book` dışı çekme gerekiyor.
+3. H1 kodunun commit hash'i rapora girer; kod artık değişmez. Tek bakış 2027-01-01.
+4. H1 sonuç hesabı 1m ister; sunucu yalnızca 30m topluyor — 1m backfill'i 2027-01-01'den önce doğrula.
+5. `OPEN-58` kapatılabilir (H2 düştü). Ekleme yolu (`_try_add`) v1'de kapalı (`damga.md` #16).
 6. İşlem akışını izle (`trades_gap`, disk). Görev Zamanlayıcı'ya `pull_book`'u kaydet.
 
 **Uyarı:** Ayrılmış %20 harcandı (2026-09-25). 2026-05-08 → 09-11 örneklem içidir.
@@ -222,7 +312,7 @@ look-ahead'dendi. F1 zaten dondurulmuştu; karar değişmiyor.
 | `src/execution/` | `adapter.py` `ExecutionAdapter` arayüzü, `SimAdapter` (backtest doluş modeli) |
 | `src/live/` | `replay.py` artımlı tespit (`kapanis`) + oynatma (`oynat`) — D1 · `paper.py` `PaperCore`, `Durum` (SQLite), `PaperAdapter`, `JsonlGunluk` |
 | `scripts/paper.py` | Paper ağ kabuğu: WS 1m (zamanlama), REST (mum), bariyer, kill, kalp atışı |
-| `scripts/` | `h2_kesif.py` H2 keşif · `kalp_ozet.py` paper kalp atışı özeti · `paper.py` `Dongu.izle` R-KILL-01 toparlanması · `damga.py` düzeltilmiş kaldıraç zinciri · `diagnose.py` · `sweep.py` · `entry_variants.py` · `terminate.py` · `reconcile.py` · `branches.py` · `levers.py` A/B/C/D · `tp_placement.py` D1-D4 TP yerleşimi · `add_reject_e.py` stop kaybı tavanı · `spread_logger.py` canlı emir defteri · `robustness.py` breakeven ücreti + komisyon dağılımı + `R-ZONE-08` iç validasyon · `f_kollari.py` F1/F2 · `slippage_stres.py` OPEN-32 (d) · `maker_stres.py` OPEN-36 · `post_only.py` OPEN-37 · `ayrilmis.py` kriter 1 · `neden.py` eğitim/ayrılmış açıklayıcı · `trades_logger.py` işlem akışı · `bg.py` |
+| `scripts/` | `inceleme.py` v1 paketi + `--kos --bakiye` · `inceleme_v2.py` etiketleme v2 · `h1_test.py` H1 analizi (kilitli) · `birlestir.py` göç birleştirmesi · `pc_kayit.ps1` PC kayıtçı döngüsü · `h2_kesif.py` H2 keşif · `kalp_ozet.py` paper kalp atışı özeti · `paper.py` `Dongu.izle` R-KILL-01 toparlanması · `damga.py` düzeltilmiş kaldıraç zinciri · `diagnose.py` · `sweep.py` · `entry_variants.py` · `terminate.py` · `reconcile.py` · `branches.py` · `levers.py` A/B/C/D · `tp_placement.py` D1-D4 TP yerleşimi · `add_reject_e.py` stop kaybı tavanı · `spread_logger.py` canlı emir defteri · `robustness.py` breakeven ücreti + komisyon dağılımı + `R-ZONE-08` iç validasyon · `f_kollari.py` F1/F2 · `slippage_stres.py` OPEN-32 (d) · `maker_stres.py` OPEN-36 · `post_only.py` OPEN-37 · `ayrilmis.py` kriter 1 · `neden.py` eğitim/ayrılmış açıklayıcı · `trades_logger.py` işlem akışı · `bg.py` |
 | `docs/measurements/` | Ölçüm tarihçeleri — spec'te yalnızca tek satırlık referans var. `damga.md` dışındakiler look-ahead taşır |
 
 Spec kuralı gerekiyorsa baştan okuma: `grep -n "R-ADD-04" docs/STRATEGY_SPEC.md`
