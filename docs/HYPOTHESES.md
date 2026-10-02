@@ -18,7 +18,7 @@ gevşetilmez.
 |---|---|
 | **Yazıldığı tarih** | 2026-09-30 |
 | **Veri durumu** | Bu belge yazılana kadar işlem akışı (`trades/`) ve emir defteri (`book/`) verisinin **içeriğine hiç bakılmadı**. Yalnızca bütünlük denetlendi: boşluk sayısı (`trades_gap`), disk kullanımı, `pull_book` dosya sayısı ve özet sağlaması. Hiçbir fiyat, hacim, delta ya da derinlik değeri okunmadı, çizilmedi, özetlenmedi. |
-| **Otorite** | `STRATEGY_SPEC.md` > bu belge. Kod yok. |
+| **Otorite** | `STRATEGY_SPEC.md` > bu belge. Kod: `scripts/h1_test.py` (sentetik testli, 2026-09-30). |
 | **Durum** | Ön kayıt. Değiştirilirse değişiklik tarihli olarak aşağıya eklenir; eşikler veri görüldükten sonra **değiştirilemez**. |
 
 **Neden.** Spec §8 (2026-09-30): düzeltilmiş zaman damgalarıyla mekanik OTE'nin hiçbir
@@ -74,7 +74,8 @@ Emilim **var** ⇔ ikisi birden:
    yarısını geçmedi. SHORT: `(max high_W − L070) / (L079 − L070) ≤ 0.5`; LONG simetrik.
 
 `A_60 = 0` ise (işlemsiz saat) olay dışlanır. `W` veya 60 dakikalık taban `trades_gap` ile
-çakışıyorsa olay dışlanır (boşluklu veriyle emilim ölçülmez).
+çakışıyorsa olay dışlanır (boşluklu veriyle emilim ölçülmez); dışlanan sayı ayrıca raporlanır
+(§5 değişiklikleri, 2026-09-30).
 
 Eşikler (5 dk, 60 dk, 3×, 0.5) **tahmindir, ayarlanmaz**. Başka değerler bu belgeyle
 sınanmaz; sınanacaksa yeni tarihli ön kayıt gerekir.
@@ -88,8 +89,10 @@ R'si sıfırdan büyüktür**.
   testin dışında).
 - Stop: `1` çapası (`R-RISK-02`; temas → kapanıştan, boşluk → açılıştan).
 - Hedef: `0.50` (TP1) seviyesinde **tam** çıkış (tek hedef; breakeven ve nihai TP yok).
-- `R` = PnL / |giriş − stop|. **Net** = taker komisyonu gidiş-dönüş + slippage (§8 maliyet
-  modeli, `costs.py`) R cinsinden düşülür. Funding ihmal (işlemler dakikalar-saatler).
+- `R` = PnL / |giriş − stop|. **Net** = taker komisyonu gidiş-dönüş + slippage + **funding**
+  (§8 maliyet modeli, `costs.py`) R cinsinden düşülür. Funding sembolün borsadan gelen gerçek
+  aralığıyla (`OPEN-59`; 4 saatlik semboller dahil), `t0` ile çıkış mumunun kapanışı arasındaki
+  her funding anında, giriş notional'ı üzerinden (2026-09-30 değişikliği; ilk kayıtta ihmal).
 - Aynı mumda hem hedef hem stop → stop (§8).
 - 7 gün içinde ikisi de olmazsa 7. günün sonundaki kapanıştan çıkılır.
 
@@ -112,7 +115,7 @@ Emilimsiz temaslar karşılaştırma için raporlanır ama kabul ölçütü **de
 - Emilim sıklığı bilinmiyor (veri görülmedi). Planlama varsayımı **%15**.
 - **Tahmini ulaşma (40 sembol):** temas oranı sembol başına eşit varsayılırsa (soğuk 20'nin
   temas sayısı düzeltilmiş kodla ölçülmedi) ayda ~2.030 temas → ~305 emilimli/ay →
-  503 / 305 ≈ **1,65 ay → ~2026-11-20**. 20 sembolle ~152/ay → 3,3 ay, dilim yetmezdi.
+  503 / 305 ≈ **1,65 ay** (Kasım içinde). 20 sembolle ~152/ay → 3,3 ay, dilim yetmezdi.
   Boşluk ve dışlamalar için pay: dilim 3 ay (12-31) kalır.
 
 **Değişiklikler (tarihli):**
@@ -122,6 +125,11 @@ Emilimsiz temaslar karşılaştırma için raporlanır ama kabul ölçütü **de
 | 2026-09-30 | Güven sınırı %95 → **%97,5** (iki hipotez). Eşik ilk olarak 396'da bırakıldı (güç ~%70) | İşlem akışı verisine hiç bakılmadan önce yapıldı |
 | 2026-09-30 | Eşik 396 → **503** (%97,5'te güç %80) | İşlem akışı verisine hiç bakılmadan önce yapıldı |
 | 2026-09-30 | Sembol seti 20 → **40** (orijinal 20 + soğuk 20). Soğuk 20'nin işlem akışı kaydı dilimden (10-01) önce başlar | Veri görülmeden önce yapıldı; soğuk 20'nin akışı henüz kaydedilmiyordu |
+| 2026-09-30 | **Boşluk kuralı netleşti.** Emilimin hesaplandığı pencerede (60 dk taban + 5 dk `W`, toplam 65 dk; §3'teki "`W` veya taban" kuralıyla aynı kapsam, gevşetilmedi) `trades_gap > 0` varsa ya da işlem kaydı pencereden sonra başlıyorsa temas analiz dışıdır. **Dışlanan temas sayısı ayrıca raporlanır** (`A_60 = 0` dışlamasından ayrı satır). Gerekçe: boşluklu pencerede agresör hacmi eksik ölçülür. Boşluk `fillId` atlamasından doğrudan sayılır | İşlem akışı verisine hiç bakılmadan önce yapıldı |
+| 2026-09-30 | **Analiz kodu:** `scripts/h1_test.py`, yalnızca sentetik veriyle sınandı (`tests/test_h1.py`: yerleştirilmiş etki bulunuyor, etkisiz veride ret). Kilit: gerçek işlem akışı **2027-01-01 öncesinde okunmaz** (aşağıdaki değişiklik); okunduktan sonra `n < 503` ise yalnızca sayılar yazılır, R hesaplanmaz | Veri görülmeden; kod dilime hiç bakmadı |
+| 2026-09-30 | **Net R'ye funding dahil** (§4), sembolün gerçek funding aralığıyla. İlk kayıtta "funding ihmal"di; işlem 7 güne kadar sürebildiği için ihmal edilemez | Veri görülmeden |
+| 2026-09-30 | **Kriter 3 "en iyi" tanımı** (§6): çıkarıldığında kalan ortalamayı en çok düşüren grup | Veri görülmeden |
+| 2026-09-30 | **Kilit 2027-01-01** (`scripts/h1_test.py` `KILIT`): işlem akışı analiz için bu tarihten önce okunmaz. Tek bakış, ara bakış yok (§6) | Veri görülmeden |
 
 ## 6. Test protokolü
 
@@ -137,7 +145,9 @@ Emilimsiz temaslar karşılaştırma için raporlanır ama kabul ölçütü **de
 1. Emilimli temas sayısı **≥ 503**. Yetersiz örnek kuralı aşağıda.
 2. Emilimli temaslarda ortalama net R'nin tek yönlü %97,5 alt sınırı **> 0** (birincil ölçüt).
 3. Sonuç tek sembole ya da tek aya dayanmıyor: en iyi sembol çıkarıldığında **ve** en iyi ay
-   çıkarıldığında ortalama net R hâlâ **> 0** (nokta tahmini).
+   çıkarıldığında ortalama net R hâlâ **> 0** (nokta tahmini). **"En iyi"** = çıkarıldığında
+   kalan ortalama net R'yi **en çok düşüren** grup (sembol; ay = `t0`'ın UTC takvim ayı)
+   (kullanıcı onayı, 2026-09-30).
 
 1 geçer, 2 veya 3 kalırsa: **ret**. Ret sonucu da kaydedilir; eşik değiştirilip aynı dilimde
 yeniden bakılmaz.
