@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 
 from src.features.structure import HIGH, LOW, Swing, detect_swings
-from src.zones.detect import _anchor_0, detect_zones, zones_from_swings
+from src.zones.detect import _anchor_0, detect_zones, izleme_oncesi_oldu, zones_from_swings
 from src.zones.model import Zone
 from tests.test_structure import bars, ramp, warmup
 
@@ -193,3 +193,36 @@ def test_R_ZONE_10_detect_zones_no_lookahead():
         son_ts = parca.ts.iloc[-1]
         beklenen = [z for z in tam if z.pivot_confirmed_at <= son_ts]
         assert imza(detect_zones(parca, SYM, TF)) == imza(beklenen), f"kesim {k}"
+
+
+# --- R-ZONE-05 · izleme öncesi çapa teması ----------------------------------------
+
+
+def _mumlar(*hl) -> pd.DataFrame:
+    return pd.DataFrame({"ts": [T0 + pd.Timedelta(TF) * i for i in range(len(hl))],
+                         "high": [h for h, _ in hl], "low": [l for _, l in hl]})
+
+
+def test_R_ZONE_05_capa0_izleme_oncesi_kirilirsa_zone_olu_dogar():
+    """NEAR #9 biçimi: SHORT, `0` = 100 (mum 0), `1` = 200 (mum 2). Teyit penceresinde
+    (mum 3–4, izleme mum 5'te) fiyat 95'e indi → sıra izleme başlamadan bozuldu."""
+    z = Zone.create(SYM, TF, 100.0, T0, 200.0, T0 + pd.Timedelta(TF) * 2,
+                    pivot_confirmed_at=T0 + pd.Timedelta(TF) * 4)
+    df = _mumlar((110, 100), (150, 120), (200, 160), (180, 140), (170, 95), (130, 96))
+    assert izleme_oncesi_oldu(z, df)
+
+
+def test_R_ZONE_05_izleme_oncesi_capaya_degmezse_zone_yasar():
+    z = Zone.create(SYM, TF, 100.0, T0, 200.0, T0 + pd.Timedelta(TF) * 2,
+                    pivot_confirmed_at=T0 + pd.Timedelta(TF) * 4)
+    # mum 5 izlemenin kendisi: oradaki temas 1m durum makinesinin işidir (R-ZONE-09)
+    df = _mumlar((110, 100), (150, 120), (200, 160), (180, 140), (170, 101), (130, 90))
+    assert not izleme_oncesi_oldu(z, df)
+
+
+def test_R_ZONE_05_izleme_oncesi_long_simetrik():
+    """LONG: `0` = 200 üstte, `1` = 100 altta. Teyit penceresinde 205 → ölü."""
+    z = Zone.create(SYM, TF, 200.0, T0, 100.0, T0 + pd.Timedelta(TF) * 2,
+                    pivot_confirmed_at=T0 + pd.Timedelta(TF) * 4)
+    df = _mumlar((200, 190), (180, 150), (140, 100), (160, 120), (205, 130), (150, 120))
+    assert izleme_oncesi_oldu(z, df)

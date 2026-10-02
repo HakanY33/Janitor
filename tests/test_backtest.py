@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.backtest.costs import CostModel, Fees, FundingCurve, funding_times
+from src.backtest.costs import CostModel, Fees, FundingCurve
 from src.backtest.engine import Backtest, SymbolData
 from src.backtest.portfolio import LONG, SHORT, Portfolio, Position
 from src.zones.model import Zone
@@ -61,22 +61,53 @@ def test_cost_fee_maker_is_cheaper_than_taker():
     assert c.fee(SYM, Decimal("10000"), maker=True) < c.fee(SYM, Decimal("10000"))
 
 
-def test_funding_times_are_8h_boundaries_exclusive_of_start():
-    """Funding anları 8 saatlik ızgara; açılış anının kendisi sayılmaz."""
-    t = funding_times(pd.Timestamp("2026-01-01 00:00", tz="UTC"),
-                      pd.Timestamp("2026-01-01 17:00", tz="UTC"))
-    assert t == [pd.Timestamp("2026-01-01 08:00", tz="UTC"),
-                 pd.Timestamp("2026-01-01 16:00", tz="UTC")]
+def _egri(saat: str, *anlar: str) -> FundingCurve:
+    return FundingCurve(times=np.array([np.datetime64(a) for a in anlar], dtype="datetime64[ns]"),
+                        rates=np.full(len(anlar), 0.0001), imputed_rate=0.0001,
+                        interval=pd.Timedelta(saat))
 
 
-def test_funding_times_empty_when_end_before_start():
-    assert funding_times(ts(10), ts(5)) == []
+def U(s: str) -> pd.Timestamp:
+    return pd.Timestamp(s, tz="UTC")
+
+
+def test_funding_moments_grid_exclusive_of_start_without_records():
+    """Kayıt yoksa epoch'a hizalı ızgara; açılış anının kendisi sayılmaz."""
+    t = _egri("8h").moments(U("2026-01-01 00:00"), U("2026-01-01 17:00"))
+    assert t == [U("2026-01-01 08:00"), U("2026-01-01 16:00")]
+
+
+def test_funding_moments_empty_when_end_before_start():
+    assert _egri("8h").moments(ts(10), ts(5)) == []
+
+
+def test_OPEN_59_four_hour_symbol_counts_every_moment():
+    """4 saatlik sembolde 17 saatte 4 an var; 8 saat ızgarası yalnızca 2 sayardı."""
+    t = _egri("4h").moments(U("2026-01-01 00:00"), U("2026-01-01 17:00"))
+    assert t == [U("2026-01-01 04:00"), U("2026-01-01 08:00"),
+                 U("2026-01-01 12:00"), U("2026-01-01 16:00")]
+
+
+def test_OPEN_59_measured_moments_inside_coverage_grid_outside():
+    """Kapsam içinde ölçülen anlar (aralık değişse bile), dışında sembolün aralığı."""
+    c = _egri("4h", "2026-01-01T08:00", "2026-01-01T16:00", "2026-01-01T20:00")
+    t = c.moments(U("2026-01-01 00:00"), U("2026-01-02 01:00"))
+    assert t == [U("2026-01-01 04:00"),                       # öncesi: 08:00'e hizalı ızgara
+                 U("2026-01-01 08:00"), U("2026-01-01 16:00"), U("2026-01-01 20:00"),
+                 U("2026-01-02 00:00")]                        # sonrası: 20:00'ye hizalı
+
+
+def test_OPEN_59_cost_counts_four_hour_moments():
+    c = costs()
+    c.funding = {SYM: _egri("4h")}
+    c.funding_cost(SYM, LONG, Decimal("1000"), U("2026-01-01 00:00"), U("2026-01-01 17:00"))
+    assert c.funding_events == 4
 
 
 def test_funding_long_pays_positive_rate():
     """Pozitif oranda long öder (maliyet pozitif), short alır (maliyet negatif)."""
     c = costs()
-    c.funding = {SYM: FundingCurve(
+    c.funding = {SYM: FundingCurve(interval=pd.Timedelta("8h"),
         times=np.array([np.datetime64("2026-01-01T08:00")]),
         rates=np.array([0.0001]), imputed_rate=0.0001,
     )}
@@ -90,7 +121,7 @@ def test_funding_long_pays_positive_rate():
 def test_funding_outside_coverage_is_imputed_adversely():
     """Kapsam dışı funding anı sıfır sayılmaz; aleyhte atanır ve ayrı sayılır."""
     c = costs()
-    c.funding = {SYM: FundingCurve(
+    c.funding = {SYM: FundingCurve(interval=pd.Timedelta("8h"),
         times=np.array([], dtype="datetime64[ns]"), rates=np.array([]), imputed_rate=0.0002,
     )}
     cost = c.funding_cost(SYM, LONG, Decimal("10000"), ts(0), pd.Timestamp("2026-01-01 09:00", tz="UTC"))
@@ -100,7 +131,7 @@ def test_funding_outside_coverage_is_imputed_adversely():
 
 def test_funding_coverage_reports_measured_share():
     c = costs()
-    c.funding = {SYM: FundingCurve(
+    c.funding = {SYM: FundingCurve(interval=pd.Timedelta("8h"),
         times=np.array([np.datetime64("2026-01-01T08:00")]),
         rates=np.array([0.0001]), imputed_rate=0.0001,
     )}
@@ -278,10 +309,18 @@ def _slipsiz(bars):
     return Backtest([symbol_data(bars, short_zone())], costs(Decimal("0"))).run()
 
 
-def test_R_RISK_02_stop_temasla_kapanistan_cikar():
-    """Seviyeye dokunan mum: tetik kapanışta bilinir, çıkış kapanıştan (200)."""
-    t = _slipsiz([(152, 148), (172, 168), (202, 198)]).trades[0]
+def test_R_RISK_02_stop_temasla_seviyeden_cikar():
+    """Seviyeye dokunan mum (195–215, kapanış 205): intrabar tetik, çıkış seviyeden (200)."""
+    t = _slipsiz([(152, 148), (172, 168), (215, 195)]).trades[0]
     assert (t.reason, t.exit_price) == ("STOP", Decimal("200"))
+
+
+def test_R_RISK_02_breakeven_temasla_seviyeden_cikar():
+    """TP1 (150) sonrası stop ücret dahil maliyette: 170 × (1 − 0,001). 166–180 mumu
+    (kapanış 173) seviyeye dokundu → çıkış seviyeden, kapanıştan değil."""
+    t = _slipsiz([(152, 148), (172, 168), (152, 148), (180, 166)]).trades[0]
+    assert t.reason == "BREAKEVEN"
+    assert float(t.exit_price) == pytest.approx(170 * (1 - 0.001))
 
 
 def test_R_RISK_02_stop_bosluklu_mumda_acilistan_cikar():
@@ -370,7 +409,7 @@ def test_run_end_charges_funding_without_tz_error():
     from src.backtest.costs import FundingCurve
 
     c = costs()
-    c.funding = {SYM: FundingCurve(
+    c.funding = {SYM: FundingCurve(interval=pd.Timedelta("8h"),
         times=np.array([], dtype="datetime64[ns]"), rates=np.array([]), imputed_rate=0.0001,
     )}
     bt = Backtest([symbol_data([(152, 148), (172, 168)] + [(172, 168)] * 600, short_zone())], c)
@@ -765,3 +804,50 @@ def test_ruin_bars_counted_against_start_balance():
     assert pf.observed_bars == res.counters["bars_total"]
     # Esikler ic ice: %10'un altindaki her bar %25 ve %50'nin de altindadir.
     assert pf.ruin_bars[0.10] <= pf.ruin_bars[0.25] <= pf.ruin_bars[0.50]
+
+
+# --- borsa emir kısıtları (stepSize, asgari miktar/tutar) --------------------
+
+
+def _kisitli(step="0", min_qty="0", min_cost="0", slippage=Decimal("0")) -> CostModel:
+    return CostModel(
+        fees={SYM: Fees(Decimal("0.0005"), Decimal("0.0002"), step=Decimal(step),
+                        min_qty=Decimal(min_qty), min_cost=Decimal(min_cost))},
+        funding={}, slippage_bps=slippage,
+    )
+
+
+def test_emir_miktari_adima_asagi_yuvarlanir():
+    """100 $ / 170 = 0,588 → adım 0,1 → 0,5 (yukarı yuvarlamak boyutu büyütürdü)."""
+    res = Backtest([symbol_data(LOSS, short_zone())], _kisitli(step="0.1"),
+                   start_balance=Decimal("100")).run()
+    assert res.trades[0].entry_qty == Decimal("0.5")
+
+
+def test_asgari_miktari_karsilamayan_giris_reddedilip_sayilir():
+    res = Backtest([symbol_data(LOSS, short_zone())], _kisitli(step="0.1", min_qty="1"),
+                   start_balance=Decimal("100")).run()
+    assert res.trades == [] and res.counters["rejected_min_order"] == 1
+
+
+def test_asgari_tutari_karsilamayan_giris_reddedilip_sayilir():
+    res = Backtest([symbol_data(LOSS, short_zone())], _kisitli(step="0.1", min_cost="101"),
+                   start_balance=Decimal("100")).run()
+    assert res.trades == [] and res.counters["rejected_min_order"] == 1
+
+
+def test_R_EXIT_01_kismi_tp_adima_yuvarlanir():
+    """Giriş 0,5; yarısı 0,25 → adım 0,1 → 0,2 kapanır, 0,3 nihai TP'ye kalır."""
+    res = Backtest([symbol_data(WIN, short_zone())], _kisitli(step="0.1"),
+                   start_balance=Decimal("100")).run()
+    t = res.trades[0]
+    assert t.reason == "FINAL_TP"
+    assert t.gross == Decimal("0.2") * 20 + Decimal("0.3") * 70  # 170→150, 170→100
+
+
+def test_R_EXIT_01_asgariyi_karsilamayan_kismi_tp_reddedilip_sayilir():
+    """Yarısı 0,2 < asgari 0,3: kısmi TP emri gönderilmez, sayılır; pozisyon tam kalır."""
+    res = Backtest([symbol_data(WIN, short_zone())], _kisitli(step="0.1", min_qty="0.3"),
+                   start_balance=Decimal("100")).run()
+    assert res.counters["rejected_min_close"] == 1
+    assert res.trades[0].gross == Decimal("0.5") * 70

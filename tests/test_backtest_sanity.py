@@ -276,7 +276,7 @@ def test_sanity_funding_over_24h_with_known_rate():
     toplam   : 3 × (−1.70)                              ->     −5.10
     """
     c = costs()
-    c.funding = {SYM: FundingCurve(
+    c.funding = {SYM: FundingCurve(interval=pd.Timedelta("8h"),
         times=np.array(["2026-01-01T08:00", "2026-01-01T16:00", "2026-01-02T00:00"],
                        dtype="datetime64[ns]"),
         rates=np.array([0.0001, 0.0001, 0.0001]),
@@ -296,7 +296,7 @@ def test_sanity_funding_over_24h_with_known_rate():
 def test_sanity_funding_long_pays_same_magnitude():
     """Aynı oran, LONG tarafta **ödenir**: işaret ters, büyüklük aynı (3 × 1.70)."""
     c = costs()
-    c.funding = {SYM: FundingCurve(
+    c.funding = {SYM: FundingCurve(interval=pd.Timedelta("8h"),
         times=np.array(["2026-01-01T08:00", "2026-01-01T16:00", "2026-01-02T00:00"],
                        dtype="datetime64[ns]"),
         rates=np.array([0.0001, 0.0001, 0.0001]), imputed_rate=0.0001,
@@ -325,7 +325,7 @@ def test_sanity_cross_equity_sums_both_positions():
            → notional 17.991.50 / 100                   -> qty_B 179.9150
            komisyon 17.991.50 × 0.0005                  ->     8.99575
            bakiye                                       -> 16.982.50425
-    mum4 : ikisi de stop (iç stop kapanıştan: 200 ve 130, seviyeyle aynı)
+    mum4 : ikisi de stop (iç stop seviyeden: 200 ve 130)
            A brüt 100 × (170−200)                       -> −3.000   kom. 10.00
            B brüt 179.9150 × (100−130)                  -> −5.397.45 kom. 11.694475
            bakiye 16.982.50425 −3.000 −10 −5.397.45 −11.694475 -> 8.563.359775
@@ -383,7 +383,7 @@ def test_sanity_zero_slippage_fills_exactly_at_level():
 def test_sanity_pnl_identity_holds_on_every_trade():
     """pnl ≡ brüt − komisyon − funding. Motorun kendi kalemleri birbirini tutmalı."""
     c = costs()
-    c.funding = {SYM: FundingCurve(
+    c.funding = {SYM: FundingCurve(interval=pd.Timedelta("8h"),
         times=np.array(["2026-01-01T08:00"], dtype="datetime64[ns]"),
         rates=np.array([0.0003]), imputed_rate=0.0003,
     )}
