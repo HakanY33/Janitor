@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 import ccxt
@@ -20,7 +21,8 @@ import pandas as pd
 
 from src.data.validate import validate_ohlcv
 
-DATA_ROOT = Path("data")
+# Kayıtçı başka köke yazabilir (PC paralel kaydı, docs/SERVER.md "PC'ye geçiş"); varsayılan data/.
+DATA_ROOT = Path(os.environ.get("JANITOR_DATA_ROOT", "data"))
 LOG_ROOT = Path("logs")
 COLUMNS = ["ts", "open", "high", "low", "close", "volume"]
 
