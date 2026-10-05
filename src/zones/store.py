@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS zones (
     skipped_progress INTEGER NOT NULL,
     tp_tick          REAL NOT NULL,
     tp_tick_miss     INTEGER NOT NULL,
-    tp_offset        REAL NOT NULL
+    tp_offset        REAL NOT NULL,
+    pencere_050      INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS zones_watch ON zones (symbol, timeframe, state);
 """
@@ -116,4 +117,5 @@ def _zone(row: sqlite3.Row) -> Zone:
             data[name] = datetime.fromisoformat(data[name])
     data["state"] = ZoneState(data["state"])
     data["in_band"] = bool(data["in_band"])  # SQLite'ta INTEGER
+    data["pencere_050"] = bool(data["pencere_050"])
     return Zone(**data)

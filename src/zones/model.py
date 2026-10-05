@@ -131,6 +131,9 @@ class Zone:
     # hemen altına" koymaktı ve o "hemen" sayısallaşmadı. `0` = spec'in yazılı hâli.
     # Ölçüm: `docs/measurements/tp_placement.md`.
     tp_offset: float = 0.0
+    # OPEN-61 (kullanıcı kararı 2026-10-02) · teyit penceresinde `0.50`'ye ulaşıldı;
+    # `detect_zones` yazar. Zone `activate`'te doğrudan PRIMED başlar.
+    pencere_050: bool = False
 
     @classmethod
     def create(
@@ -242,8 +245,14 @@ class Zone:
 
         İzleme her zaman `watch_from`'dan başlar (R-ZONE-09); zaman dışarıdan
         verilmez, çünkü erken bir başlangıç doğrudan look-ahead bias üretir.
+
+        OPEN-61: teyit penceresinde `0.50`'ye ulaşılmışsa (`pencere_050`) aynı anda
+        ACTIVE → PRIMED. Pencere mumları `watch_from`'da kapanmıştır; look-ahead değil.
         """
-        return self.transition(S.ACTIVE, self.watch_from)
+        self.transition(S.ACTIVE, self.watch_from)
+        if self.pencere_050:
+            self.transition(S.PRIMED, self.watch_from)
+        return self.state
 
     def enter(self, ts: datetime) -> ZoneState:
         """TOUCHED → ENTERED. Kararı strateji + risk katmanı verir, fiyat değil.
