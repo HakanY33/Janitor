@@ -71,7 +71,7 @@ def test_R_ZONE_01_alanlar_spec_ile_birebir():
     assert names[:len(spec)] == spec
     assert names[len(spec):] == [
         "pivot_confirmed_at", "hysteresis", "in_band", "kill_wins", "skipped_progress",
-        "tp_tick", "tp_tick_miss", "tp_offset",
+        "tp_tick", "tp_tick_miss", "tp_offset", "pencere_050",
     ]
 
 
