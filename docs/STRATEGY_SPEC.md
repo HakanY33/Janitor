@@ -2,12 +2,23 @@
 
 | | |
 |---|---|
-| **Versiyon** | v0.6 |
+| **Versiyon** | v0.8 |
 | **Durum** | OTE modeli kapalı ve kodlanabilir. Açık parametre kalmadı; eşikler backtest'le kalibre edilecek. |
 | **Kapsam** | Kripto vadeli (perpetual), cross marjin, paper trading |
 | **Son güncelleme** | 2026-10-02 |
 
 > **UYARI — 30m look-ahead (düzeltildi 2026-09-29).** Commit 3fb2ff4 ve öncesindeki kod, zone/OB/FVG damgalarını (mumun açılışı) bilgi anı olarak kullanıyordu: her nesne bir 30m mum erken görünüyordu. Bu spec'te ve `docs/measurements/`'ta o koda dayanan **her ölçüm sayısı** bu hatayı taşır; mutlak değerler geçersizdir. Düzeltilmiş yeniden ölçüm: `docs/measurements/damga.md`. Kural: her HTF nesnesi `known_at` = mumun kapanışı taşır; bir mumdan çıkan hiçbir bilgi o mum kapanmadan kullanılamaz (CLAUDE.md #3).
+
+**v0.7'den değişenler (2026-10-05, kullanıcı kuralları):** `OPEN-64` kapandı (OB yeni tanım:
+3 mumluk yapı, 1. mum OB; geçerlilik 2. ve 3. mumdan) · `OPEN-65` kapandı (FVG tek başına giriş
+sebebi değil: `R-ENTRY-02` (2) ve gösterge kapısından çıktı, yalnızca `R-ADD-05` güç bayrağı;
+bölgeye ilk girişte silinir)
+
+**v0.6'dan değişenler (2026-10-02, kullanıcı kararları):** `OPEN-61` kapandı (teyit
+penceresinde `0.50` teması sayılır → zone `PRIMED` başlar, `R-ZONE-05`) · `OPEN-62` kapandı
+(canlıda stop anlık akıştan, seviyede piyasa emri; borsada yalnızca felaket stopu, `R-RISK-02`) ·
+`OPEN-63` kapandı (asgari altı kısmi TP: pozisyon tam, stop maliyete) · yeni `R-ENTRY-06`
+sürtünme tabanı
 
 **v0.5'ten değişenler (2026-10-02):** `R-RISK-02` iç stop ve breakeven intrabar, **seviyeden**
 (+ slippage; kullanıcı kararı) · `R-ZONE-05` izleme öncesi pencere (`0`/`1`'e teyit
@@ -82,10 +93,10 @@ Terimler burada tek anlama sabitlenir. Kod aynı isimleri kullanır.
 |---|---|
 | **Leg (Bacak)** | Bir swing low'dan swing high'a (veya tersi) uzanan hareket. Fib'in çizildiği aralık. Uç tespiti `R-ZONE-02`. |
 | **Likidite bölgesi** | Leg'in başladığı/bittiği, önceki swing'in aşıldığı bölge. |
-| **İmpuls** | Normalden belirgin büyük gövdeli, tek yönlü hareket mumu. Ölçüt: gövde > `IMPULSE_MULT` × son 20 mumun **medyan** gövdesi. **`IMPULSE_MULT = 4.0`** (`OPEN-21` kapandı). OB tanımı buna dayanır. |
-| **OB (Order Block)** | İmpuls hareketi öncesindeki **son ters yönlü mumun gövdesi**. Damgalar: `created_at` (gövde mumunun açılışı), `impulse_at` (impuls mumunun açılışı) — kimliktir, bilgi anı değil. **Bilgi anı `known_at` = impuls mumunun kapanışı.** Değerlendirme `known_at`'ten önceye bakamaz. |
+| **İmpuls** | Normalden belirgin büyük gövdeli, tek yönlü hareket mumu. Ölçüt: gövde > `IMPULSE_MULT` × son 20 mumun **medyan** gövdesi. **`IMPULSE_MULT = 4.0`** (`OPEN-21` kapandı). Delinme (`R-ADD-06`) buna dayanır; OB tanımı v0.8'den beri dayanmaz (`OPEN-64`). |
+| **OB (Order Block)** | (kullanıcı, 2026-10-05, `OPEN-64`) Düşüşten önceki **son yükseliş mumu** (arz, `BEARISH`) ya da yükselişten önceki **son düşüş mumu** (talep, `BULLISH`) — **1. mum**; bölge onun **gövdesi**. **Geçerlilik:** (a) **3. mum 1. mumla temas etmez** (mum aralıkları, fitil dahil, kesişmez: arzda 3. mumun high'ı < 1. mumun low'u; talepte 3. mumun low'u > 1. mumun high'ı); (b) **2. mum sarkmaz**: talepte 2. mumun low'u 1. mumun low'unun altına, arzda 2. mumun high'ı 1. mumun high'ının üstüne çıkmaz. "Son" olması için 2. mum 1. mumun yönünde değildir (arzda 2. mum yükseliş mumu değil). Büyüklük eşiği (impuls) yok — **kullanıcı onayı 2026-10-05: kaldırılmış hâliyle kalır** (kullanıcı tanımı; eski `IMPULSE_MULT` şartı OB'ye geri gelmez, yalnızca delinmede yaşar). Damgalar: `created_at` = 1. mumun açılışı, `impulse_at` = 3. mumun açılışı (kimlik). **Bilgi anı `known_at` = 3. mumun kapanışı.** |
 | **FVG** | Üç mumluk yapıda 1. mumun high'ı ile 3. mumun low'u arasındaki dokunulmamış boşluk (ters yön için simetrik). `created_at` = 3. mumun açılışı; boşluk ancak o mum kapanınca bilinir: **`known_at` = 3. mumun kapanışı**. |
-| **Mitigasyon** | Fiyatın bir FVG/OB bölgesine ilk temas etmesi. **Dolum** ise karşı sınırın geçilmesidir; ikisi ayrı kaydedilir. Her ikisinin damgası olayın gerçekleştiği mumun **kapanışıdır**. |
+| **Mitigasyon** | Fiyatın bir FVG/OB bölgesine ilk temas etmesi. Damgası olayın gerçekleştiği mumun **kapanışıdır**. **FVG mitigasyonda silinir** (kullanıcı, 2026-10-05, `OPEN-65`): fiyat bölgeye girdiği an boşluk tükenmiştir; ayrı bir "dolum" (karşı sınırın geçilmesi) beklenmez — kodda `filled_at = mitigated_at`. |
 | **"OB içinde FVG"** | Kesişim yeterlidir, tam kapsama aranmaz (`R-ADD-05`). |
 | **Delinme** | OB'nin impuls mumlarıyla tamamen geçilmesi. Mum kapanışı beklenmez (fitil yeter; kapanış *fiyatı* aranmaz). Bilgi anı son teyit mumunun **kapanışıdır**: "geri alma" o mumlar kapanmadan bilinmez. Geçişin geçersiz sayılması için fiyatın OB'yi **tamamen geri alması** gerekir; yalnızca dokunmak yetmez — aksi hâlde "kapanış beklenmez" kuralıyla çelişir (`R-ADD-06`). |
 | **Equity** | Bakiye + tüm açık pozisyonların gerçekleşmemiş PnL'i. Tüm risk hesapları buna göre. |
@@ -182,8 +193,13 @@ arasındaki (pivot teyidi) HTF mumları da sırayı bozar: bu pencerede `0`'a ve
 ulaşılmışsa ("ulaştı" = temas ya da ötesi, `R-RISK-02` ölçütü) zone **kurulmaz**. O mumlar
 `WATCH_FROM`'da kapanmıştır; look-ahead değildir. Eskiden pencere görülmüyordu ve sırası
 çoktan bozulmuş zone `ACTIVE` doğuyordu (inceleme #9, NEAR; F1'de 3.565 işlemin 96'sı).
-Kod: `src/zones/detect.py:izleme_oncesi_oldu`. Aynı penceredeki `0.50`/`0.70` temasları
-`OPEN-61`.
+Kod: `src/zones/detect.py:izleme_oncesi_oldu`.
+
+**Penceredeki `0.50` teması (`OPEN-61`, kullanıcı kararı 2026-10-02).** Aynı pencerede
+`0.50`'ye ulaşılmışsa ve `0`/`1` ihlal edilmemişse teması **sayılır**: zone `WATCH_FROM`'da
+doğrudan `PRIMED` başlar (`ACTIVE` → `PRIMED` aynı anda) ve `0.70` teması beklenir. Pencerede
+`0.70`'e de değilmiş olması ayrıca bir şey değiştirmez; giriş için `WATCH_FROM`'dan sonraki
+temas gerekir. Kod: `src/zones/detect.py:pencerede_050`, `Zone.activate`.
 
 `0.50`'ye temas etmeden `0`'a ulaşılırsa pozisyon zaten açılmamış olur — zarar yok.
 Bu durum ya OTE'nin çalışmadığı ya da yanlış çizildiği anlamına gelir ve
@@ -268,6 +284,16 @@ mumu **kapanınca** bilinir: `known_at = pivot_confirmed_at + TF` (`R-ZONE-09` `
 **Leg seçimi.** `anchor_1` = likiditeyi süpüren swing. `anchor_0` = o hareketi başlatan
 bir önceki karşı yönlü swing. Birden fazla aday varsa süpüren tercih edilir (`R-ZONE-02`).
 
+**`anchor_0` seçeneği (kullanıcı kuralı 2026-10-05, ölçüm için seçilebilir; varsayılan değişmedi).**
+
+| ad | `anchor_0` | durum |
+|---|---|---|
+| `pencere` (varsayılan) | `anchor_1`'in aştığı önceki aynı tip swing ile `anchor_1` arasındaki karşı swing'ler; süpüren tercih, kalanlardan en uç | mevcut |
+| `son_supuren` | **`anchor_1`'den önceki, kendisi de likidite almış (`swept`) son karşı swing — pencere sınırı yok.** Süpüren yoksa son karşı swing | örneklem içi (v3), **v4 doğrulaması bekliyor** (`docs/inceleme/v2/adaylar.md` 2026-10-05 notu) |
+
+Gerekçe: v3 eşleştirme teşhisi (`docs/inceleme/v3/eslestirme_teshis.md`) — kullanıcının `0`'ı
+`pencere`'nin solunda, daha eski ve daha uç (B2 32/32). Kod `src/zones/detect.py:ANCHOR0`.
+
 ### R-ZONE-08 · Aday sıralaması `TASARLANACAK`
 
 Sıralama yalnızca **bütçe sıkıştığında** devreye girer: `R-RISK-01` tavanına yaklaşılmışsa
@@ -310,9 +336,14 @@ Cross. İzole yasak.
 **Temas anında girilir. Mum kapanışı beklenmez.** Ön koşul: zone `PRIMED` durumunda olmalı.
 
 1. Giriş bandında yöne uygun **OB** varsa → OB'den giriş (limit emir konabilir)
-2. Bantta **FVG** varsa → doldurulması beklenebilir
+2. ~~Bantta FVG varsa → doldurulması beklenebilir~~ **Kaldırıldı (v0.8, `OPEN-65`):** FVG tek
+   başına giriş sebebi değildir, emir fiyatını da belirlemez. Yalnızca `R-ADD-05` güç bayrağıdır
+   (`had_fvg` loglanır).
 3. Gösterge yoksa → **0.70 teması** geçerli giriştir
 4. **Hacimliyse** → kaçırmamak için doğrudan 0.70 teması, bekleme yok
+
+**Gösterge kapısı** (backtest kolu `require_indicator`, D/E3/F1): "bantta uygun gösterge yoksa
+giriş yok". v0.8'den beri gösterge = **yalnızca OB**; eskiden "OB ya da FVG" idi.
 
 **Emrin konma anı (`OPEN-41`, kapandı 2026-09-29).** "Temas anında girilir" ancak emir
 temastan **önce** defterdeyse mümkündür: temas mum kapanınca bilinir.
@@ -329,12 +360,30 @@ temastan **önce** defterdeyse mümkündür: temas mum kapanınca bilinir.
   sayılır — `§8` "stop önce" kuralının bekleyen emre uygulanışı.
 - Backtest bu davranışı **birebir** uygular. Canlı ile aynı `step` fonksiyonudur.
 
+### R-ENTRY-06 · Sürtünme tabanı `SETTLED` (kullanıcı kuralı 2026-10-02)
+
+Giriş fiyatından TP1'e (`0.50`, `R-EXIT-01`) mesafe, gidiş-dönüş maliyetinin **3 katından**
+küçükse giriş yok. Gerekçe (kullanıcı): **"tatmin etmeyen hareket için komisyon ödenmez."**
+
+```
+mesafe       = |TP1 − giriş| / giriş
+gidiş-dönüş  = 2 × (komisyon + slippage)     # giriş + TP1 çıkışı
+giriş yok    ⇔ mesafe < 3 × gidiş-dönüş
+```
+
+Komisyon ve slippage motorun kendi maliyet modelinden: limit kolunda maker (slippage yok),
+aksi hâlde taker + `slippage_bps`. Oranlar borsadan (`fees.json`, CLAUDE.md #5). Kontrol
+emir hesabında (`R-ENTRY-02`, her 1m kapanışında) yapılır; red `rejected_surtunme` sayılır
+ve `ENTRY_REJECTED` olarak loglanır. Kod: `src/backtest/engine.py:_surtunme_yetersiz`.
+
 ### R-ENTRY-05 · OB ve FVG uygunluğu `SETTLED`
 
 **OB:** yalnızca **unmitige** olanlar aday. Fiyat bir kez uğradıysa bölge tüketilmiş
 sayılır. Bu ölçüt yoğunluğu kendiliğinden sınırlar — her OB yalnızca ilk temasa kadar canlıdır.
 
-**FVG:** **karar anında dolmamış** olmalı **ve** genişlik ≥ `0.44 × medyan gövde (20 mum)`.
+**FVG:** **karar anında mitige olmamış** (v0.8: bölgeye girildiği an silinir) **ve** genişlik
+≥ `0.44 × medyan gövde (20 mum)`. v0.8'den beri bu ölçüt giriş adaylığı değil, yalnızca
+`had_fvg` bayrağının (log, `R-ADD-05`) tanımıdır.
 
 > Her iki ölçüt de nedenseldir: mitigasyon ve dolum durumu karar anında bilinir, FVG
 > genişliği oluşum anında bilinir. "20 mum dayandı" gibi geriye dönük bir ölçüt
@@ -359,7 +408,7 @@ farklı risk üretir. Notional sabit tutulunca sorun kalkar:
 miktar adımına **aşağı** yuvarlanır; asgari miktarı (`limits.amount.min`) ya da asgari
 tutarı (`limits.cost.min`) karşılamayan emir **gönderilmez ve sayılır** (`rejected_min_order`,
 `rejected_min_close`). Değerler borsadan (`fees.json`, CLAUDE.md #5). Tam kapanış
-(`reduceOnly`, kalan miktarın tamamı) kısıta takılmaz. Kısmi TP'nin reddi `OPEN-63`.
+(`reduceOnly`, kalan miktarın tamamı) kısıta takılmaz. Kısmi TP reddedilirse pozisyon tam kalır ve stop yine maliyete çekilir (`OPEN-63`, kapandı).
 
 İkisi **aynı risk**. Marjin yüzdesi yanıltıcı, notional değil.
 
@@ -498,7 +547,8 @@ Her ekleme tetiği yeniden kurar: küçültmeden sonra yeni bir ekleme yapılır
 
 OB'ye temas dönüt habercisidir. **Tek OB tek başına yeterlidir.**
 
-- **Gücü artıran:** OB içinde doldurulacak FVG; ters yönlü OB bulunmaması
+- **Gücü artıran:** OB içinde doldurulacak FVG (v0.8: henüz mitige olmamış, yani hiç girilmemiş);
+  ters yönlü OB bulunmaması
 - **Gücü azaltan:** ardı ardına gelen OB'ler → çalışma oranı düşer
 
 ### R-ADD-06 · Hacim ve delinme `SETTLED`
@@ -552,7 +602,12 @@ slippage**. Breakeven (`R-EXIT-01`) aynıdır: ücret dahil maliyet seviyesine d
 seviye + slippage. Mum seviyeye dokunmadan **boşlukla** ötesine geçerse stop yine
 tetiklenir ve doluş o mumun **açılışındandır** (muhafazakâr taraf, 2026-09-30). Canlıda
 intrabar tetiğin nasıl uygulanacağı (borsada `reduceOnly` stop emri mi, akıştan izleme mi)
-`OPEN-62`; o karar verilene kadar paper aynı kuralı kapanmış 1m mumdan geriye dönük uygular. Aynı "ulaştı" ölçütü `1` çapasının
+`OPEN-62` (kapandı 2026-10-02, kullanıcı kararı): **canlıda** iç stop anlık fiyat akışından
+izlenir ve seviyeye ulaşıldığında **piyasa emriyle** kapatılır; borsada yalnızca yedek felaket
+stopu durur (aşağıda). **Paper** aynı kuralı kapanmış 1m mumdan uygular ve **her stop
+çıkışında** (nihai stop ve breakeven) seviye ile gerçekleşen çıkış arasındaki farkı karar
+loguna yazar (`EXIT` satırı: `stop_seviye`, `stop_fark`); canlıda aynı alanlar gerçek
+doluştan gelir. Aynı "ulaştı" ölçütü `1` çapasının
 giriş öncesi geçersizliğinde de geçerlidir.
 Borsada bekleyen limitler (giriş, TP1, nihai TP) seviyeden dolar.
 
@@ -719,9 +774,11 @@ kapatılabilir; varsayılan hepsi açık. Kapatma kararın girdisi olarak loglan
 | `OPEN-41`…`OPEN-57` | Canlı döngü tasarım soruları (giriş emrinin zamanı, stop izleme, kill eylemleri, WS, yeniden başlatma, ortam) | **Kapandı 2026-09-29** — `OPEN-41` `R-ENTRY-02`, `OPEN-52` `R-RISK-02`, `OPEN-49` §6. Diğerleri en muhafazakâr varsayılanla; karar satırları `docs/LIVE.md` §9. |
 | `OPEN-33` | Ekleme merdiveninin boyut tavanı | **Kapandı** — `ADD-REJECT-E` (`R-ADD-02`). Tavan notional'da değil, stopta realize olacak kayıpta. |
 | `OPEN-13` | "Garantici mod" tetikleyicisi | Açık — v1'de kapalı, sonra eklenir |
-| `OPEN-61` | İzleme öncesi pencerede `0.50` / `0.70` / TP1 temasları | **Açık (2026-10-02)** — zone `WATCH_FROM`'dan önce kendi geçmişini görmez (`R-ZONE-09`); `0`/`1` teması artık öldürüyor (`R-ZONE-05`), ama teyit sırasında `0.50`'ye değmiş zone yine `ACTIVE` doğar ve sıfırdan `0.50` bekler. F1 eğitim koşusunda 3.565 işlemin **1.617**'sinde (%45) pencerede `0.50` teması, **1.193**'ünde ardından `0.70` da var (30m, mum içi sıra yok). Seçenekler: (a) bugünkü hâl, (b) `0.50` görülmüşse zone `PRIMED` doğar, (c) `0.50` → `0.70` görülmüşse setup tüketilmiş sayılır, zone kurulmaz. İnceleme #2 bunun örneği. Karar kullanıcının. |
-| `OPEN-62` | Canlıda intrabar iç stop | **Açık (2026-10-02)** — `R-RISK-02` artık seviyeden doluş varsayıyor; bot kapanmış 1m mumla çalışıyor. Ya borsaya `1` seviyesinde `reduceOnly` stop-market (felaket stopu `1.10`'un yerine ya da yanına) ya da WS işlem akışından izleme. Paper sonucu bu karar verilene kadar seviyeden doluşun simülasyonudur. |
-| `OPEN-63` | Asgariyi karşılamayan kısmi TP | **Açık (2026-10-02)** — kod: emir gönderilmez, sayılır, pozisyon tam kalır ve zone `TP1_HIT`'e geçtiği için stop yine maliyete çekilir. Alternatif: tamamını 0.50'de kapat. 100 USDT koşusunda sayaç `rejected_min_close` raporlanır. |
+| `OPEN-61` | İzleme öncesi pencerede `0.50` / `0.70` / TP1 temasları | **Kapandı 2026-10-02 (kullanıcı)** — (b): pencerede `0.50` teması sayılır; `0`/`1` ihlal edilmemişse zone doğrudan `PRIMED` başlar. `R-ZONE-05`. Ölçüm öncesi: F1'de 3.565 işlemin 1.617'sinde pencerede `0.50` teması vardı. |
+| `OPEN-62` | Canlıda intrabar iç stop | **Kapandı 2026-10-02 (kullanıcı)** — canlıda stop anlık fiyat akışından izlenir, seviyede piyasa emriyle kapatılır; borsada yalnızca yedek felaket stopu. Paper her stopta seviye ile gerçekleşen çıkış farkını kaydeder. `R-RISK-02`. |
+| `OPEN-63` | Asgariyi karşılamayan kısmi TP | **Kapandı 2026-10-02 (kullanıcı)** — mevcut davranış kalır: emir gönderilmez, `rejected_min_close` sayılır, pozisyon tam kalır, zone `TP1_HIT`'e geçtiği için stop maliyete çekilir. |
+| `OPEN-64` | OB tanımı (inceleme #25, #30: "3. mum temas etmiş, OB geçerli sayılmamalıydı") | **Kapandı 2026-10-05 (kullanıcı)** — §0.1 OB: 3 mumluk yapı, 1. mum OB; 3. mum 1. mumla temas etmez, 2. mum 1. mumun ucunu aşmaz. İmpuls eşiği OB tanımından çıktı. Kod `src/features/ob.py:detect_order_blocks`. |
+| `OPEN-65` | FVG'nin rolü (inceleme: "FVG'ler alınmak istenir", hacimsiz FVG) | **Kapandı 2026-10-05 (kullanıcı)** — FVG tek başına giriş sebebi değil (`R-ENTRY-02` (2) ve kapıdan çıktı), yalnızca `R-ADD-05` güç bayrağı; bölgeye ilk girişte silinir. Kod `src/features/fvg.py:FVG.on_bar`, `src/backtest/engine.py:_hedef`. |
 | `OPEN-16` | Günlük yeni-pozisyon durdurma eşiği | Backtest'le kalibre (başlangıç %10) |
 | `OPEN-17` | Likidasyon tamponu eşikleri | Backtest'le kalibre (başlangıç %50 / %15) |
 | `OPEN-12` | Harmonik oran tablosu + stop kanadı | v2 modülü |

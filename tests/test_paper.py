@@ -25,7 +25,7 @@ from src.backtest.loader import build_from_frames
 from src.live.paper import Durum, PaperCore
 from tests.test_parity_d1 import F1, MALIYET, SYM, mumlar
 
-D30, D1 = mumlar(gun=10)
+D30, D1 = mumlar(gun=20)  # v0.8: 10 günde F1 kapısından ≥ 5 işlem geçmiyor (test_parity_d1)
 MOTOR = {"ENTRY", "ENTRY_REJECTED", "EXIT"}
 
 

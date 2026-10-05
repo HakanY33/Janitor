@@ -30,7 +30,9 @@ from src.live.replay import bos_sembol, oynat
 SYM = "SENT/USDT:USDT"
 
 
-def mumlar(gun: int = 20, seed: int = 3) -> tuple[pd.DataFrame, pd.DataFrame]:
+# Tohum 6 (2026-10-05): v0.8 OB tanımı (3 mumluk yapı, OPEN-64) rastgele yürüyüşte seyrek; F1
+# kapısı (yalnızca OB) tohum 3'le 20 günde 0 işlem veriyordu. 1–14 taramasında ≥ 5 veren ilk tohum.
+def mumlar(gun: int = 20, seed: int = 6) -> tuple[pd.DataFrame, pd.DataFrame]:
     rng = np.random.default_rng(seed)
     n = gun * 1440
     oynaklik = np.repeat(np.where(rng.random(n // 30) < 0.08, 5.0, 1.0), 30)

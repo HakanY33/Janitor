@@ -134,11 +134,11 @@ def test_sozluk_FVG_3_mum_kapaninca_bilinir():
 
 
 def test_sozluk_mitigasyon_ve_dolum_mum_kapanisinda():
-    """§0.1 Mitigasyon/Dolum ve R-ENTRY-05 "karar anında dolmamış": dolum, dolduran mum
-    kapanmadan bilinmez — o mum içinde boşluk hâlâ açık sayılır."""
+    """§0.1 Mitigasyon ve R-ENTRY-05 "karar anında dolmamış": silinme (v0.8: ilk temas, OPEN-65)
+    silen mum kapanmadan bilinmez — o mum içinde boşluk hâlâ açık sayılır."""
     df = pd.DataFrame({"ts": [T0 + i * TD for i in range(5)],
                        "open": [100, 110, 120, 120, 100.0], "high": [101, 111, 121, 121, 101.0],
-                       "low": [99, 109, 119, 119, 99.0], "close": [100, 110, 120, 120, 100.0],
+                       "low": [99, 109, 119, 119.5, 99.0], "close": [100, 110, 120, 120, 100.0],
                        "volume": [1.0] * 5})
     f = detect_fvgs(df, SYM, TF)[0]  # 1. mum high 101, 3. mum low 119
     replay([f], df)

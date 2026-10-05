@@ -94,15 +94,16 @@ def bullish_fvg() -> FVG:
     return f
 
 
-def test_FVG_temas_mitigasyon_isaretler_ama_doldurmaz():
+def test_OPEN_65_FVG_bolgeye_girilince_silinir():
+    """v0.8 · fiyat boşluğa girdiği an FVG silinir; karşı sınırın geçilmesi beklenmez."""
     f = bullish_fvg()
     f.on_bar(112, 103, T0)  # boşluğun içine girildi, dibine inilmedi
-    assert f.mitigated_at == T0 and f.filled_at is None
+    assert f.mitigated_at == T0 and f.filled_at == T0
 
 
-def test_FVG_karsi_sinir_gecilince_dolar():
+def test_OPEN_65_FVG_karsi_sinir_gecilince_de_ayni_anda_silinir():
     f = bullish_fvg()
-    f.on_bar(112, 100.9, T0)  # 101'in altına inildi → boşluk kapandı
+    f.on_bar(112, 100.9, T0)
     assert f.filled_at == T0 and f.mitigated_at == T0
 
 
@@ -112,19 +113,19 @@ def test_FVG_boslugu_kesmeyen_mum_durumu_degistirmez():
     assert (f.mitigated_at, f.filled_at) == (None, None)
 
 
-def test_FVG_dolmus_bosluk_tekrar_temasla_degismez():
+def test_FVG_silinmis_bosluk_tekrar_temasla_degismez():
     f = bullish_fvg()
-    f.on_bar(112, 100, T0)
+    f.on_bar(112, 104, T0)
     f.on_bar(112, 95, T0 + pd.Timedelta(minutes=30))
-    assert f.filled_at == T0  # ilk dolum anı korunur
+    assert f.filled_at == f.mitigated_at == T0  # ilk temas anı korunur
 
 
-def test_FVG_bearish_bosluk_yukaridan_dolar():
+def test_OPEN_65_FVG_bearish_bosluk_ust_sinira_degince_silinir():
     f, = fvgs_of([(110, 111, 109, 109.5), (109, 110, 100, 101), (101, 104, 99, 100)])
-    f.on_bar(106, 99, T0)  # boşluk 104 – 109
-    assert (f.mitigated_at, f.filled_at) == (T0, None)
-    f.on_bar(109.5, 99, T0)
-    assert f.filled_at == T0
+    f.on_bar(103.9, 99, T0)  # boşluk 104 – 109, değmedi
+    assert (f.mitigated_at, f.filled_at) == (None, None)
+    f.on_bar(104, 99, T0)
+    assert (f.mitigated_at, f.filled_at) == (T0, T0)
 
 
 def test_FVG_replay_olusumdan_onceki_mumlari_islemez():
@@ -155,44 +156,57 @@ def test_FVG_store_yalnizca_dolmamislari_dondurur(tmp_path):
 
 # --- OB · tespit -------------------------------------------------------------
 
-def test_OB_impuls_oncesi_son_ters_yonlu_mum_govdesi():
-    """Yukarı impulstan önceki son düşüş mumunun gövdesi talep bloğudur."""
-    rows = flat_bars() + [(100, 100.5, 99.3, 99.6), (99.6, 106, 99.6, 105)]
-    ob, = obs_of(rows)
+# Talep: 1. mum düşüş (gövde 99.6–100, aralık 99.3–100.5) · 2. mum yükseliş, dibi 99.5 ≥ 99.3 ·
+# 3. mum dibi 100.8 > 100.5 (1. mumla temas yok). Gövdeler küçük: büyüklük eşiği yok.
+TALEP = [(100, 100.5, 99.3, 99.6), (99.6, 101, 99.5, 100.9), (101, 103, 100.8, 102.5)]
+# Arz: 1. mum yükseliş (100–100.4, aralık 99.5–100.7) · 2. mum düşüş, tepesi 100.6 ≤ 100.7 ·
+# 3. mum tepesi 99.4 < 99.5.
+ARZ = [(100, 100.7, 99.5, 100.4), (100.4, 100.6, 99, 99.2), (99.2, 99.4, 97, 97.5)]
+
+
+def test_OPEN_64_OB_talep_yukselisten_onceki_son_dusus_mumunun_govdesi():
+    ob, = obs_of(flat_bars() + TALEP)
     assert (ob.direction, ob.top, ob.bottom) == (BULLISH, 100, 99.6)
 
 
-def test_OB_sinirlar_govdeden_gelir_fitil_disarida():
-    rows = flat_bars() + [(100, 103, 90, 99.6), (99.6, 106, 99.6, 105)]
-    ob, = obs_of(rows)
-    assert (ob.top, ob.bottom) == (100, 99.6)  # 103 / 90 fitilleri OB'ye girmez
-
-
-def test_OB_bearish_impuls_oncesi_son_yukselis_mumu():
-    rows = flat_bars() + [(100, 100.7, 99.5, 100.4), (100.4, 100.4, 94, 95)]
-    ob, = obs_of(rows)
+def test_OPEN_64_OB_arz_dususten_onceki_son_yukselis_mumunun_govdesi():
+    ob, = obs_of(flat_bars() + ARZ)
     assert (ob.direction, ob.top, ob.bottom) == (BEARISH, 100.4, 100)
 
 
-def test_OB_normal_govdeli_hareket_ob_uretmez():
-    """İmpuls yoksa OB yok: eşik referans gövdenin `IMPULSE_MULT` (4.0) katı."""
-    rows = flat_bars() + [(100, 100.5, 99, 99.5), (99.5, 100.3, 99.5, 100.2)]
-    assert obs_of(rows) == []
+def test_OPEN_64_OB_sinirlar_govdeden_gelir_fitil_disarida():
+    ob, = obs_of(flat_bars() + TALEP)
+    assert (ob.top, ob.bottom) == (100, 99.6)  # 100.5 / 99.3 fitilleri OB'ye girmez
 
 
-def test_OB_impuls_aninda_bilinir():
-    """OB, impuls mumu kapanmadan bilinemez — `impulse_at` bu yüzden ayrı alandır."""
-    rows = flat_bars() + [(100, 100.5, 99.3, 99.6), (99.6, 106, 99.6, 105)]
+def test_OPEN_64_OB_ucuncu_mum_birinci_mumla_temas_ederse_gecersiz():
+    """İnceleme #25, #30: "3. mum temas etmiş, OB geçerli sayılmamalıydı"."""
+    talep = TALEP[:2] + [(101, 103, 100.5, 102.5)]  # 3. mumun dibi 1. mumun tepesine değiyor
+    arz = ARZ[:2] + [(99.2, 99.5, 97, 97.5)]
+    assert obs_of(flat_bars() + talep) == [] and obs_of(flat_bars() + arz) == []
+
+
+def test_OPEN_64_OB_ikinci_mum_birinci_mumun_ucunu_asarsa_gecersiz():
+    """Long'da 2. mum 1. mumun dibinin altına, short'ta tepesinin üstüne sarkmaz."""
+    talep = [TALEP[0], (99.6, 101, 99.2, 100.9), TALEP[2]]  # dip 99.2 < 99.3
+    arz = [ARZ[0], (100.4, 100.8, 99, 99.2), ARZ[2]]  # tepe 100.8 > 100.7
+    assert obs_of(flat_bars() + talep) == [] and obs_of(flat_bars() + arz) == []
+
+
+def test_OPEN_64_OB_son_ters_mum_olmali():
+    """2. mum 1. mumla aynı yöndeyse 1. mum "son" düşüş mumu değildir."""
+    rows = flat_bars() + [TALEP[0], (99.6, 99.9, 99.35, 99.5), (99.5, 103, 100.6, 102.5)]
+    assert all(o.created_at != candles(rows).ts.iloc[-3] for o in obs_of(rows))
+
+
+def test_OPEN_64_OB_ucuncu_mumun_kapanisinda_bilinir():
+    """2. ve 3. mum kapanmadan geçerlilik bilinemez (CLAUDE.md #3)."""
+    rows = flat_bars() + TALEP
     ob, = obs_of(rows)
     ts = candles(rows).ts
-    assert (ob.created_at, ob.impulse_at) == (ts.iloc[-2], ts.iloc[-1])
-
-
-def test_OB_ardisik_impuls_ayni_bloku_tekrar_uretmez():
-    rows = flat_bars() + [
-        (100, 100.5, 99.3, 99.6), (99.6, 106, 99.6, 105), (105, 112, 105, 111),
-    ]
-    assert len(obs_of(rows)) == 1
+    assert (ob.created_at, ob.impulse_at) == (ts.iloc[-3], ts.iloc[-1])
+    assert ob.known_at == ts.iloc[-1] + pd.Timedelta("30m")
+    assert obs_of(rows[:-1]) == []  # 3. mum yokken OB yok
 
 
 @pytest.mark.parametrize("tf,kabul", [("1m", False), ("5m", True), ("30m", True), ("4h", True)])
@@ -217,7 +231,8 @@ def test_OB_referans_govde_kendi_mumunu_saymaz():
 
 PIERCE_HEAD = flat_bars() + [
     (100, 100.5, 99.3, 99.6),  # OB gövdesi 99.6 – 100
-    (99.6, 106, 99.6, 105),  # impuls
+    (99.6, 106, 99.6, 105),  # 2. mum
+    (105, 107, 104, 106),  # 3. mum: 1. mumla temas yok (OPEN-64)
 ]
 
 

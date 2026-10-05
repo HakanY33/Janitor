@@ -1,7 +1,10 @@
 """FVG (Fair Value Gap) tespiti ve mitigasyon takibi.
 
-Spec: R-ENTRY-02 (2) (bantta FVG varsa doldurulması beklenebilir), R-ADD-05
-(OB içinde doldurulacak FVG gücü artırır).
+Spec: R-ADD-05 (OB içinde doldurulacak FVG gücü artırır), §0.1 Mitigasyon. v0.8'den beri
+(`OPEN-65`, kullanıcı 2026-10-05) FVG **tek başına giriş sebebi değildir** (R-ENTRY-02 (2)
+kaldırıldı), yalnızca güç bayrağıdır; ve **fiyat bölgeye girdiği an silinir**: `on_bar`
+ilk temasta `mitigated_at` ile birlikte `filled_at`'i de damgalar. "Dolmamış" sorgusu
+(`filled_at is None`) böylece "hiç girilmemiş" demektir.
 
 **Tanım** (kullanıcı, 2026-09-11 — STRATEGY_SPEC'te FVG'nin sözlük tanımı yok, bkz.
 `OPEN-22`): üç mumluk yapıda 1. ve 3. mumun **fitilleri** arasındaki dokunulmamış
@@ -65,7 +68,7 @@ class FVG:
     bottom: float
     created_at: datetime  # 3. mumun açılışı — kimlik, bilgi anı değil
     mitigated_at: datetime | None = None  # fiyatın boşluğa ilk girdiği mumun kapanışı
-    filled_at: datetime | None = None  # karşı sınırın geçildiği mumun kapanışı
+    filled_at: datetime | None = None  # silinme = ilk temas (v0.8, OPEN-65); = mitigated_at
     width_ratio: float | None = None  # R-ENTRY-05 · genişlik / medyan gövde (20 mum)
     known_at: datetime | None = field(default=None)  # 3. mumun kapanışı; boşsa türetilir
 
@@ -78,24 +81,15 @@ class FVG:
         return self.bottom <= top and self.top >= bottom
 
     def on_bar(self, high: float, low: float, ts: datetime) -> None:
-        """Mitigasyon durumunu ilerletir. Dolmuş boşluk bir daha değişmez.
+        """Mitigasyon durumunu ilerletir. Silinmiş boşluk bir daha değişmez.
 
         `ts` mumun **kapanışıdır**: olay o anda bilinir (CLAUDE.md #3).
-
-        Mum içi sıra bilinmez: aynı mumda hem giriş hem tam dolum olabilir, ikisi de
-        o muma işlenir (zone durum makinesindeki kötümser yaklaşımın karşılığı değil —
-        burada iki olay birbiriyle çelişmiyor).
         """
         if self.filled_at is not None:
             return
-        if self.direction == BULLISH:
-            touched, filled = low <= self.top, low <= self.bottom
-        else:
-            touched, filled = high >= self.bottom, high >= self.top
-        if touched and self.mitigated_at is None:
-            self.mitigated_at = ts
-        if filled:
-            self.filled_at = ts
+        touched = low <= self.top if self.direction == BULLISH else high >= self.bottom
+        if touched:  # OPEN-65 · bölgeye girilen an boşluk silinir
+            self.mitigated_at = self.filled_at = ts
 
 
 def detect_fvgs(df: pd.DataFrame, symbol: str, timeframe: str) -> list[FVG]:

@@ -21,7 +21,9 @@ from src.backtest.engine import (
     ENTRY_IND,
     Backtest,
 )
-from tests.test_backtest import bearish_ob, costs, short_zone, symbol_data
+import pandas as pd
+
+from tests.test_backtest import SYM, bearish_ob, costs, short_zone, symbol_data
 
 PRIMED = (152, 148)  # 0.50 teması → PRIMED
 
@@ -121,6 +123,19 @@ def test_indicator_variant_falls_back_to_079_without_indicator():
     assert res.counters["entries"] == 1
     assert res.trades[0].entry_price == Decimal("179")
     assert not res.trades[0].had_ob and not res.trades[0].had_fvg
+
+
+def test_OPEN_65_indicator_variant_fvg_does_not_set_price():
+    """v0.8 · FVG emir fiyatını belirlemez: bantta yalnızca FVG varsa 0.79'a düşülür."""
+    from src.features.fvg import BEARISH, FVG
+
+    z = short_zone()
+    sd = symbol_data([PRIMED, (172, 168), (176, 174), (180, 178), (202, 198)], z)
+    sd.fvgs = [FVG(fvg_id="f", symbol=SYM, timeframe="30m", direction=BEARISH, top=178.0,
+                   bottom=174.0, created_at=z.watch_from - pd.Timedelta("1h"), width_ratio=1.0)]
+    res = Backtest([sd], costs(Decimal("0")), entry_rule=ENTRY_IND).run()
+    assert res.trades[0].entry_price == Decimal("179")
+    assert res.trades[0].had_fvg and not res.trades[0].had_ob
 
 
 def test_indicator_variant_ob_outside_band_is_ignored():

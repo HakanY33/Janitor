@@ -136,6 +136,10 @@ sabiti gecici olarak `None` yapar."""
 
 _VARSAYILAN = object()
 
+SURTUNME_KAT = Decimal("3")
+"""R-ENTRY-06 · girişten TP1'e mesafe, gidiş-dönüş maliyetinin bu katından küçükse giriş
+yok (kullanıcı kuralı 2026-10-02: "tatmin etmeyen hareket için komisyon ödenmez")."""
+
 STOP_LOSS_CAP = Decimal("0.03")
 """`ADD-REJECT-E` · pozisyonun nihai stopa giderse kaybedeceği tutarın equity'ye oranı
 tavanı (`L`). `0` = kural kapalı.
@@ -172,7 +176,7 @@ class EntryRule:
     | kind | emir fiyatı |
     |---|---|
     | `level` | `ratio` fib seviyesi |
-    | `indicator` | bantta uygun OB (yoksa FVG) varsa onun **ilk dokunulan** kenarı, yoksa `ratio` |
+    | `indicator` | bantta uygun OB varsa onun **ilk dokunulan** kenarı, yoksa `ratio` (FVG v0.8'den beri fiyat belirlemez) |
 
     Eski `window` varyantı ("temastan sonra N mum en iyi fiyatı izle") temasla kurulduğu
     için bekleyen emir modelinde tanımsızdır; `OPEN-41` ile silindi.
@@ -186,7 +190,7 @@ class EntryRule:
 ENTRY_070 = EntryRule("0.70 ilk temas", "level", Decimal("0.70"))
 ENTRY_075 = EntryRule("0.75 teması", "level", Decimal("0.75"))
 ENTRY_079 = EntryRule("0.79 teması", "level", Decimal("0.79"))
-ENTRY_IND = EntryRule("OB/FVG varsa oradan, yoksa 0.79", "indicator", Decimal("0.79"))
+ENTRY_IND = EntryRule("OB varsa oradan, yoksa 0.79", "indicator", Decimal("0.79"))
 
 ENTRY_VARIANTS = (ENTRY_070, ENTRY_075, ENTRY_079, ENTRY_IND)
 
@@ -293,7 +297,7 @@ class Backtest:
         self.uyari_blocks_adds = uyari_blocks_adds
         # `R-ENTRY-02` (3) kapali varyanti — **spec'ten sapar**, olcmek icindir.
         # Spec "gosterge yoksa 0.70 temasi gecerli giristir" diyor, yani giris
-        # kapilanamaz. `True` yapildiginda yalnizca bantta uygun OB veya FVG bulunan
+        # kapilanamaz. `True` yapildiginda yalnizca bantta uygun OB bulunan (v0.8; eskiden OB veya FVG)
         # zone'lara girilir; teshis kosusu hacmin %82'sinin ciplak temas oldugunu ve
         # o dalin net negatif oldugunu gosterdigi icin olculuyor (OPEN-30 adayi).
         self.require_indicator = require_indicator
@@ -383,6 +387,7 @@ class Backtest:
             "add_reject_cap": 0,  # B kolu · ekleme tavani
             "add_reject_e": 0,  # ADD-REJECT-E · stop kaybi tavani (ekleme)
             "entry_reject_e": 0,  # ADD-REJECT-E · ayni tavan ilk girise uygulandi
+            "rejected_surtunme": 0,  # R-ENTRY-06 · TP1 mesafesi < 3 × gidiş-dönüş maliyeti
             # Limit kolu · seviyeye dokunulup 1 tick gecilmedigi icin dolmayan emirler.
             # `unfilled` (giris hedefine hic dokunulmadi) bundan ayridir.
             "limit_miss_giris": 0, "limit_miss_ekleme": 0,
@@ -532,16 +537,15 @@ class Backtest:
         r = self.entry_rule
         if r.kind == "level":
             return self._fib(z, r.ratio)
-        # indicator · R-ENTRY-02 önceliği: önce OB, sonra FVG, sonra çıplak seviye.
+        # indicator · R-ENTRY-02: önce OB, yoksa çıplak seviye. FVG fiyat belirlemez (OPEN-65).
         # Kenar seçimi: fiyatın **ilk dokunacağı** kenar — SHORT bandı aşağıdan
         # yukarı, LONG yukarıdan aşağı kat eder. Bu hem nedenseldir hem de
         # göstergenin kötü tarafıdır (short için düşük, long için yüksek).
         short = z.bias == "SHORT"
         band_low, band_high = sorted((self._fib(z, Decimal("0.70")),
                                       self._fib(z, Decimal("0.79"))))
-        obs, fvgs = self._bantta(z, sd)
-        adaylar = [(o.bottom, o.top) for o in eligible_obs(obs, z, at)] or \
-                  [(f.bottom, f.top) for f in eligible_fvgs(fvgs, z, at)]
+        obs, _ = self._bantta(z, sd)
+        adaylar = [(o.bottom, o.top) for o in eligible_obs(obs, z, at)]
         if not adaylar:
             return self._fib(z, r.ratio)
         kenarlar = [b for b, _ in adaylar] if short else [t for _, t in adaylar]
@@ -564,11 +568,13 @@ class Backtest:
             return None, "rejected_kill"
         s = self._snap
         had_ob, had_fvg, hedef = self._gosterge(z, sd, at)
-        if self.require_indicator and not (had_ob or had_fvg):
+        if self.require_indicator and not had_ob:  # kapı yalnızca OB (v0.8, OPEN-65)
             return None, "no_indicator_skipped"  # R-ENTRY-02 (3) kapali
         if self.min_leg_pct and \
                 abs(z.anchor_1_price - z.anchor_0_price) / z.anchor_0_price <= self.min_leg_pct:
             return None, "leg_skipped"  # F2 kolu · esik alti leg
+        if self._surtunme_yetersiz(z, hedef):
+            return None, "rejected_surtunme"  # R-ENTRY-06
         if z.symbol in s["pozisyon"]:  # sembol başına tek pozisyon (modelleme tercihi 5)
             return None, None
         if s["gun_blok"]:
@@ -593,6 +599,17 @@ class Backtest:
             return None, "entry_reject_e"
         return {"hedef": hedef, "qty": qty, "notional": notional,
                 "had_ob": had_ob, "had_fvg": had_fvg}, None
+
+    def _surtunme_yetersiz(self, z: Zone, hedef: float) -> bool:
+        """R-ENTRY-06 · `hedef` → TP1 mesafesi < `SURTUNME_KAT` × gidiş-dönüş maliyeti.
+
+        Gidiş-dönüş = giriş + TP1 çıkışı, motorun kendi maliyet modeliyle: limit kolunda
+        maker komisyonu (slippage yok), aksi hâlde taker + slippage, iki bacak.
+        """
+        f = self.costs.fees[z.symbol]
+        bacak = f.maker if self.limit_orders else             f.taker + self.costs.slippage_bps / Decimal("10000")
+        mesafe = Decimal(str(abs(z.tp_050 - hedef) / hedef))
+        return mesafe < SURTUNME_KAT * 2 * bacak
 
     def _try_fill(self, z: Zone, sd: SymbolData, ts: pd.Timestamp, high: float,
                   low: float, t64: np.datetime64, kill: bool = False) -> None:
@@ -882,6 +899,10 @@ class Backtest:
                 self._karar("EXIT_REJECTED", z, ts, reason=reason, seviye=price_level)
                 return
             fraction = q / pos.qty
+        # OPEN-62 · iç stopta seviye ile gerçekleşen çıkış farkı loga yazılır (paper ölçer,
+        # canlıda aynı alan gerçek doluştan gelir). Pozisyon değişmeden önce okunur.
+        stop_seviye = (z.anchor_1_price if reason == "STOP"
+                       else self._breakeven(z, pos) if reason == "BREAKEVEN" else None)
         self._charge_funding(pos, ts)
         # Limit kolunda TP'ler ve kucultme limit emridir: kendi fiyatindan dolar,
         # slippage yok, maker komisyonu. Stop ve zorunlu cikislar piyasa emridir.
@@ -904,7 +925,10 @@ class Backtest:
             # Likidasyon riskinin karşısına konabilmesi için ayrı kalem (spec §4 notu).
             self.deleverage_realized += pnl - fee
         self._karar("EXIT", z, ts, reason=reason, seviye=price_level, fiyat=price, qty=qty,
-                    kalan=pos.qty, pnl=pnl - fee, maker=maker)
+                    kalan=pos.qty, pnl=pnl - fee, maker=maker,
+                    **({} if stop_seviye is None else
+                       {"stop_seviye": stop_seviye,
+                        "stop_fark": price - Decimal(str(stop_seviye))}))
 
         if pos.qty > 0:
             return  # kısmi çıkış — pozisyon açık kalır

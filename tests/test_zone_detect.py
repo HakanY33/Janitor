@@ -9,8 +9,9 @@ import pandas as pd
 import pytest
 
 from src.features.structure import HIGH, LOW, Swing, detect_swings
-from src.zones.detect import _anchor_0, detect_zones, izleme_oncesi_oldu, zones_from_swings
-from src.zones.model import Zone
+from src.zones.detect import (_anchor_0, _anchor_0_son_supuren, detect_zones,
+                              izleme_oncesi_oldu, pencerede_050, zones_from_swings)
+from src.zones.model import Zone, ZoneState
 from tests.test_structure import bars, ramp, warmup
 
 SYM = "TEST/USDT:USDT"
@@ -94,6 +95,41 @@ def test_R_ZONE_10_falls_back_to_last_opposite_swing_when_window_empty():
         swing(HIGH, 150, 4, "HH", swept=True),  # araya dip girmedi
     ]
     assert _anchor_0(swings, 2).price == 100
+
+
+# --- R-ZONE-10 secenegi `son_supuren` (2026-10-05) -------------------------------
+
+SON_SUPUREN = [
+    swing(LOW, 50, 0, "LL", swept=True),  # eski, süpüren dip — pencerenin solunda
+    swing(HIGH, 130, 2),
+    swing(LOW, 110, 4, "HL"),  # pencere içi, süpürmüyor
+    swing(HIGH, 150, 6, "HH", swept=True),
+]
+
+
+def test_R_ZONE_10_son_supuren_pencere_disindaki_supuren_dibi_secer():
+    """Kullanıcı kuralı: 1'den önceki, kendisi de likidite almış son karşı swing; pencere yok."""
+    assert _anchor_0(SON_SUPUREN, 3).price == 110  # varsayılan değişmedi
+    assert _anchor_0_son_supuren(SON_SUPUREN, 3).price == 50
+
+
+def test_R_ZONE_10_son_supuren_en_son_supureni_alir_en_ucu_degil():
+    swings = [swing(LOW, 40, 0, "LL", True), swing(HIGH, 120, 2), swing(LOW, 45, 4, "LL", True),
+              swing(HIGH, 130, 6, "HH", True), swing(LOW, 60, 8, "HL"), swing(HIGH, 150, 10, "HH", True)]
+    assert _anchor_0_son_supuren(swings, 5).price == 45
+
+
+def test_R_ZONE_10_son_supuren_supuren_yoksa_son_karsi_swing():
+    swings = [swing(LOW, 100, 0), swing(LOW, 105, 2), swing(HIGH, 150, 4, "HH", True)]
+    assert _anchor_0_son_supuren(swings, 2).price == 105
+
+
+def test_R_ZONE_10_eslestirme_secenegi_zone_uretiminde_kullanilir():
+    assert zones_from_swings(SON_SUPUREN, SYM, TF)[-1].anchor_0_price == 110
+    z = zones_from_swings(SON_SUPUREN, SYM, TF, eslestirme="son_supuren")[-1]
+    assert (z.anchor_0_price, z.anchor_1_price) == (50, 150)
+    with pytest.raises(KeyError):
+        zones_from_swings(SON_SUPUREN, SYM, TF, eslestirme="yok")
 
 
 def test_R_ZONE_10_no_zone_without_opposite_swing():
@@ -226,3 +262,34 @@ def test_R_ZONE_05_izleme_oncesi_long_simetrik():
                     pivot_confirmed_at=T0 + pd.Timedelta(TF) * 4)
     df = _mumlar((200, 190), (180, 150), (140, 100), (160, 120), (205, 130), (150, 120))
     assert izleme_oncesi_oldu(z, df)
+
+
+# --- OPEN-61 · teyit penceresinde 0.50 teması → PRIMED başlar --------------------
+
+
+def test_OPEN_61_pencerede_050_temasi_zone_primed_baslar():
+    """SHORT 0 = 100, 1 = 200 (mum 2), izleme mum 5. Pencerede (mum 3–4) low 140 ≤ 0.50
+    (150), çapalara değilmedi → zone yaşar ve izleme anında PRIMED."""
+    z = Zone.create(SYM, TF, 100.0, T0, 200.0, T0 + pd.Timedelta(TF) * 2,
+                    pivot_confirmed_at=T0 + pd.Timedelta(TF) * 4)
+    df = _mumlar((110, 100), (150, 120), (200, 160), (180, 140), (170, 145), (130, 120))
+    assert not izleme_oncesi_oldu(z, df) and pencerede_050(z, df)
+    z.pencere_050 = True
+    assert z.activate() is ZoneState.PRIMED and z.primed_at == z.watch_from
+
+
+def test_OPEN_61_pencerede_050_yoksa_active_baslar():
+    """İzleme mumunun (mum 5) kendi teması pencereye dahil değil — 1m makinesinin işi."""
+    z = Zone.create(SYM, TF, 100.0, T0, 200.0, T0 + pd.Timedelta(TF) * 2,
+                    pivot_confirmed_at=T0 + pd.Timedelta(TF) * 4)
+    df = _mumlar((110, 100), (150, 120), (200, 160), (180, 155), (170, 151), (130, 120))
+    assert not pencerede_050(z, df)
+    assert z.activate() is ZoneState.ACTIVE
+
+
+def test_OPEN_61_long_simetrik():
+    """LONG 0 = 200, 1 = 100: pencerede high 160 ≥ 0.50 (150)."""
+    z = Zone.create(SYM, TF, 200.0, T0, 100.0, T0 + pd.Timedelta(TF) * 2,
+                    pivot_confirmed_at=T0 + pd.Timedelta(TF) * 4)
+    df = _mumlar((200, 190), (180, 150), (140, 100), (160, 120), (140, 110), (150, 120))
+    assert pencerede_050(z, df)
