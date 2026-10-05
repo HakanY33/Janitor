@@ -770,6 +770,20 @@ def test_R_ENTRY_02_require_indicator_still_enters_with_eligible_ob():
     assert res.counters["no_indicator_skipped"] == 0
 
 
+def test_OPEN_65_require_indicator_fvg_alone_does_not_open_gate():
+    """v0.8 · FVG tek başına giriş sebebi değil: bantta yalnızca uygun FVG varsa kapı kapalı."""
+    from src.features.fvg import BEARISH, FVG
+
+    z = short_zone()
+    sd = symbol_data(ENTRY_PATH, z)
+    sd.fvgs = [FVG(fvg_id="f", symbol=SYM, timeframe="30m", direction=BEARISH, top=179.0,
+                   bottom=170.0, created_at=z.watch_from - pd.Timedelta("1h"), width_ratio=1.0)]
+    res = Backtest([sd], costs(slippage=Decimal("0")), Decimal("17000"),
+                   require_indicator=True).run()
+    assert res.counters["entries"] == 0
+    assert res.counters["no_indicator_skipped"] == 1
+
+
 # --- kalem defteri: toplamlar gercek PnL'e kapanmali --------------------------
 
 
@@ -851,3 +865,39 @@ def test_R_EXIT_01_asgariyi_karsilamayan_kismi_tp_reddedilip_sayilir():
                    start_balance=Decimal("100")).run()
     assert res.counters["rejected_min_close"] == 1
     assert res.trades[0].gross == Decimal("0.5") * 70
+
+
+# --- R-ENTRY-06 · sürtünme tabanı ---------------------------------------------
+
+
+def test_R_ENTRY_06_tp1_mesafesi_maliyetin_3_katindan_kucukse_giris_yok():
+    """Giriş 170 → TP1 150: %11,8. Taker %3 → gidiş-dönüş %6, ×3 = %18 > %11,8 → red."""
+    pahali = CostModel(fees={SYM: Fees(Decimal("0.03"), Decimal("0.0002"))},
+                       funding={}, slippage_bps=Decimal("0"))
+    res = Backtest([symbol_data(LOSS, short_zone())], pahali).run()
+    assert res.trades == [] and res.counters["rejected_surtunme"] == 1
+
+
+def test_R_ENTRY_06_mesafe_yeterliyse_giris_var():
+    """Taker %1 + slippage 100 bps → bacak %2, ×2×3 = %12 > %11,8 → red; slippage 0 → %6 → giriş."""
+    def kos(slip):
+        cm = CostModel(fees={SYM: Fees(Decimal("0.01"), Decimal("0.0002"))},
+                       funding={}, slippage_bps=Decimal(slip))
+        return Backtest([symbol_data(LOSS, short_zone())], cm).run()
+    assert kos("100").counters["rejected_surtunme"] == 1
+    res = kos("0")
+    assert len(res.trades) == 1 and res.counters["rejected_surtunme"] == 0
+
+
+# --- OPEN-62 · stopta seviye ile gerçekleşen çıkış farkı -----------------------
+
+
+def test_OPEN_62_stop_cikisi_seviye_farkini_loga_yazar():
+    """LOSS: stop `1` = 200; slippage 2 bps → SHORT kapanışı 200 × 1,0002 = 200,04."""
+    bt = Backtest([symbol_data(LOSS, short_zone())], _kisitli(slippage=Decimal("2")))
+    satirlar = []
+    bt.log = satirlar.append
+    bt.run()
+    stop = [r for r in satirlar if r["event"] == "EXIT" and r["reason"] == "STOP"]
+    assert len(stop) == 1
+    assert stop[0]["stop_seviye"] == 200.0 and Decimal(stop[0]["stop_fark"]) == Decimal("0.04")

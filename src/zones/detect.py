@@ -69,20 +69,39 @@ def _anchor_0(swings: list[Swing], i: int) -> Swing | None:
     )
 
 
+def _anchor_0_son_supuren(swings: list[Swing], i: int) -> Swing | None:
+    """R-ZONE-10 seçeneği `son_supuren` (kullanıcı kuralı 2026-10-05): `anchor_1`'den önceki,
+    kendisi de likidite almış (`swept`) **son** karşı swing; pencere sınırı yok. Süpüren yoksa
+    son karşı swing. v4 doğrulaması bekliyor; varsayılan `pencere`.
+    """
+    karsi = LOW if swings[i].kind == HIGH else HIGH
+    adaylar = [s for s in swings[:i] if s.kind == karsi]
+    return ([s for s in adaylar if s.swept] or adaylar or [None])[-1]
+
+
+ANCHOR0 = {"pencere": _anchor_0, "son_supuren": _anchor_0_son_supuren}  # R-ZONE-10 seçenekleri
+ESLESTIRME = "pencere"  # varsayılan; spec R-ZONE-10
+
+
 def zones_from_swings(
     swings: list[Swing],
     symbol: str,
     timeframe: str,
     hysteresis: float = HYSTERESIS,
+    eslestirme: str = ESLESTIRME,
 ) -> list[Zone]:
-    """Süpüren her swing için bir zone. Sıra: `anchor_1` teyit zamanına göre artan."""
+    """Süpüren her swing için bir zone. Sıra: `anchor_1` teyit zamanına göre artan.
+
+    `eslestirme`: `anchor_0` kuralı, `ANCHOR0` anahtarı (R-ZONE-10 seçenek tablosu).
+    """
+    secici = ANCHOR0[eslestirme]
     out: list[Zone] = []
     gorulen: set[tuple] = set()
 
     for i, anchor_1 in enumerate(swings):
         if not anchor_1.swept:  # leg'in ucu likidite almış olmalı (R-ZONE-02)
             continue
-        anchor_0 = _anchor_0(swings, i)
+        anchor_0 = secici(swings, i)
         if anchor_0 is None or anchor_0.price == anchor_1.price:
             continue
 
@@ -109,6 +128,24 @@ def zones_from_swings(
     return out
 
 
+def _pencere(z: Zone, df: pd.DataFrame) -> pd.DataFrame:
+    """`anchor_1` mumunun kapanışı → `watch_from` arasındaki HTF mumları (pivot teyidi)."""
+    i0, i1 = df.ts.searchsorted([z.anchor_1_time + pd.Timedelta(z.timeframe), z.watch_from])
+    return df.iloc[i0:i1]  # `ts` sıralı (`detect_swings` sözleşmesi); maske her zone'da O(n)
+
+
+def pencerede_050(z: Zone, df: pd.DataFrame) -> bool:
+    """OPEN-61 (kullanıcı kararı 2026-10-02) · teyit penceresinde `0.50`'ye ulaşıldı mı.
+
+    Ulaşıldıysa zone doğrudan PRIMED başlar (`Zone.activate`). "Ulaştı" = temas ya da
+    ötesi; `0`/`1` ihlali ayrıca `izleme_oncesi_oldu` ile elenir.
+    """
+    p = _pencere(z, df)
+    if z.bias == "SHORT":
+        return bool((p.low <= z.level_050).any())
+    return bool((p.high >= z.level_050).any())
+
+
 def izleme_oncesi_oldu(z: Zone, df: pd.DataFrame) -> bool:
     """R-ZONE-05 · `0` veya `1` çapasına izleme başlamadan ulaşıldı mı.
 
@@ -119,8 +156,7 @@ def izleme_oncesi_oldu(z: Zone, df: pd.DataFrame) -> bool:
     "Ulaştı" = temas ya da ötesi (R-RISK-02 ölçütü). `1` fraktal teyidi gereği bu
     pencerede aşılamaz; simetri için yine bakılır.
     """
-    i0, i1 = df.ts.searchsorted([z.anchor_1_time + pd.Timedelta(z.timeframe), z.watch_from])
-    p = df.iloc[i0:i1]  # `ts` sıralı (`detect_swings` sözleşmesi); maske her zone'da O(n)
+    p = _pencere(z, df)
     if z.bias == "SHORT":
         return bool((p.low <= z.anchor_0_price).any() or (p.high >= z.anchor_1_price).any())
     return bool((p.high >= z.anchor_0_price).any() or (p.low <= z.anchor_1_price).any())
@@ -131,6 +167,7 @@ def detect_zones(
     symbol: str,
     timeframe: str,
     hysteresis: float = HYSTERESIS,
+    eslestirme: str = ESLESTIRME,
 ) -> list[Zone]:
     """HTF mumlarından zone listesi: swing tespiti + leg seçimi + zone kurulumu.
 
@@ -138,7 +175,12 @@ def detect_zones(
     ve 1m mumlarla beslenir — bu fonksiyon zone'u yalnızca kurar, ilerletmez.
 
     İzleme başlamadan çapası alınmış zone kurulmaz (`izleme_oncesi_oldu`, R-ZONE-05).
+    Penceresinde `0.50`'ye ulaşılmış zone PRIMED başlar (`pencerede_050`, OPEN-61).
     """
     require_detect_tf(timeframe)
-    zones = zones_from_swings(detect_swings(df, symbol, timeframe), symbol, timeframe, hysteresis)
-    return [z for z in zones if not izleme_oncesi_oldu(z, df)]
+    zones = zones_from_swings(detect_swings(df, symbol, timeframe), symbol, timeframe, hysteresis,
+                              eslestirme)
+    zones = [z for z in zones if not izleme_oncesi_oldu(z, df)]
+    for z in zones:
+        z.pencere_050 = pencerede_050(z, df)
+    return zones

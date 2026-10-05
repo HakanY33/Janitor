@@ -3,29 +3,28 @@
 Spec: R-ENTRY-02 (1) (bantta yöne uygun OB varsa OB'den giriş), R-ADD-01 (2)(3),
 R-ADD-05 ("güçlü dönüt"), R-ADD-06 (hacim ve delinme).
 
-**Tanım** (kullanıcı, 2026-09-11 — STRATEGY_SPEC'te OB'nin sözlük tanımı yok, bkz.
-`OPEN-22`): impuls hareketi öncesi son **ters yönlü** mumun **gövdesi**. Fitil OB'ye
-girmez. OB'nin yönü impulsun yönüdür: yukarı impulstan önceki düşüş mumu `BULLISH`
-(talep) bloğudur.
+**Tanım** (kullanıcı, 2026-10-05, spec §0.1, `OPEN-64`): düşüşten önceki **son yükseliş
+mumu** (`BEARISH`, arz) ya da yükselişten önceki **son düşüş mumu** (`BULLISH`, talep) —
+**1. mum**; bölge onun **gövdesi**, fitil girmez. Geçerlilik iki komşu mumdan:
 
-**"Normalden büyük gövde"** (R-ADD-06) tek bir ölçütle sayısallaştırıldı: mumun gövdesi,
-son `BODY_LOOKBACK` mumun **medyan gövdesinin** `IMPULSE_MULT` katı veya üzeri.
-Medyan ortalamadan seçildi; tek bir devasa mum eşiği kendi lehine bozmasın diye.
-Aynı ölçüt hem impuls tespitinde hem delinmede kullanılır — spec ikisini de aynı
-cümleyle tarif ediyor.
+```
+talep (BULLISH, long)          arz (BEARISH, short)
+1. mum düşüş                   1. mum yükseliş
+2. mum düşüş değil,            2. mum yükseliş değil,
+   low₂ ≥ low₁ (sarkmaz)          high₂ ≤ high₁ (sarkmaz)
+3. mum low₃ > high₁            3. mum high₃ < low₁
+   (1. mumla temas yok)           (1. mumla temas yok)
+```
 
-`IMPULSE_MULT = 4.0` spec §0.1'de sabitlendi (`OPEN-21` kapandı): tüm NEAR verisinde
-gövde/medyan oranının p95'i, yani mumların %4.5'i. Kalan eşikler (`BODY_LOOKBACK`,
-`OB_SEARCH`, `PIERCE_CONFIRM_BARS`) hâlâ başlangıç değeridir, backtest'le kalibre
-edilecek. Kod bunları kendi ayarlamaz (CLAUDE.md: self-tuning yasak).
-
-Eşik yoğunluğu düşürür ama **anlamlılığı seçmez** (`OPEN-23`): hangi OB'nin çalıştığını
-ayıran ölçüt aranıyor, ölçüm `scripts/measure_ob.py`.
+Büyüklük eşiği yok: 2026-10-05'e kadarki tanım (impuls mumu, gövde ≥ `IMPULSE_MULT` ×
+medyan, öncesindeki son ters mum) kullanıcı kuralıyla değişti. `IMPULSE_MULT` yalnızca
+delinmede (R-ADD-06) kalır: "normalden büyük gövde" = son `BODY_LOOKBACK` mumun medyan
+gövdesinin `IMPULSE_MULT` katı. `PIERCE_CONFIRM_BARS` hâlâ başlangıç değeridir.
 
 Tespit yalnızca **5m ve üstünde** çalışır (`R-ZONE-09`, `require_detect_tf`).
 
-Look-ahead (CLAUDE.md #3): OB, impuls mumu **kapanmadan** bilinemez. `created_at` ve
-`impulse_at` mumların **açılış** zamanıdır (kimlik); bilgi anı `known_at = impulse_at + TF`.
+Look-ahead (CLAUDE.md #3): OB, 3. mum **kapanmadan** bilinemez. `created_at` (1. mum) ve
+`impulse_at` (3. mum) mumların **açılış** zamanıdır (kimlik); bilgi anı `known_at = impulse_at + TF`.
 `mitigated_at` ve `pierce_time` olayın bilindiği mumun **kapanışıdır**. Tüketiciler
 yalnızca bunları okur; delinme ve güç değerlendirmesi impuls mumundan önceki mumlara bakmaz.
 """
@@ -40,12 +39,11 @@ from src.features.candles import BODY_LOOKBACK, reference_body
 from src.features.ids import stable_id
 from src.features.fvg import BEARISH, BULLISH, FVG, require_detect_tf
 
-IMPULSE_MULT = 4.0  # spec §0.1 · gövde/medyan oranının p95'i (OPEN-21 kapandı)
-OB_SEARCH = 10  # impulstan geriye kaç mum ters yönlü mum aranır
+IMPULSE_MULT = 4.0  # spec §0.1 · gövde/medyan oranının p95'i (OPEN-21) — yalnızca delinme
 PIERCE_CONFIRM_BARS = 2  # "hemen dönme" kaç mumda ölçülür
 
 __all__ = [  # BODY_LOOKBACK/reference_body `candles`'a taşındı, buradan da okunur
-    "BODY_LOOKBACK", "IMPULSE_MULT", "OB_SEARCH", "PIERCE_CONFIRM_BARS", "AddStrength",
+    "BODY_LOOKBACK", "IMPULSE_MULT", "PIERCE_CONFIRM_BARS", "AddStrength",
     "OrderBlock", "detect_order_blocks", "evaluate_strength", "mitigation_time",
     "pierce_time", "reference_body", "replay_obs",
 ]
@@ -61,54 +59,34 @@ class OrderBlock:
     direction: str  # BULLISH = impuls yukarı (talep) · BEARISH = impuls aşağı (arz)
     top: float
     bottom: float
-    created_at: datetime  # OB mumunun açılışı — kimlik
-    impulse_at: datetime  # impuls mumunun açılışı — kimlik, bilgi anı değil
+    created_at: datetime  # 1. mumun (OB) açılışı — kimlik
+    impulse_at: datetime  # 3. mumun (teyit) açılışı — kimlik, bilgi anı değil
     mitigated_at: datetime | None = None  # gövdeye ilk dönülen mumun kapanışı (R-ENTRY-05)
-    known_at: datetime | None = field(default=None)  # impuls mumunun kapanışı; boşsa türetilir
+    known_at: datetime | None = field(default=None)  # 3. mumun kapanışı; boşsa türetilir
 
     def __post_init__(self) -> None:
         if self.known_at is None:
             self.known_at = self.impulse_at + pd.Timedelta(self.timeframe)
 
 
-def detect_order_blocks(
-    df: pd.DataFrame,
-    symbol: str,
-    timeframe: str,
-    body_mult: float = IMPULSE_MULT,
-    lookback: int = BODY_LOOKBACK,
-    search: int = OB_SEARCH,
-) -> list[OrderBlock]:
-    """İmpuls mumlarını bulur, her birinin öncesindeki son ters yönlü mumun gövdesini döner.
-
-    Ardışık impulslar aynı bloğu tekrar üretmez: aynı gövde bir kez listelenir.
-    """
+def detect_order_blocks(df: pd.DataFrame, symbol: str, timeframe: str) -> list[OrderBlock]:
+    """Spec §0.1 OB (`OPEN-64`) · 3 mumluk yapı, 1. mumun gövdesi. Bilgi anı 3. mumun kapanışı."""
     require_detect_tf(timeframe)
-    body = (df.close - df.open).abs()
-    large = body >= body_mult * reference_body(df, lookback)
-    rows = list(df.itertuples())
+    o, h, l, c, ts = (df[k].to_numpy() for k in ("open", "high", "low", "close", "ts"))
     out: list[OrderBlock] = []
-
-    for i, r in enumerate(rows):
-        if not large.iat[i] or r.close == r.open:
+    for i in range(len(df) - 2):
+        j, k = i + 1, i + 2
+        if c[i] < o[i] and not c[j] < o[j] and l[j] >= l[i] and l[k] > h[i]:
+            direction = BULLISH  # son düşüş mumu, ardından yükseliş
+        elif c[i] > o[i] and not c[j] > o[j] and h[j] <= h[i] and h[k] < l[i]:
+            direction = BEARISH  # son yükseliş mumu, ardından düşüş
+        else:
             continue
-        up = r.close > r.open
-        for prev in reversed(rows[max(0, i - search):i]):
-            if (prev.close < prev.open) if up else (prev.close > prev.open):
-                if not (out and out[-1].created_at == prev.ts):
-                    out.append(
-                        OrderBlock(
-                            ob_id=stable_id("ob", symbol, timeframe, prev.ts, r.ts),
-                            symbol=symbol,
-                            timeframe=timeframe,
-                            direction=BULLISH if up else BEARISH,
-                            top=max(prev.open, prev.close),
-                            bottom=min(prev.open, prev.close),
-                            created_at=prev.ts,
-                            impulse_at=r.ts,
-                        )
-                    )
-                break
+        out.append(OrderBlock(
+            ob_id=stable_id("ob", symbol, timeframe, ts[i], ts[k]), symbol=symbol,
+            timeframe=timeframe, direction=direction, top=float(max(o[i], c[i])),
+            bottom=float(min(o[i], c[i])), created_at=pd.Timestamp(ts[i]),
+            impulse_at=pd.Timestamp(ts[k])))
     return out
 
 
