@@ -1,5 +1,9 @@
 # Sunucu — `spread_logger` kullanıcı servisi
 
+> **2026-10-05 · Sunucu 12 Ekim'de kapanıyor, yeni sunucu alınmayacak (kullanıcı).** Kayıt PC'ye
+> taşınıyor: aşağıda **"Sunucu kapanışı — PC'ye geçiş"**. TR-SSD 2 göç planı iptal. Bu belgenin
+> geri kalanı 10-12'ye kadar çalışan sunucunun kaydıdır.
+
 Emir defteri kayıtçısı (`scripts/spread_logger.py`) `179.61.147.81` üzerinde, **`janitor`
 kullanıcısının systemd kullanıcı servisi** olarak çalışır. Root altında hiçbir Janitor
 süreci yoktur. Kuruluş tarihi 2026-09-25.
@@ -345,10 +349,10 @@ Amaç: H1 dilimi (10-01 → 12-31, uzarsa 03-31) boyunca işlem akışı kaydı 
 İşlem akışının geçmişi yok (son 1.000 işlem); PC'nin kapalı olduğu her dakika kalıcı kayıptır
 ve H1'de o temas `dislandi_bosluk` olur. Aşağıdakilerin hepsi yönetici PowerShell'inde, bir kez.
 
-**Ön koşul.** Sunucu ile PC **aynı anda** kaydetmez (iki ayrı kopya birleşmez; göç planındaki
-birleştirme betiği yok). Geçiş: sunucudan son veriyi çek (`pull_book`) → PC kayıtçılarını başlat
-→ ilk `pc-trades-*.log` satırlarını ve yeni parquet'leri gör → sunucuyu durdur. Arada kalan
-dakikalar `trades_gap` olarak sayılır; bu beklenir ve raporlanır.
+**Ön koşul (2026-10-05'te değişti).** Sunucu ile PC artık **aynı anda** kaydeder: PC ayrı köke
+(`-Kok göç\pc\data`) yazar, `scripts/birlestir.py` ikisini `id`'ye göre birleştirir. Sıra
+aşağıda "Sunucu kapanışı — PC'ye geçiş". Aşağıdaki 1–4. adımlar (uyku, güncelleme, açılış
+görevi, boşluk izleme) geçerliliğini korur; görev kaydında `-Kok` parametresi geçiştekiyle aynı olmalı.
 
 **1 · Uyku, hazırda bekletme, kapak.**
 
@@ -422,7 +426,26 @@ sembolün kaydı durmuş; `cikti` satırı sık görünüyorsa ağ ya da borsa s
 **Bilinen sınırlar.** Elektrik kesintisi (UPS yok) ve ev interneti kopması kapsanmaz;
 ikisi de `trades_gap` olarak sayılır. Paper döngüsü bu plana dahil değil (H1 için gerekmez).
 
-## Göç planı — verunix TR-SSD 2 (Ubuntu 24.04)
+## Sunucu kapanışı — PC'ye geçiş (2026-10-05)
+
+Sunucu **2026-10-12**'de kapanıyor, yerine sunucu yok. H1 dilimi (10-01 → 12-31) işlem akışını
+PC kaydeder. Paper taşınmaz (2026-10-01'den beri kapalı). Sıra:
+
+| # | Ne | Durum |
+|---|---|---|
+| 1 | PC kayıtçıları **ayrı köke**: `scripts\pc_kayit.ps1 -Kayitci trades` / `spread -Kok göç\pc\data` (`JANITOR_DATA_ROOT`). Ayrı kök şart: `data/`'da sunucudan çekilmiş bugünkü dosyalar var; PC onlara eklerse ortak `id` sayısı şişer ve `pull_book` çakışıp durur | **Başladı 2026-10-05 06:37 UTC** (gizli konsolla ayrık süreç; oturum kapanınca/yeniden başlatmada **durur**) |
+| 2 | Paralel kayıt doğrulaması: sunucunun bugünkü işlem dosyaları ayrı köke (`göç/kontrol`), `birlestir --kaynak sunucu=göç/kontrol --kaynak pc=göç/pc --hedef göç/bos --kuru` | **Geçti 2026-10-05 06:50 UTC: 40/40 sembolde ortak `id`** (sembol başına ~2.400–5.900), çakışma 0, PC'de eksik `id` 0 |
+| 3 | **Kullanıcı (yönetici PowerShell):** açılış görevleri — "PC yedek planı" 1–3. adımlar, `-Argument` sonuna `-Kok göç\pc\data`. Önce 1. satırdaki süreçleri durdur (aynı sembolü iki süreç yazmasın): `Get-CimInstance Win32_Process \| ? CommandLine -like '*pc_kayit*' \| % { Stop-Process $_.ProcessId }` ve alt `python` süreçleri; sonra `Start-ScheduledTask`. Durdurma–başlatma arası birkaç saniye: kayıtçı açılışta son 1.000 işlemi çeker | bekliyor |
+| 4 | **Sunucudaki zamanlayıcıların PC karşılığı** (sunucu kapanınca dururlar): `funding` (4 saatte bir, `python -m scripts.funding`), `ohlcv30m` (günde bir), `earliest` (günde bir). Görev Zamanlayıcı'da kullanıcı görevi; komutlar §4–§6b'deki `ExecStart` satırlarıyla aynı | bekliyor (karar: kullanıcı) |
+| 5 | 10-05 → 10-11: günlük `pull_book` **`data/`'ya değil** `--root göç/eski`'ye (ya da hiç). Sunucunun dosyası 5 dk'da bir yeniden yazıldığı için toplu `tar` çıkış 2 verebilir (2026-10-05'te görüldü); o gün tekrar dene | — |
+| 6 | **2026-10-11 — son çekim.** (a) Sunucuda kayıtçıları durdur, tampon yazılsın: `systemctl --user stop janitor-trades-logger janitor-spread-logger` + `systemctl --user stop janitor-earliest.timer janitor-ohlcv30m.timer janitor-funding.timer`. (b) `python -m scripts.pull_book --root göç/eski` (artık dosya değişmez, toplu `tar` tutar). (c) `ssh janitor@179.61.147.81 'cd janitor && tar cf - data logs' > göç/eski/tum.tar` — 30m, funding, earliest, loglar dahil **her şey**; PC'de `tar tf` ile sayım + `ssh ... 'cd janitor && find data -type f \| xargs sha256sum' > göç/eski/manifest.sha256` ve yerelde `sha256sum -c`. (d) `birlestir --kaynak eski=göç/eski --kaynak pc=göç/pc --gecis <a'daki durdurma anı> --kuru` → 40/40 ortak `id`, hata 0 → yaz (hedef `data/`). (e) PC görevlerini durdur, `-Kok data` ile yeniden kaydet ve başlat; `birlestir`'i bir kez daha koş (aradaki `göç/pc` artığı, idempotent) | 10-11 |
+| 7 | 10-12: sunucu kapanır. Sunucudaki veri silinmez; manifest PC'de | 10-12 |
+
+Sonuç `docs/measurements/goc.md`'ye: 2. ve 6d'nin raporları, son çekim anı, sha256 sonucu.
+
+## Göç planı — verunix TR-SSD 2 (Ubuntu 24.04) · **İPTAL 2026-10-05**
+
+> Yeni sunucu alınmayacak (kullanıcı). Bölüm yalnızca kayıt için; yerine "Sunucu kapanışı — PC'ye geçiş".
 
 Amaç: kayıtçılar ve paper döngüsü mevcut sunucudan (`179.61.147.81`, Minecraft ile ortak)
 TR-SSD 2'ye taşınır. **Veri serisi kesilmez**: işlem akışının geçmişi yok (son 1.000 işlem),
