@@ -85,3 +85,36 @@ Etiketler insan gözüyle, sonradan bakılarak konur: kullanıcı grafiğin sağ
 yalnızca "zamanında" şartıyla bunu kısmen dengeler; çapanın kendisinin o an bilinebilir
 olup olmadığını ölçmez. Etiketlenen çapa hiçbir nedensel tanımla zamanında bulunamıyorsa
 bu da bir bulgudur (o setup canlıda yakalanamaz).
+
+## Not — 2026-10-05: v4'ün amacı değişti (v4 etiketleri görülmeden yazıldı)
+
+v4 (`docs/inceleme/v4/`, 30 rastgele an, tohum 20261005) **B3'ü olduğu gibi doğrulamak için
+kullanılmayacak.** v3 teşhisi (`docs/inceleme/v3/eslestirme_teshis.md`) çift isabetin düşük
+kalmasının nedenini swing tanımında değil **leg eşleştirmesinde** buldu: B3'te 44 setup'ın 22'si,
+B2'de 32'si "yanlış 0" — kullanıcının `1`'i doğru bulunuyor, ama `anchor_0` daha yeni ve daha az
+uç bir karşı swing'den alınıyor. Kullanıcının 0'ı motorunkinden B3'te 20/22, B2'de 32/32 daha
+eski ve neredeyse hep motorun aday penceresinin (`_anchor_0`: "1'in aştığı aynı tip swing → 1")
+solunda. Kullanıcının 0'ı çoğunlukla kendisi süpüren (`swept`) bir swing (B2 36/43).
+
+v4, bu teşhisten çıkan **yeni eşleştirme kuralını** doğrulamak için kullanılır. Kural, v4
+etiketleri açılmadan önce kullanıcı onayıyla buraya yazılır ve sonra değişmez. Teşhisin önerdiği
+aday (örneklem içi, v3'e bakılarak bulundu — bu yüzden doğrulama şart):
+
+- **`anchor_0` = `anchor_1`'den önceki son süpüren (`swept`) karşı swing** (pencere sınırı yok;
+  süpüren yoksa son karşı swing). Swing listesi B2 (ATR zigzag `k = 2`).
+- v3'te (örneklem içi) çift isabet: B2 **25/44**, B3 23/44 (mevcut kuralla B3 15/44). Ölçüt,
+  eşleşme ve zamanında şartı aynı.
+
+Doğrulama ölçütü: v4'teki setup'larda çift isabet oranı, v3'teki örneklem içi oranın (%57)
+yarısının altına düşerse (< %28) kural geçersiz sayılır. Seçim yine kâra göre yapılmaz.
+
+### 2026-10-05 (ek) — kural kesinleşti, v4 etiketleri açılmadan
+
+Kullanıcı onayı: **"0 = 1'den önceki, kendisi de likidite almış son karşı swing, pencere sınırı
+olmadan"** (süpüren yoksa son karşı swing). Kod: R-ZONE-10 seçeneği `son_supuren`
+(`src/zones/detect.py:ANCHOR0`); varsayılan `pencere` değişmedi. v3'te ön kayıt ölçütleriyle
+B2/B3 (`docs/inceleme/v3/swing_secim_son_supuren.md`): çift isabet B2 25/44, B3 23/44 → eşit
+(≤ 2), yanlış alarm B2 0/6 · B3 2/6 → **seçilen B2 + `son_supuren`**. v4'te bu ikili bir kez
+ölçülür; çift isabet < %28 → geçersiz. Bu metin bundan sonra değişmez.
+
+v4 sayfası ayrıca OB etiketleri toplar (OTE'den sonra, ayrı alanlar); onlar bu ölçüte girmez.

@@ -37,7 +37,7 @@ PAY = 12  # grafikte zone'dan önce / çıkıştan sonra kaç 30m mum
 MAKS_MUM = 700  # bundan uzun pencerede başlangıç girişe yaklaştırılır (çapalar dışarıda kalabilir)
 
 
-def kos(bakiye: Decimal = Decimal("10000")) -> None:
+def kos(bakiye: Decimal = Decimal("10000"), yol: Path | None = None) -> None:
     from scripts.measure_ob import liquidity_symbols
     from scripts.slippage_stres import F1_TABANI
     from src.backtest.costs import build_cost_model
@@ -63,9 +63,10 @@ def kos(bakiye: Decimal = Decimal("10000")) -> None:
         "obs": {d.symbol: d.obs for d in data},
         "fvgs": {d.symbol: d.fvgs for d in data},
         "bitis": {d.symbol: d.ts[-1] for d in data},
+        "baslangic": {d.symbol: d.ts[0] for d in data},
         "bakiye": bakiye, "counters": res.counters,
     }
-    yol = PKL if bakiye == Decimal("10000") else PKL.with_name(f"f1_{bakiye}.pkl")
+    yol = yol or (PKL if bakiye == Decimal("10000") else PKL.with_name(f"f1_{bakiye}.pkl"))
     yol.parent.mkdir(parents=True, exist_ok=True)
     yol.write_bytes(pickle.dumps(paket, pickle.HIGHEST_PROTOCOL))
     print(json.dumps({"net": str(paket["net"]), "islem": len(res.trades), "hash": iz,

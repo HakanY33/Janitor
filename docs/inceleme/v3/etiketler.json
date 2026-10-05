@@ -1,0 +1,1448 @@
+[
+ {
+  "id": "b01",
+  "tur": "bot",
+  "n": 1,
+  "symbol": "XRP/USDT:USDT",
+  "karar_ts": "2026-01-29 14:27",
+  "side": "LONG",
+  "zone_id": "c5a73adb30925a1caa7975423a523026",
+  "bot_0": {
+   "ts": 1769668200,
+   "fiyat": 1.8882
+  },
+  "bot_1": {
+   "ts": 1769689800,
+   "fiyat": 1.865
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1769367600,
+   "saat": "2026-01-25 19:00",
+   "fiyat": 1.8131,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1769601600,
+   "saat": "2026-01-28 12:00",
+   "fiyat": 1.9414,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b02",
+  "tur": "bot",
+  "n": 2,
+  "symbol": "SUI/USDT:USDT",
+  "karar_ts": "2025-10-28 05:31",
+  "side": "LONG",
+  "zone_id": "9b4c081d4c345603ba30fa3bd2d24285",
+  "bot_0": {
+   "ts": 1761615000,
+   "fiyat": 2.6318
+  },
+  "bot_1": {
+   "ts": 1761618600,
+   "fiyat": 2.584
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1761543000,
+   "saat": "2025-10-27 05:30",
+   "fiyat": 2.7155,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1761571800,
+   "saat": "2025-10-27 13:30",
+   "fiyat": 2.5742,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b03",
+  "tur": "bot",
+  "n": 3,
+  "symbol": "BTC/USDT:USDT",
+  "karar_ts": "2025-12-27 05:37",
+  "side": "SHORT",
+  "zone_id": "a546c87458f55f9db7dd9b44fc432e52",
+  "bot_0": {
+   "ts": 1766804400,
+   "fiyat": 87337.8
+  },
+  "bot_1": {
+   "ts": 1766806200,
+   "fiyat": 87494.6
+  },
+  "secim": "setup_yok",
+  "capa_0": {
+   "ts": 1766732400,
+   "saat": "2025-12-26 07:00",
+   "fiyat": 89531.6,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1766761200,
+   "saat": "2025-12-26 15:00",
+   "fiyat": 86618.6,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b04",
+  "tur": "bot",
+  "n": 4,
+  "symbol": "BTC/USDT:USDT",
+  "karar_ts": "2026-03-29 22:02",
+  "side": "LONG",
+  "zone_id": "7bd87dbf170259c8858955413c35a4ca",
+  "bot_0": {
+   "ts": 1774783800,
+   "fiyat": 66945.9
+  },
+  "bot_1": {
+   "ts": 1774803600,
+   "fiyat": 66128.5
+  },
+  "secim": "setup_yok",
+  "capa_0": {
+   "ts": 1774438200,
+   "saat": "2026-03-25 11:30",
+   "fiyat": 71988.7,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1774632600,
+   "saat": "2026-03-27 17:30",
+   "fiyat": 65556.6,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b05",
+  "tur": "bot",
+  "n": 5,
+  "symbol": "UNI/USDT:USDT",
+  "karar_ts": "2025-12-09 15:01",
+  "side": "SHORT",
+  "zone_id": "10bf28051a325a1eaec00639cb969f30",
+  "bot_0": {
+   "ts": 1765272600,
+   "fiyat": 5.436
+  },
+  "bot_1": {
+   "ts": 1765287000,
+   "fiyat": 5.552
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1765261800,
+   "saat": "2025-12-09 06:30",
+   "fiyat": 5.421,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1765287000,
+   "saat": "2025-12-09 13:30",
+   "fiyat": 5.552,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b06",
+  "tur": "bot",
+  "n": 6,
+  "symbol": "ORDI/USDT:USDT",
+  "karar_ts": "2025-10-16 09:33",
+  "side": "LONG",
+  "zone_id": "0e6337e2f8175ed2a492b74a3d555218",
+  "bot_0": {
+   "ts": 1760553000,
+   "fiyat": 5.465
+  },
+  "bot_1": {
+   "ts": 1760560200,
+   "fiyat": 5.253
+  },
+  "secim": "setup_yok",
+  "capa_0": null,
+  "capa_1": null,
+  "not": ""
+ },
+ {
+  "id": "b07",
+  "tur": "bot",
+  "n": 7,
+  "symbol": "XRP/USDT:USDT",
+  "karar_ts": "2026-01-02 09:11",
+  "side": "SHORT",
+  "zone_id": "b7dff40a579f5801a661c9734542b237",
+  "bot_0": {
+   "ts": 1767319200,
+   "fiyat": 1.8682
+  },
+  "bot_1": {
+   "ts": 1767324600,
+   "fiyat": 1.8916
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1766979000,
+   "saat": "2025-12-29 03:30",
+   "fiyat": 1.9167,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1767211200,
+   "saat": "2025-12-31 20:00",
+   "fiyat": 1.8111,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b08",
+  "tur": "bot",
+  "n": 8,
+  "symbol": "ORDI/USDT:USDT",
+  "karar_ts": "2026-02-23 01:01",
+  "side": "LONG",
+  "zone_id": "08154a1e0df15cdea7d92fe98f2d33aa",
+  "bot_0": {
+   "ts": 1771779600,
+   "fiyat": 2.526
+  },
+  "bot_1": {
+   "ts": 1771797600,
+   "fiyat": 2.434
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1771666200,
+   "saat": "2026-02-21 09:30",
+   "fiyat": 2.784,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1771797600,
+   "saat": "2026-02-22 22:00",
+   "fiyat": 2.434,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b09",
+  "tur": "bot",
+  "n": 9,
+  "symbol": "NEAR/USDT:USDT",
+  "karar_ts": "2026-03-30 00:17",
+  "side": "SHORT",
+  "zone_id": "706d6da75f0a5459b1f33074b284b2fa",
+  "bot_0": {
+   "ts": 1774803600,
+   "fiyat": 1.149
+  },
+  "bot_1": {
+   "ts": 1774819800,
+   "fiyat": 1.175
+  },
+  "secim": "setup_yok",
+  "capa_0": null,
+  "capa_1": null,
+  "not": ""
+ },
+ {
+  "id": "b10",
+  "tur": "bot",
+  "n": 10,
+  "symbol": "BNB/USDT:USDT",
+  "karar_ts": "2025-12-27 05:45",
+  "side": "SHORT",
+  "zone_id": "5124969eed1b55e48141af78c3a3919a",
+  "bot_0": {
+   "ts": 1766800800,
+   "fiyat": 834.17
+  },
+  "bot_1": {
+   "ts": 1766808000,
+   "fiyat": 836.25
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1766732400,
+   "saat": "2025-12-26 07:00",
+   "fiyat": 847.02,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1766761200,
+   "saat": "2025-12-26 15:00",
+   "fiyat": 820.59,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b11",
+  "tur": "bot",
+  "n": 11,
+  "symbol": "CRV/USDT:USDT",
+  "karar_ts": "2026-01-05 10:28",
+  "side": "LONG",
+  "zone_id": "cfff85f90d955bf2b7400a4c9b775631",
+  "bot_0": {
+   "ts": 1767576600,
+   "fiyat": 0.434
+  },
+  "bot_1": {
+   "ts": 1767587400,
+   "fiyat": 0.4191
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1767423600,
+   "saat": "2026-01-03 07:00",
+   "fiyat": 0.3965,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1767466800,
+   "saat": "2026-01-03 19:00",
+   "fiyat": 0.435,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "not": "Benim seçtiğim OTE güçsüz ama var çünkü aynı alanda düzleşmiş güç topluya ya aşağı ya yukarı kıracak demek"
+ },
+ {
+  "id": "b12",
+  "tur": "bot",
+  "n": 12,
+  "symbol": "SOL/USDT:USDT",
+  "karar_ts": "2026-02-13 06:58",
+  "side": "SHORT",
+  "zone_id": "d5323dd7e5105f398e6469dbeb67d8c5",
+  "bot_0": {
+   "ts": 1770928200,
+   "fiyat": 76.545
+  },
+  "bot_1": {
+   "ts": 1770953400,
+   "fiyat": 79.429
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1770894000,
+   "saat": "2026-02-12 11:00",
+   "fiyat": 82.168,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1770928200,
+   "saat": "2026-02-12 20:30",
+   "fiyat": 76.545,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b13",
+  "tur": "bot",
+  "n": 13,
+  "symbol": "ORDI/USDT:USDT",
+  "karar_ts": "2025-10-18 01:03",
+  "side": "SHORT",
+  "zone_id": "e2db3d7c95ff5654a4cf7c4708da8ee9",
+  "bot_0": {
+   "ts": 1760729400,
+   "fiyat": 4.905
+  },
+  "bot_1": {
+   "ts": 1760734800,
+   "fiyat": 5.035
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1760662800,
+   "saat": "2025-10-17 01:00",
+   "fiyat": 5.197,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1760688000,
+   "saat": "2025-10-17 08:00",
+   "fiyat": 4.648,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b14",
+  "tur": "bot",
+  "n": 14,
+  "symbol": "BNB/USDT:USDT",
+  "karar_ts": "2026-02-14 08:01",
+  "side": "SHORT",
+  "zone_id": "cf88d5123cbf5f4a8dba498ec3689b5c",
+  "bot_0": {
+   "ts": 1771012800,
+   "fiyat": 615.39
+  },
+  "bot_1": {
+   "ts": 1771032600,
+   "fiyat": 625.43
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1770805800,
+   "saat": "2026-02-11 10:30",
+   "fiyat": 586.85,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1771032600,
+   "saat": "2026-02-14 01:30",
+   "fiyat": 625.43,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "not": "2026-02-13 00.00 X 2026-02-13 06.00 mumu A noktası olacak şekilde harmonik var burada 2026-02-13 08:30 B2026-02-13 14:00 noktası C oluyor ama OTE ihtimalini de seçtim"
+ },
+ {
+  "id": "b15",
+  "tur": "bot",
+  "n": 15,
+  "symbol": "AVAX/USDT:USDT",
+  "karar_ts": "2025-09-23 14:07",
+  "side": "SHORT",
+  "zone_id": "a520913fe1805a5ea9f27657e5b4c72e",
+  "bot_0": {
+   "ts": 1758596400,
+   "fiyat": 32.75
+  },
+  "bot_1": {
+   "ts": 1758598200,
+   "fiyat": 35.757
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1758520800,
+   "saat": "2025-09-22 06:00",
+   "fiyat": 28.82,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1758598200,
+   "saat": "2025-09-23 03:30",
+   "fiyat": 35.757,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b16",
+  "tur": "bot",
+  "n": 16,
+  "symbol": "XRP/USDT:USDT",
+  "karar_ts": "2025-10-05 16:45",
+  "side": "LONG",
+  "zone_id": "de1c765446f45a318e2a71747f716cbd",
+  "bot_0": {
+   "ts": 1759663800,
+   "fiyat": 3.0232
+  },
+  "bot_1": {
+   "ts": 1759674600,
+   "fiyat": 2.9851
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1759433400,
+   "saat": "2025-10-02 19:30",
+   "fiyat": 3.0993,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1759593600,
+   "saat": "2025-10-04 16:00",
+   "fiyat": 2.9379,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b17",
+  "tur": "bot",
+  "n": 17,
+  "symbol": "ORDI/USDT:USDT",
+  "karar_ts": "2025-10-25 17:12",
+  "side": "SHORT",
+  "zone_id": "4da0608c36a15b8381b3e0f67e0443d0",
+  "bot_0": {
+   "ts": 1761314400,
+   "fiyat": 5.116
+  },
+  "bot_1": {
+   "ts": 1761345000,
+   "fiyat": 5.284
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1761064200,
+   "saat": "2025-10-21 16:30",
+   "fiyat": 5.484,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1761166800,
+   "saat": "2025-10-22 21:00",
+   "fiyat": 4.731,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b18",
+  "tur": "bot",
+  "n": 18,
+  "symbol": "DOGE/USDT:USDT",
+  "karar_ts": "2025-09-03 01:54",
+  "side": "SHORT",
+  "zone_id": "e2dc1d907d9d51bc9f62a8c59d45f073",
+  "bot_0": {
+   "ts": 1756837800,
+   "fiyat": 0.20964
+  },
+  "bot_1": {
+   "ts": 1756848600,
+   "fiyat": 0.21551
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1756717200,
+   "saat": "2025-09-01 09:00",
+   "fiyat": 0.21979,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1756762200,
+   "saat": "2025-09-01 21:30",
+   "fiyat": 0.2046,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b19",
+  "tur": "bot",
+  "n": 19,
+  "symbol": "RUNE/USDT:USDT",
+  "karar_ts": "2025-10-18 06:06",
+  "side": "SHORT",
+  "zone_id": "8538633545e153de8c4f0f790b9f7494",
+  "bot_0": {
+   "ts": 1760745600,
+   "fiyat": 0.835
+  },
+  "bot_1": {
+   "ts": 1760752800,
+   "fiyat": 0.849
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1760389200,
+   "saat": "2025-10-13 21:00",
+   "fiyat": 0.96,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1760688000,
+   "saat": "2025-10-17 08:00",
+   "fiyat": 0.799,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b20",
+  "tur": "bot",
+  "n": 20,
+  "symbol": "BNB/USDT:USDT",
+  "karar_ts": "2026-01-23 00:10",
+  "side": "SHORT",
+  "zone_id": "3c7edc6ae0ac54dd988dd03eafc404a1",
+  "bot_0": {
+   "ts": 1769108400,
+   "fiyat": 882.84
+  },
+  "bot_1": {
+   "ts": 1769119200,
+   "fiyat": 891.26
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1768996800,
+   "saat": "2026-01-21 12:00",
+   "fiyat": 864.11,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1769077800,
+   "saat": "2026-01-22 10:30",
+   "fiyat": 897.43,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b21",
+  "tur": "bot",
+  "n": 21,
+  "symbol": "JUP/USDT:USDT",
+  "karar_ts": "2026-01-30 14:09",
+  "side": "SHORT",
+  "zone_id": "549457b8811e5483ab51a227a612c094",
+  "bot_0": {
+   "ts": 1769763600,
+   "fiyat": 0.1938
+  },
+  "bot_1": {
+   "ts": 1769772600,
+   "fiyat": 0.2067
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1769601600,
+   "saat": "2026-01-28 12:00",
+   "fiyat": 0.2324,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1769754600,
+   "saat": "2026-01-30 06:30",
+   "fiyat": 0.1896,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b22",
+  "tur": "bot",
+  "n": 22,
+  "symbol": "RUNE/USDT:USDT",
+  "karar_ts": "2025-09-18 22:20",
+  "side": "SHORT",
+  "zone_id": "ebe78bbcaae454feaf2bf885c687f67b",
+  "bot_0": {
+   "ts": 1758223800,
+   "fiyat": 1.353
+  },
+  "bot_1": {
+   "ts": 1758227400,
+   "fiyat": 1.37
+  },
+  "secim": "setup_yok",
+  "capa_0": null,
+  "capa_1": null,
+  "not": ""
+ },
+ {
+  "id": "b23",
+  "tur": "bot",
+  "n": 23,
+  "symbol": "INJ/USDT:USDT",
+  "karar_ts": "2025-10-06 00:03",
+  "side": "LONG",
+  "zone_id": "18d50788818c5206ba33206156ef7b8b",
+  "bot_0": {
+   "ts": 1759672800,
+   "fiyat": 12.901
+  },
+  "bot_1": {
+   "ts": 1759694400,
+   "fiyat": 12.502
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1759527000,
+   "saat": "2025-10-03 21:30",
+   "fiyat": 13.59,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1759602600,
+   "saat": "2025-10-04 18:30",
+   "fiyat": 12.095,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b24",
+  "tur": "bot",
+  "n": 24,
+  "symbol": "BTC/USDT:USDT",
+  "karar_ts": "2026-03-26 14:19",
+  "side": "LONG",
+  "zone_id": "f1e6b9183fab5253aa3a9b268ce03035",
+  "bot_0": {
+   "ts": 1774515600,
+   "fiyat": 70113.2
+  },
+  "bot_1": {
+   "ts": 1774522800,
+   "fiyat": 69160
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1774249200,
+   "saat": "2026-03-23 07:00",
+   "fiyat": 67477,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1774438200,
+   "saat": "2026-03-25 11:30",
+   "fiyat": 71988.7,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b25",
+  "tur": "bot",
+  "n": 25,
+  "symbol": "BNB/USDT:USDT",
+  "karar_ts": "2026-03-12 15:39",
+  "side": "SHORT",
+  "zone_id": "b7d5ddf18c2b523a999ee4435a756a2a",
+  "bot_0": {
+   "ts": 1773289800,
+   "fiyat": 641.39
+  },
+  "bot_1": {
+   "ts": 1773318600,
+   "fiyat": 657.47
+  },
+  "secim": "bot_dogru",
+  "capa_0": null,
+  "capa_1": null,
+  "not": ""
+ },
+ {
+  "id": "b26",
+  "tur": "bot",
+  "n": 26,
+  "symbol": "SOL/USDT:USDT",
+  "karar_ts": "2025-08-23 20:57",
+  "side": "SHORT",
+  "zone_id": "1eb5542df6a85fffb28f78449cb7094e",
+  "bot_0": {
+   "ts": 1755964800,
+   "fiyat": 202.308
+  },
+  "bot_1": {
+   "ts": 1755975600,
+   "fiyat": 204.627
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1755916200,
+   "saat": "2025-08-23 02:30",
+   "fiyat": 195.31,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1755925200,
+   "saat": "2025-08-23 05:00",
+   "fiyat": 208.671,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b27",
+  "tur": "bot",
+  "n": 27,
+  "symbol": "BNB/USDT:USDT",
+  "karar_ts": "2026-02-26 14:07",
+  "side": "LONG",
+  "zone_id": "a2bb0387064251f585b838a04becc1d2",
+  "bot_0": {
+   "ts": 1772096400,
+   "fiyat": 630.36
+  },
+  "bot_1": {
+   "ts": 1772107200,
+   "fiyat": 622.8
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1772055000,
+   "saat": "2026-02-25 21:30",
+   "fiyat": 640.96,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1772105400,
+   "saat": "2026-02-26 11:30",
+   "fiyat": 622.9,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b28",
+  "tur": "bot",
+  "n": 28,
+  "symbol": "DOGE/USDT:USDT",
+  "karar_ts": "2025-09-14 03:16",
+  "side": "LONG",
+  "zone_id": "7949f9f63ccb53c89b56793bd2032f7e",
+  "bot_0": {
+   "ts": 1757775600,
+   "fiyat": 0.30485
+  },
+  "bot_1": {
+   "ts": 1757782800,
+   "fiyat": 0.28074
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1757768400,
+   "saat": "2025-09-13 13:00",
+   "fiyat": 0.3067,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1757782800,
+   "saat": "2025-09-13 17:00",
+   "fiyat": 0.28074,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b29",
+  "tur": "bot",
+  "n": 29,
+  "symbol": "JUP/USDT:USDT",
+  "karar_ts": "2025-08-10 10:24",
+  "side": "LONG",
+  "zone_id": "3325bfb418ee547ea8ec2ea3c03871c7",
+  "bot_0": {
+   "ts": 1754809200,
+   "fiyat": 0.5329
+  },
+  "bot_1": {
+   "ts": 1754812800,
+   "fiyat": 0.5054
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1754800200,
+   "saat": "2025-08-10 04:30",
+   "fiyat": 0.5483,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1754812800,
+   "saat": "2025-08-10 08:00",
+   "fiyat": 0.5054,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "b30",
+  "tur": "bot",
+  "n": 30,
+  "symbol": "AAVE/USDT:USDT",
+  "karar_ts": "2026-05-03 13:42",
+  "side": "LONG",
+  "zone_id": "2d797fe20bb852a1bdfd1a80afeefd12",
+  "bot_0": {
+   "ts": 1777757400,
+   "fiyat": 93.89
+  },
+  "bot_1": {
+   "ts": 1777773600,
+   "fiyat": 91.75
+  },
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1777757400,
+   "saat": "2026-05-02 21:30",
+   "fiyat": 93.89,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1777777200,
+   "saat": "2026-05-03 03:00",
+   "fiyat": 91.76,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "r01",
+  "tur": "rastgele",
+  "n": 31,
+  "symbol": "BTC/USDT:USDT",
+  "karar_ts": "2025-08-06 22:30",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1754404200,
+   "saat": "2025-08-05 14:30",
+   "fiyat": 112602.1,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1754503200,
+   "saat": "2025-08-06 18:00",
+   "fiyat": 115666.9,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "r02",
+  "tur": "rastgele",
+  "n": 32,
+  "symbol": "CRV/USDT:USDT",
+  "karar_ts": "2025-08-14 14:00",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1754996400,
+   "saat": "2025-08-12 11:00",
+   "fiyat": 0.8953,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1755081000,
+   "saat": "2025-08-13 10:30",
+   "fiyat": 1.0629,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "r03",
+  "tur": "rastgele",
+  "n": 33,
+  "symbol": "NEAR/USDT:USDT",
+  "karar_ts": "2025-08-18 12:00",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1755446400,
+   "saat": "2025-08-17 16:00",
+   "fiyat": 2.842,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1755498600,
+   "saat": "2025-08-18 06:30",
+   "fiyat": 2.541,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "r04",
+  "tur": "rastgele",
+  "n": 34,
+  "symbol": "BNB/USDT:USDT",
+  "karar_ts": "2025-09-15 05:00",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1757829600,
+   "saat": "2025-09-14 06:00",
+   "fiyat": 945.48,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1757898000,
+   "saat": "2025-09-15 01:00",
+   "fiyat": 921.49,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "r05",
+  "tur": "rastgele",
+  "n": 35,
+  "symbol": "ORDI/USDT:USDT",
+  "karar_ts": "2025-09-21 14:00",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1758229200,
+   "saat": "2025-09-18 21:00",
+   "fiyat": 10.671,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1758324600,
+   "saat": "2025-09-19 23:30",
+   "fiyat": 9.723,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "r06",
+  "tur": "rastgele",
+  "n": 36,
+  "symbol": "RUNE/USDT:USDT",
+  "karar_ts": "2025-09-27 06:00",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1758724200,
+   "saat": "2025-09-24 14:30",
+   "fiyat": 1.204,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1758821400,
+   "saat": "2025-09-25 17:30",
+   "fiyat": 1.094,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "r07",
+  "tur": "rastgele",
+  "n": 37,
+  "symbol": "GALA/USDT:USDT",
+  "karar_ts": "2025-09-28 09:30",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1758884400,
+   "saat": "2025-09-26 11:00",
+   "fiyat": 0.01398,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1758911400,
+   "saat": "2025-09-26 18:30",
+   "fiyat": 0.01481,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "r08",
+  "tur": "rastgele",
+  "n": 38,
+  "symbol": "RUNE/USDT:USDT",
+  "karar_ts": "2025-11-09 17:30",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1762525800,
+   "saat": "2025-11-07 14:30",
+   "fiyat": 0.727,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1762664400,
+   "saat": "2025-11-09 05:00",
+   "fiyat": 0.856,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "r09",
+  "tur": "rastgele",
+  "n": 39,
+  "symbol": "GALA/USDT:USDT",
+  "karar_ts": "2025-12-02 17:30",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1764277200,
+   "saat": "2025-11-27 21:00",
+   "fiyat": 0.00813,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1764603000,
+   "saat": "2025-12-01 15:30",
+   "fiyat": 0.00655,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "r10",
+  "tur": "rastgele",
+  "n": 40,
+  "symbol": "JUP/USDT:USDT",
+  "karar_ts": "2025-12-12 16:00",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "setup_yok",
+  "capa_0": null,
+  "capa_1": null,
+  "not": ""
+ },
+ {
+  "id": "r11",
+  "tur": "rastgele",
+  "n": 41,
+  "symbol": "JUP/USDT:USDT",
+  "karar_ts": "2025-12-17 06:00",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1765823400,
+   "saat": "2025-12-15 18:30",
+   "fiyat": 0.1824,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1765900800,
+   "saat": "2025-12-16 16:00",
+   "fiyat": 0.2008,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "r12",
+  "tur": "rastgele",
+  "n": 42,
+  "symbol": "HYPE/USDT:USDT",
+  "karar_ts": "2025-12-19 17:00",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1765983600,
+   "saat": "2025-12-17 15:00",
+   "fiyat": 27.873,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1766106000,
+   "saat": "2025-12-19 01:00",
+   "fiyat": 22.196,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "r13",
+  "tur": "rastgele",
+  "n": 43,
+  "symbol": "ORDI/USDT:USDT",
+  "karar_ts": "2026-01-10 03:30",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1767706200,
+   "saat": "2026-01-06 13:30",
+   "fiyat": 4.956,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1767880800,
+   "saat": "2026-01-08 14:00",
+   "fiyat": 4.354,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "r14",
+  "tur": "rastgele",
+  "n": 44,
+  "symbol": "CRV/USDT:USDT",
+  "karar_ts": "2026-02-02 12:00",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "setup_yok",
+  "capa_0": null,
+  "capa_1": null,
+  "not": ""
+ },
+ {
+  "id": "r15",
+  "tur": "rastgele",
+  "n": 45,
+  "symbol": "JUP/USDT:USDT",
+  "karar_ts": "2026-02-12 11:30",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "setup_yok",
+  "capa_0": null,
+  "capa_1": null,
+  "not": ""
+ },
+ {
+  "id": "r16",
+  "tur": "rastgele",
+  "n": 46,
+  "symbol": "AAVE/USDT:USDT",
+  "karar_ts": "2026-02-27 12:30",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1772040600,
+   "saat": "2026-02-25 17:30",
+   "fiyat": 124.09,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1772128800,
+   "saat": "2026-02-26 18:00",
+   "fiyat": 110.61,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "r17",
+  "tur": "rastgele",
+  "n": 47,
+  "symbol": "CRV/USDT:USDT",
+  "karar_ts": "2026-03-02 10:00",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1772272800,
+   "saat": "2026-02-28 10:00",
+   "fiyat": 0.2271,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1772330400,
+   "saat": "2026-03-01 02:00",
+   "fiyat": 0.2584,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "r18",
+  "tur": "rastgele",
+  "n": 48,
+  "symbol": "BTC/USDT:USDT",
+  "karar_ts": "2026-04-19 15:30",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1776346200,
+   "saat": "2026-04-16 13:30",
+   "fiyat": 73270.1,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1776441600,
+   "saat": "2026-04-17 16:00",
+   "fiyat": 78285.1,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "r19",
+  "tur": "rastgele",
+  "n": 49,
+  "symbol": "XRP/USDT:USDT",
+  "karar_ts": "2026-04-21 12:00",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1776436200,
+   "saat": "2026-04-17 14:30",
+   "fiyat": 1.5089,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1776636000,
+   "saat": "2026-04-19 22:00",
+   "fiyat": 1.3915,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "not": ""
+ },
+ {
+  "id": "r20",
+  "tur": "rastgele",
+  "n": 50,
+  "symbol": "ZEC/USDT:USDT",
+  "karar_ts": "2026-05-11 23:30",
+  "side": null,
+  "zone_id": null,
+  "bot_0": null,
+  "bot_1": null,
+  "secim": "farkli",
+  "capa_0": {
+   "ts": 1778126400,
+   "saat": "2026-05-07 04:00",
+   "fiyat": 533.37,
+   "tip": "dip",
+   "tf": "30m"
+  },
+  "capa_1": {
+   "ts": 1778304600,
+   "saat": "2026-05-09 05:30",
+   "fiyat": 642.17,
+   "tip": "tepe",
+   "tf": "30m"
+  },
+  "not": ""
+ }
+]
