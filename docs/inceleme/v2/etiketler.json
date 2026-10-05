@@ -1,0 +1,752 @@
+[
+ {
+  "n": 1,
+  "symbol": "XRP/USDT:USDT",
+  "side": "LONG",
+  "zone_id": "c5a73adb30925a1caa7975423a523026",
+  "entry_ts": "2026-01-29 14:27",
+  "bot_0": {
+   "saat": "2026-01-29 06:30",
+   "fiyat": 1.8882
+  },
+  "bot_1": {
+   "saat": "2026-01-29 12:30",
+   "fiyat": 1.865
+  },
+  "dogru_0": {
+   "saat": "01-23 17:30",
+   "fiyat": "1.95 üstü"
+  },
+  "dogru_1": {
+   "saat": "01-30 01:30",
+   "fiyat": "1.70- 1.75 aralığındaki mum"
+  },
+  "setup_yok": true,
+  "not": "Tam zamanları yakalayamıyorum mouse ile seçim yapamadığım için ama burda setup yok işaretliyorum çünkü low ve high likidite arasında 0.5 teması daha gelmemiş büyük ihtimalle uzun sürecek bundan dolayı OTE ile işlem almayı bekletebiliriz. Görebildiğimiz alanı daraltırsak ise 01-28 ve 01-29 arasındaki yaklaşık 12:00 civarlarındaki en high noktasını da low noktasını değiştirmeden kabul edebilirdik doğruluk birbirine yakın olacaktır çünkü ekranda özüken 3 tepe likidasyonu birbirine yakın fiyat o bölgeleri zorlayacak ve yukarı yırtacaktır ama ne zalam olur bilemeyiz"
+ },
+ {
+  "n": 2,
+  "symbol": "SUI/USDT:USDT",
+  "side": "LONG",
+  "zone_id": "9b4c081d4c345603ba30fa3bd2d24285",
+  "entry_ts": "2025-10-28 05:31",
+  "bot_0": {
+   "saat": "2025-10-28 01:30",
+   "fiyat": 2.6318
+  },
+  "bot_1": {
+   "saat": "2025-10-28 02:30",
+   "fiyat": 2.584
+  },
+  "dogru_0": {
+   "saat": "10-27 05:00",
+   "fiyat": "2.70 üzeri"
+  },
+  "dogru_1": {
+   "saat": "10-28 21:00",
+   "fiyat": "2.45 üzeri"
+  },
+  "setup_yok": true,
+  "not": "yine setup göremem burada çünkü 0-1-ardınan 0.5 teması görmüyorum ki 0.7 bekleyeyim 0.5 teması gelirse sonra girilebilir ama tam tersi short OTE beklenebilir onda da 10-22 yaklaşık 05:00 mumu iğnesi low olarak alınıp aynı dediğim high noktasını seçerek Short OTE bekleyenilirim 0.5 teması gelmek üzere olurdu ki düşecek çünkü düşüş trendine girmiş high noktamızdan sonra oluşan tepeler birbirini alamamış hep azalan tepeler artan dipler oluşturmuş"
+ },
+ {
+  "n": 3,
+  "symbol": "BTC/USDT:USDT",
+  "side": "SHORT",
+  "zone_id": "a546c87458f55f9db7dd9b44fc432e52",
+  "entry_ts": "2025-12-27 05:37",
+  "bot_0": {
+   "saat": "2025-12-27 03:00",
+   "fiyat": 87337.8
+  },
+  "bot_1": {
+   "saat": "2025-12-27 03:30",
+   "fiyat": 87494.6
+  },
+  "dogru_0": {
+   "saat": "12-22 12.30",
+   "fiyat": "90000 üstü"
+  },
+  "dogru_1": {
+   "saat": "12-24 14.30",
+   "fiyat": "87000 altı"
+  },
+  "setup_yok": true,
+  "not": "12-26 ve 12-27 günleri arasındaki uzun mumlar manipülasyon yada şirketler gibi büyük balinaların hacimleridir bunlar tehlikelidir ki arada harmonik bekledim ama harmonik te oluşturmamış. OTE yanlış fiyat yükselicek olası setuplar 12-26 ve 12-27 tarihleri arasındaki en tepe nokta gün ortasından biraz gerideki mum ile yine aynı aralıkta en dip noktası tercih edilebilir ama yükseliş 0.5 temasına daha değmediği için setup yok. Gerçek OTE ise verdiğim 12-22 12-23 tarihleri arasındaki hemen hemen gün ortasına denk gelen iğne high ile 12-24 ve 12-25 arasında ikindi zamanlarına denk gelen low mumunu seçilip 0.5 teması beklenebilir  "
+ },
+ {
+  "n": 4,
+  "symbol": "BTC/USDT:USDT",
+  "side": "LONG",
+  "zone_id": "7bd87dbf170259c8858955413c35a4ca",
+  "entry_ts": "2026-03-29 22:02",
+  "bot_0": {
+   "saat": "2026-03-29 11:30",
+   "fiyat": 66945.9
+  },
+  "bot_1": {
+   "saat": "2026-03-29 17:00",
+   "fiyat": 66128.5
+  },
+  "dogru_0": {
+   "saat": "03-29 22:30",
+   "fiyat": "65000 altı"
+  },
+  "dogru_1": {
+   "saat": "03-30 13:00",
+   "fiyat": "68000 üstü"
+  },
+  "setup_yok": true,
+  "not": "düşen dipleri kırmış yükseliyor fakat yine de short OTE gördüm o setupı yazdım ama asıl büyük OTE 03-25 03-26 aralığındaki high 72K fiyatı ile 03-29 03-30 arasındaki 65K altındaki noktalar arasında geniş bi Long OTE beklenebilir ki burda da 0.5 teması uzun süre gelir yine de short ote daha hızlı işlem alınabilecek aralıkta"
+ },
+ {
+  "n": 5,
+  "symbol": "UNI/USDT:USDT",
+  "side": "SHORT",
+  "zone_id": "10bf28051a325a1eaec00639cb969f30",
+  "entry_ts": "2025-12-09 15:01",
+  "bot_0": {
+   "saat": "2025-12-09 09:30",
+   "fiyat": 5.436
+  },
+  "bot_1": {
+   "saat": "2025-12-09 13:30",
+   "fiyat": 5.552
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": true,
+  "not": "OTE yanlış çizilmiş  eğer 6.2 fiyatından biraz aşağıdaki 12-04lere yakın tepeyi high 12-07 12-08 arasını öğle saatine yakın olan 5.4 fiyatının aşağısındaki mumu low olarak kabul edersem 0.5 ve 0.7-79 teması gelmiş olacak ve long işleme yeni girmiş olabilecektik. "
+ },
+ {
+  "n": 6,
+  "symbol": "ORDI/USDT:USDT",
+  "side": "LONG",
+  "zone_id": "0e6337e2f8175ed2a492b74a3d555218",
+  "entry_ts": "2025-10-16 09:33",
+  "bot_0": {
+   "saat": "2025-10-15 18:30",
+   "fiyat": 5.465
+  },
+  "bot_1": {
+   "saat": "2025-10-15 20:30",
+   "fiyat": 5.253
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": true,
+  "not": "işlem alınabilecek bi durum yok büyük kırmızı düşüş mumundan sonra fiyat düz ilerlemiş hiç işlem alınmamalı"
+ },
+ {
+  "n": 7,
+  "symbol": "XRP/USDT:USDT",
+  "side": "SHORT",
+  "zone_id": "b7dff40a579f5801a661c9734542b237",
+  "entry_ts": "2026-01-02 09:11",
+  "bot_0": {
+   "saat": "2026-01-02 02:00",
+   "fiyat": 1.8682
+  },
+  "bot_1": {
+   "saat": "2026-01-02 03:30",
+   "fiyat": 1.8916
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": true,
+  "not": "OTE yok düz ilerleyen bi sistem var ancak alınabilecek beklenilecek OTE 12-31 ile 01-01 arasındaki 20.00 yakındaki low alınır 0 olarak, 01-03 sonrası 2.05 üzeri high ise 1 alınsaydı 0.5 beklenirdi ama yine 0.5 teması olmadığından OTE yok"
+ },
+ {
+  "n": 8,
+  "symbol": "ORDI/USDT:USDT",
+  "side": "LONG",
+  "zone_id": "08154a1e0df15cdea7d92fe98f2d33aa",
+  "entry_ts": "2026-02-23 01:01",
+  "bot_0": {
+   "saat": "2026-02-22 17:00",
+   "fiyat": 2.526
+  },
+  "bot_1": {
+   "saat": "2026-02-22 22:00",
+   "fiyat": 2.434
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": true,
+  "not": "OTE yanlış doğru high noktası 02-21 ile 02-22 aralığındaki 2.8 fiyatına en yakın tepe noktası olacaktı "
+ },
+ {
+  "n": 9,
+  "symbol": "NEAR/USDT:USDT",
+  "side": "SHORT",
+  "zone_id": "706d6da75f0a5459b1f33074b284b2fa",
+  "entry_ts": "2026-03-30 00:17",
+  "bot_0": {
+   "saat": "2026-03-29 17:00",
+   "fiyat": 1.149
+  },
+  "bot_1": {
+   "saat": "2026-03-29 21:30",
+   "fiyat": 1.175
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": true,
+  "not": "Yanlış OTE ote yok burada 03-30 öncesi 22:00 23:00 arasındaki alt iğneyi 0 olarak kabul edip 03-30 ile 03-31 aralığındaki 1.225 fiyatına yakın yeri high 1 kabul edersek Short OTE beklenebilir"
+ },
+ {
+  "n": 10,
+  "symbol": "BNB/USDT:USDT",
+  "side": "SHORT",
+  "zone_id": "5124969eed1b55e48141af78c3a3919a",
+  "entry_ts": "2025-12-27 05:45",
+  "bot_0": {
+   "saat": "2025-12-27 02:00",
+   "fiyat": 834.17
+  },
+  "bot_1": {
+   "saat": "2025-12-27 04:00",
+   "fiyat": 836.25
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": true,
+  "not": "Yanlış OTE doğru fiyatlandırmalar high 870 üstündeki 12-22 ile 12-23 aralığındaki mum olacaktı low ise 820 seviyesine en yakın olan 12-26 ile 12-27 arasındaki mum olmalıydı ama yine de 0.5 teması gelmediği için beklenmesi lazım ki gelecektir yükseliş durumunda coin düşen dipler yenilenmiyor tepeler yenilenmeye başlamışgithub CLI "
+ },
+ {
+  "n": 11,
+  "symbol": "CRV/USDT:USDT",
+  "side": "LONG",
+  "zone_id": "cfff85f90d955bf2b7400a4c9b775631",
+  "entry_ts": "2026-01-05 10:28",
+  "bot_0": {
+   "saat": "2026-01-05 01:30",
+   "fiyat": 0.434
+  },
+  "bot_1": {
+   "saat": "2026-01-05 04:30",
+   "fiyat": 0.4191
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": false,
+  "not": "0 doğru noktadan alınmış yalnız 1 noktası geçilmiş ama geçilen yer yeni 1 noktası olmuş. 13:30 öneri dediğin noktada OTE doğru bir çizime kavuşurdu ve TP alarak işlemden çıkardın güzel işlem güzel OTE. çağalar kısmını tek tek yazmak zor direkt notlar kısmını doldurdum."
+ },
+ {
+  "n": 12,
+  "symbol": "SOL/USDT:USDT",
+  "side": "SHORT",
+  "zone_id": "d5323dd7e5105f398e6469dbeb67d8c5",
+  "entry_ts": "2026-02-13 06:58",
+  "bot_0": {
+   "saat": "2026-02-12 20:30",
+   "fiyat": 76.545
+  },
+  "bot_1": {
+   "saat": "2026-02-13 03:30",
+   "fiyat": 79.429
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": false,
+  "not": "İlk bakışta doğru gibi gözükse de doğru bi OTE kurgusu değil. Doğru kurgu 02-06 22:30 mumu high kabul edilerek bot 0 noktası 02-12 20:30 noktası low kabul edilerek OTE beklenmeli ama 0.5 daha gelmediği için setup sadece izlenir temas sonrası 0.7-79 beklenir"
+ },
+ {
+  "n": 13,
+  "symbol": "ORDI/USDT:USDT",
+  "side": "SHORT",
+  "zone_id": "e2db3d7c95ff5654a4cf7c4708da8ee9",
+  "entry_ts": "2025-10-18 01:03",
+  "bot_0": {
+   "saat": "2025-10-17 19:30",
+   "fiyat": 4.905
+  },
+  "bot_1": {
+   "saat": "2025-10-17 21:00",
+   "fiyat": 5.035
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": false,
+  "not": "yanlış OTE çizimi ardışık düze bağlamış fiyatlar atasında OTE almışsın doğru değil geniş çaplı bakarsan 10-13 21:00 mumu high 10-17 08:00 low olarak kabul edilip 0.5 beklenir ama o setupın işleme gelmesi çok uzun süreceğinden 10-17 08:00 low ve 10-18 07:00 (şimdilik) high sayılarak short OTE beklenir ama o da daha 0.5 gelmemiş likidite bölgelerini yazıyorum sana"
+ },
+ {
+  "n": 14,
+  "symbol": "BNB/USDT:USDT",
+  "side": "SHORT",
+  "zone_id": "cf88d5123cbf5f4a8dba498ec3689b5c",
+  "entry_ts": "2026-02-14 08:01",
+  "bot_0": {
+   "saat": "2026-02-13 20:00",
+   "fiyat": 615.39
+  },
+  "bot_1": {
+   "saat": "2026-02-14 01:30",
+   "fiyat": 625.43
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": false,
+  "not": "Bu OTE de yanlış, yeni zamandan çizilecekse 02-14 05:00 low 02-15 07:30 high olarak sayabilirsin ama beklemen gerek 0.5 gelmemiş yine hiç gelmeyebilir, burda bi örnek OTE görmek istiyosan 02-11 10:30 civarındaki lowu alıp 02-12 11:30 civarındaki high ile short OTE yanılmıyorsam çalışmış TP1 almış  ve maliyette stop olarak coin yükselmiş çünkü nihai TP gelmediği için düşeni kıramayıp Trendi tersine çevirmiş"
+ },
+ {
+  "n": 15,
+  "symbol": "AVAX/USDT:USDT",
+  "side": "SHORT",
+  "zone_id": "a520913fe1805a5ea9f27657e5b4c72e",
+  "entry_ts": "2025-09-23 14:07",
+  "bot_0": {
+   "saat": "2025-09-23 03:00",
+   "fiyat": 32.75
+  },
+  "bot_1": {
+   "saat": "2025-09-23 03:30",
+   "fiyat": 35.757
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": false,
+  "not": "doğru dip lowu 09-22 tarihindeki en alt uç likidite bölgesi olması lazım tepeyi de stop olunan yerin üstündeki 09-23 15:00 civarındaki mumu alarak 0.5 beklenmeli ki daha gelmediği için gelene kadar başka işlemlere bakılmalı"
+ },
+ {
+  "n": 16,
+  "symbol": "XRP/USDT:USDT",
+  "side": "LONG",
+  "zone_id": "de1c765446f45a318e2a71747f716cbd",
+  "entry_ts": "2025-10-05 16:45",
+  "bot_0": {
+   "saat": "2025-10-05 11:30",
+   "fiyat": 3.0232
+  },
+  "bot_1": {
+   "saat": "2025-10-05 14:30",
+   "fiyat": 2.9851
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": false,
+  "not": "burada çizimin yanlış, 2 OTE çizebilirim sana kısa süredeki aralık olan 10-05 08:00 civarı high ile 10-05 20:00 civarındaki low ile long biaslı OTE çizilebilir ki şuan karda gözüküyor 0.5 teması da var 0.7-79 teması da var gözüküyor ve TP1 almış gözüküyor, diğer OTE ise 10-01 03:30 low ile 10-02 19:30 civarındaki 3.10 fiyatlandırması high kabul edilip OTE çizilse 0.5 teması gelmiş 0.7-79 gelmiş işlem zararda ve devam ediyor gözükecekti gözümle hesapladım tam emin değilim ama belki TP1 almış olabilir olmayadabilir ama bu coin düşecek 3.10 fiyatından sonra hiçbir tepeyi yenileyememiş yenileyemediği tepeleri de yazıyorum ki aklında daha da otursun 10-03 17:00 civarı, 10-05 08:00 civarı eğer yeni tepe de 10-06 15:30 civarındaki mum olursa tepeler yenilenmemiş olur ama sırayla öncekileri almaya başlarsa yükseliş trendidir. "
+ },
+ {
+  "n": 17,
+  "symbol": "ORDI/USDT:USDT",
+  "side": "SHORT",
+  "zone_id": "4da0608c36a15b8381b3e0f67e0443d0",
+  "entry_ts": "2025-10-25 17:12",
+  "bot_0": {
+   "saat": "2025-10-24 14:00",
+   "fiyat": 5.116
+  },
+  "bot_1": {
+   "saat": "2025-10-24 22:30",
+   "fiyat": 5.284
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": false,
+  "not": "dipler yenilenmiyo tepeler yenileniyo en son yenilenen dip bot 0 dan sonraki dip low olarak alınır ki bunu yapsan bile OTE yetersiz yükseliş trendinde coin en mantıklı OTE 10-21 16:30 civarındaki high noktası ile 10-22 21:00 civarındaki low noktasından OTE çizilir 0.5 teması var ama 0.7 beklenmeli ki yükseliş trendinde daha zor gelir oralara eğer OTE 0 noktasının fiyatını geçerse setup bozulur işleme hiç girilmeden çizimleri kaldırırım "
+ },
+ {
+  "n": 18,
+  "symbol": "DOGE/USDT:USDT",
+  "side": "SHORT",
+  "zone_id": "e2dc1d907d9d51bc9f62a8c59d45f073",
+  "entry_ts": "2025-09-03 01:54",
+  "bot_0": {
+   "saat": "2025-09-02 18:30",
+   "fiyat": 0.20964
+  },
+  "bot_1": {
+   "saat": "2025-09-02 21:30",
+   "fiyat": 0.21551
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": false,
+  "not": "burda önerin de güzel ama en güzel çalışan kaymak gibi OTE örneği 09-01 09:00 high ile 09-01 21:30 civarındaki low noktasından alırsak ki grafiğin nihai lowu bu, Çok güzel çalışmış bi OTE görürürz hatta öneri 12:30 low yazdığın noktadan yani 0.79un altına sarkmış ama işleme girilse en büyük kar alınırdı ki düşmeyebilir 0.7 teması ile gireriz işleme. Tepe noktası da OTE TP olması ile birlikte geçildiği için yükseliş trendinde deriz."
+ },
+ {
+  "n": 19,
+  "symbol": "RUNE/USDT:USDT",
+  "side": "SHORT",
+  "zone_id": "8538633545e153de8c4f0f790b9f7494",
+  "entry_ts": "2025-10-18 06:06",
+  "bot_0": {
+   "saat": "2025-10-18 00:00",
+   "fiyat": 0.835
+  },
+  "bot_1": {
+   "saat": "2025-10-18 02:00",
+   "fiyat": 0.849
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": false,
+  "not": "Bu grafikte genişten bakınca işler daha güzel, 10-17 0.8 veya altındaki fiyatlandırma lowundan tutulup 10-18 high'ından short OTE çekilebilir yanlış görmüyosam 0.5 değmiş yada ufak farkla kaçmış. ama asıl büyük çerçevede 0.96 fiyatıyla 10-13 tarihinde 20:30 civarı high ile 10-17 0.8 lowuna OTE çizilebilir ama 0.5 hiç gelmediği için çok uzun sürer 0.5 gelmesi sonrasına 0.7 gelecek mi diye beklemek. "
+ },
+ {
+  "n": 20,
+  "symbol": "BNB/USDT:USDT",
+  "side": "SHORT",
+  "zone_id": "3c7edc6ae0ac54dd988dd03eafc404a1",
+  "entry_ts": "2026-01-23 00:10",
+  "bot_0": {
+   "saat": "2026-01-22 19:00",
+   "fiyat": 882.84
+  },
+  "bot_1": {
+   "saat": "2026-01-22 22:00",
+   "fiyat": 891.26
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": false,
+  "not": "OTE yanlış ama benim önerilerime biraz daha dışardan bakarsak öneri 13:30 erkeni 10:30 high sayılıp öneri lowu kabul edilirse başarılı olur TP ile sonuçlanır"
+ },
+ {
+  "n": 21,
+  "symbol": "JUP/USDT:USDT",
+  "side": "SHORT",
+  "zone_id": "549457b8811e5483ab51a227a612c094",
+  "entry_ts": "2026-01-30 14:09",
+  "bot_0": {
+   "saat": "2026-01-30 09:00",
+   "fiyat": 0.1938
+  },
+  "bot_1": {
+   "saat": "2026-01-30 11:30",
+   "fiyat": 0.2067
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": false,
+  "not": "en kullanılaiblir OTE 01-25 20:00 lowundan 0 alınır 01-28 12:00 civarındaki mumu high kabul edersen, ufak bi ihtimalle 0.7-79 gelmiş gibi duruyor short OTE başarılı gözüküyor"
+ },
+ {
+  "n": 22,
+  "symbol": "RUNE/USDT:USDT",
+  "side": "SHORT",
+  "zone_id": "ebe78bbcaae454feaf2bf885c687f67b",
+  "entry_ts": "2025-09-18 22:20",
+  "bot_0": {
+   "saat": "2025-09-18 19:30",
+   "fiyat": 1.353
+  },
+  "bot_1": {
+   "saat": "2025-09-18 20:30",
+   "fiyat": 1.37
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": false,
+  "not": "burdaki başarı daha düşük zman diliminde çalışan bir OTE gibi duruyor 1m 5m gibi bir dilimde minik alan OTEsi almışsın hızlı işlem, ama illa OTE alacaksan 1.24 fiyatına en yakın lowlardan birini alıp 1.38 üstündeki 09-19 ilk saatlerindeki high alınabilir 0.5 gelmiş 0.7-79 için beklenmeli"
+ },
+ {
+  "n": 23,
+  "symbol": "INJ/USDT:USDT",
+  "side": "LONG",
+  "zone_id": "18d50788818c5206ba33206156ef7b8b",
+  "entry_ts": "2025-10-06 00:03",
+  "bot_0": {
+   "saat": "2025-10-05 14:00",
+   "fiyat": 12.901
+  },
+  "bot_1": {
+   "saat": "2025-10-05 20:00",
+   "fiyat": 12.502
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": false,
+  "not": "öneri vermişim evet short OTEsi olarak bot 1 ve önerim doğru ama daha genişten bakınca10-03 22:00 civarındaki 13.5 üzerindeki high alınıp 10-04 18:30 civarındaki alt iğneyi low kabul etersek harika girişli long OTE yakalamış olurduk hatta giriş noktası bot 1 yazan noktanın oralar olurdu öneri 01:30 high'ında da çıkış yapsaydın mis."
+ },
+ {
+  "n": 24,
+  "symbol": "BTC/USDT:USDT",
+  "side": "LONG",
+  "zone_id": "f1e6b9183fab5253aa3a9b268ce03035",
+  "entry_ts": "2026-03-26 14:19",
+  "bot_0": {
+   "saat": "2026-03-26 09:00",
+   "fiyat": 70113.2
+  },
+  "bot_1": {
+   "saat": "2026-03-26 11:00",
+   "fiyat": 69160
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": true,
+  "not": "düşük bir timeline içinde çizilen ve kazanan OTE olmuş genişten 30m bakınca dip geçilmiş burda çizebileceğim bi OTE göremiyorum"
+ },
+ {
+  "n": 25,
+  "symbol": "BNB/USDT:USDT",
+  "side": "SHORT",
+  "zone_id": "b7d5ddf18c2b523a999ee4435a756a2a",
+  "entry_ts": "2026-03-12 15:39",
+  "bot_0": {
+   "saat": "2026-03-12 04:30",
+   "fiyat": 641.39
+  },
+  "bot_1": {
+   "saat": "2026-03-12 12:30",
+   "fiyat": 657.47
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": false,
+  "not": "TP1 ile maliyet stoplu OTE botun high ve low noktaları doğru  sayılır ama kazanmak için biraz rastgelelik var "
+ },
+ {
+  "n": 26,
+  "symbol": "SOL/USDT:USDT",
+  "side": "SHORT",
+  "zone_id": "1eb5542df6a85fffb28f78449cb7094e",
+  "entry_ts": "2025-08-23 20:57",
+  "bot_0": {
+   "saat": "2025-08-23 16:00",
+   "fiyat": 202.308
+  },
+  "bot_1": {
+   "saat": "2025-08-23 19:00",
+   "fiyat": 204.627
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": false,
+  "not": "yine TP1 tam kazanç sayılmaz alınan short işlem maliyet stop olmuş TP1den sonra. Şuanda bakılabilecek yer tehlikeli tek mum içindeki hacim de olsa 08-24 19:00 ve 20:00 mumları arasında long OTE beklemektir 0.5 teması da gelmiş 0.7-79 beklenir ama benim tahminim bu fiyatlandırmadan sonra yatay düzlemde ilerleyecek bu coin"
+ },
+ {
+  "n": 27,
+  "symbol": "BNB/USDT:USDT",
+  "side": "LONG",
+  "zone_id": "a2bb0387064251f585b838a04becc1d2",
+  "entry_ts": "2026-02-26 14:07",
+  "bot_0": {
+   "saat": "2026-02-26 09:00",
+   "fiyat": 630.36
+  },
+  "bot_1": {
+   "saat": "2026-02-26 12:00",
+   "fiyat": 622.8
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": false,
+  "not": "düşük zaman diliminde belki başarılı olabilirsin ama yine de TP1 ardından maliyet stoplu ilerlemişsin hiç nihai TP olduğun işlem göremedim daha şimdiye kadar. benim bakacağım yer 02-24 15:00 mumunu low kabul edip 02-25 640 fiyatının üzerindeki 21:00 mumunu high kabul ederek 0.5 ardından 0.7-79 bekleyebilirsin."
+ },
+ {
+  "n": 28,
+  "symbol": "DOGE/USDT:USDT",
+  "side": "LONG",
+  "zone_id": "7949f9f63ccb53c89b56793bd2032f7e",
+  "entry_ts": "2025-09-14 03:16",
+  "bot_0": {
+   "saat": "2025-09-13 15:00",
+   "fiyat": 0.30485
+  },
+  "bot_1": {
+   "saat": "2025-09-13 17:00",
+   "fiyat": 0.28074
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": false,
+  "not": "rastgele kazanan değil setup bozulana kadar TP1 ardından maliyet stop olmuş başarılı sayabileceğim bi OTE sadece önerdiğim high alınsaymış daha iyi olurmuş. yinelenen dipler bittikten sonra ve yeni dip oluşmadıktan sonra low noktasını oraya çekip 0.5 beklenebilir "
+ },
+ {
+  "n": 29,
+  "symbol": "JUP/USDT:USDT",
+  "side": "LONG",
+  "zone_id": "3325bfb418ee547ea8ec2ea3c03871c7",
+  "entry_ts": "2025-08-10 10:24",
+  "bot_0": {
+   "saat": "2025-08-10 07:00",
+   "fiyat": 0.5329
+  },
+  "bot_1": {
+   "saat": "2025-08-10 08:00",
+   "fiyat": 0.5054
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": false,
+  "not": "öneri high doğru ama 0.5 hiç gelmezdi değil 0.5 ardından 0.7-79 gelmemiş gibi duruyor değdiğinde ise aşağı çöküş başlamış yani OTE çalışmıyor."
+ },
+ {
+  "n": 30,
+  "symbol": "AAVE/USDT:USDT",
+  "side": "LONG",
+  "zone_id": "2d797fe20bb852a1bdfd1a80afeefd12",
+  "entry_ts": "2026-05-03 13:42",
+  "bot_0": {
+   "saat": "2026-05-02 21:30",
+   "fiyat": 93.89
+  },
+  "bot_1": {
+   "saat": "2026-05-03 02:00",
+   "fiyat": 91.75
+  },
+  "dogru_0": {
+   "saat": null,
+   "fiyat": null
+  },
+  "dogru_1": {
+   "saat": null,
+   "fiyat": null
+  },
+  "setup_yok": false,
+  "not": "rastgele kazanan değil doğru çizim doğru OTE kurgusu TP1 ve maliyet stop olmuş ama beklenseydi nihai TP de olabilirmiş ki 05-04 10:00 mumunu yeni low kabul edersek hala bi 0.5 ardından 0.7-79 teması gelmiş işlemde olsak tam işleme girdiğimiz anlara yakın bi zamanda sayardım."
+ }
+]
