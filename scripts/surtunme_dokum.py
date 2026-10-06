@@ -46,7 +46,7 @@ def dokum(p: dict) -> list[str]:
     d_kom = sum((v for k, v in D.items() if k.startswith("komisyon_")), Decimal(0))
     slip = {k[9:]: v for k, v in D.items() if k.startswith("slippage_")}
     f = lambda v, n=2: f"{float(v):,.{n}f}"
-    s = ["# Sürtünme dökümü — #28 (açıklayıcı)", "",
+    s = [f"# Sürtünme dökümü — #{p.get('_no', '?')} (açıklayıcı)", "",
          f"Paket `{p.get('_yol', '')}` · parmak izi `{p['hash']}` · spec {p['spec_version']} · "
          f"kod {p['code_version']} · {len(T)} işlem. Öneri yok; yalnızca dağılım.", "",
          "## 1 · Toplam", "",
@@ -119,6 +119,7 @@ def main() -> int:
     x = a.parse_args()
     p = pickle.loads(x.pkl.read_bytes())
     p["_yol"] = x.pkl.as_posix()
+    p["_no"] = x.out.stem.rsplit("_", 1)[-1]  # surtunme_29.md → 29
     x.out.write_text("\n".join(dokum(p)), encoding="utf-8")
     print(x.out)
     return 0
