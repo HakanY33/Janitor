@@ -90,14 +90,14 @@ Gerçek borsaya emir giden tek yer `ExecutionAdapter` arayüzüdür.
 API anahtarı, token, parola kodda veya commit'te yer almaz. Yalnızca ortam değişkeni.
 `.env` `.gitignore`'dadır.
 
-### 11. Git işlemleri kullanıcıya aittir
-`git add`, `git commit`, `git push`, `git checkout`, `git merge`, `git rebase`, `git reset`
-**çalıştırılmaz.** Branch açılmaz, PR oluşturulmaz. Tüm versiyon kontrolü kullanıcıya aittir.
+### 11. Git akışı: dal → commit → push → PR → merge
+(Kullanıcı kararı, 2026-10-06.) Her mantıksal değişiklik kendi dalında yapılır:
+dal (`main`'den) → commit → `git push` → `gh pr create` → `gh pr merge --merge`.
 
-`git status`, `git diff`, `git log` okuma amaçlı serbesttir.
-
-Bir iş bitince ne değiştiğini özetle ve bırak — commit mesajı önerebilirsin, ama commit'i
-atmazsın. Bu kural `.claude/settings.json` içinde de zorlanır.
+- Commit'ler kullanıcının git kimliğiyle atılır; `Co-Authored-By` satırı eklenmez.
+- **Testler geçmeden merge yok.**
+- **Yasak:** `git push --force`, `git push -f`, `git reset --hard`, `git rebase`, `git branch -D`.
+- `.claude/settings.json` kullanıcınındır, commit'lenmez.
 
 ---
 
