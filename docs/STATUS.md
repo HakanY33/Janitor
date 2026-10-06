@@ -2,7 +2,7 @@
 
 Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
 
-**Son güncelleme:** 2026-10-05
+**Son güncelleme:** 2026-10-06
 
 ---
 
@@ -11,6 +11,28 @@ Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
 **Görev:** Sunucu **2026-10-12**'de kapanıyor, yeni sunucu yok (kullanıcı 2026-10-05). Kayıtçılar
 PC'de, sunucuyla paralel (`göç/pc`), **2026-10-11 son çekim** (`SERVER.md` "Sunucu kapanışı — PC'ye
 geçiş"). Paper kapalı kalır. H1 dilimi 10-01 → 12-31, tek bakış 2027-01-01 (kod kilidi).
+
+**2026-10-06 (5. oturum) — v4 OTE kısmi sıfırlama + çapa koruması + spec v0.9 (OB = mumun tamamı):**
+- **Git:** 4. oturumun 3 commit'i atıldı (kullanıcı isteğiyle, yerel; `280f59e`, `a3afdf9`, `a42d4c4`).
+  `.claude/settings.json` kullanıcı tarafından elle değiştirildi (commit/add izinli); commit'lenmedi.
+  CLAUDE.md #11 metni hâlâ eski yasağı yazıyor — kullanıcı kararı bekliyor.
+- **v4 etiketleri** `docs/inceleme/v4/etiketler.json` (kullanıcının 10-05 indirmesi): 14 anda (r02 r03 r06
+  r07 r09 r12 r13 r14 r15 r16 r17 r18 r20 r22) OTE alanına OB işaretlenmişti (`0`, `1`'den sonra) →
+  yalnızca bu 14'ün `secim`/`capa_0`/`capa_1`'i sıfırlandı; 16 an ve 63 OB etiketi aynen. Bu 14'te OB
+  etiketi ve `ob_acildi` yoktu. Not: leg r03 %8,4, r17 %5,7, r18 %2,2 (< %2 değil). **Puanlama koşulmadı.**
+- **Arayüz** (`inceleme_v3.py`, v4 yeniden üretildi): çapa koruması `capaHata` — 0 1'den önce ve zıt
+  tipte, değilse tıklama reddedilir (kırmızı uyarı); `tamam` da bunu ister. "Etiketleri yükle" (dosya →
+  tarayıcı, tarayıcıdakinin yerine). OTE açıklaması: "Bu adım OB için değil — OTE'nin 0 ve 1 likidite
+  noktaları." Koruma node ile gerçek etiketlere karşı denendi: tam bu 14 anı yakalıyor.
+- **Spec v0.9:** OB bölgesi 1. mumun tamamı (high–low, fitiller dahil), gövde değil (`ob.py`, 3 test
+  yeniden yazıldı, R-ADD-06 sürünme testi yeni bölgeye göre). Tespit değişmedi → OB kimlik/numaraları
+  aynı. **`OPEN-66`** ardışık aynı yönlü OB'ler: açık, kullanıcı cevabı bekleniyor.
+  v4 (açıklayıcı): 363 OB (değişmedi), 361'inin sınırı genişledi; karar anında canlı (mitige değil)
+  52 → 46. 63 etiketli OB'de mitigasyon durumu hiç değişmedi: doğru 29 (canlı 2, mitige 27), yanlış 34
+  (canlı 8, mitige 26) — yeni kural 34 "yanlış"ın hiçbirini elemiyor, 29 "doğru"nun hepsini tutuyor.
+  `etiketler.json`'daki `ob_liste` kullanıcının gördüğü **gövde** sınırlarını taşır (anlık görüntü).
+  **#28 ve önceki koşular v0.8 kodundan;** v0.9 ile yeniden koşu yok. `test_inceleme_v3` v4 OB testi de
+  yeni bölgeye göre güncellendi. **Testler 498** (tam koşu 497 + düzeltilen 1).
 
 **2026-10-05 (4. oturum) — v4 puanlama + #28 sürtünme dökümü (strateji koduna dokunulmadı):**
 - **`scripts/v4_puan.py`** (tek komut, `docs/inceleme/v4/puan.md`): (a) B2 + `son_supuren` ön kayıt
@@ -282,6 +304,7 @@ look-ahead'dendi. F1 zaten dondurulmuştu; karar değişmiyor.
 
 | Bulgu | Sonuç |
 |---|---|
+| **v0.9 OB = mumun tamamı: v4'te etiketle uyum değişmedi** | 63 etiketli OB'de mitigasyon durumu aynı; doğru 29 / yanlış 34 aynen üretiliyor; canlı OB 52 → 46 |
 | **#28 brüt pozitif (örneklem içi)** | B2 + `son_supuren`: +7,86 brüt, net −3,09; kriter 3 6/11. v4 doğrulaması bekliyor |
 | **Eşleştirme kaybı `anchor_0`'da** | v3: B3 22/44, B2 32/44 "yanlış 0"; aday "son süpüren karşı swing" örneklem içi 15 → 23–25/44 (v4'te doğrulanacak) |
 | **v0.8 OB/FVG kuralları: kayıp küçük, edge yok** | #27 88,42 $, 523 işlem, brüt −4,30; kriter 3 4/11 |
@@ -367,12 +390,8 @@ look-ahead'dendi. F1 zaten dondurulmuştu; karar değişmiyor.
 
 ## Sıradaki
 
-**Bekleyen commit'ler (2026-10-05, kullanıcı: "yarın"):** 4. oturumun değişiklikleri commit'lenmedi.
-Dizi: (1) `scripts/swing_secim.py docs/inceleme/v3/swing_secim.md scripts/v4_puan.py tests/test_v4_puan.py`
-(2) `scripts/inceleme.py scripts/surtunme_dokum.py docs/measurements/surtunme_28.md` (3) `docs/STATUS.md`.
-`.claude/settings.json` kullanıcının; listede yok.
-
-0. **Kullanıcı:** v4 sayfasında 30 anı etiketle (önce OTE, sonra OB) → `docs/inceleme/v4/etiketler.json`.
+0. **Kullanıcı:** v4 sayfasında "Etiketleri yükle" → `docs/inceleme/v4/etiketler.json`, sonra 14 sıfırlanan
+   anın OTE'sini yeniden etiketle (önce OTE, sonra OB) → indir → aynı dosyanın üstüne. `OPEN-66` cevabı.
    Sonra **tek komut:** `python -m scripts.v4_puan` → `docs/inceleme/v4/puan.md` (B2 + `son_supuren`
    GEÇTİ/KALDI, eşik %28; OB doğruluğu ve kaçırılanlar). Bir kez koşulur.
 1. **Kullanıcı — yönetici PowerShell:** kayıtçı açılış görevleri `-Kok göç\pc\data` ile
