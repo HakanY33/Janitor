@@ -12,6 +12,27 @@ Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
 PC'de, sunucuyla paralel (`göç/pc`), **2026-10-11 son çekim** (`SERVER.md` "Sunucu kapanışı — PC'ye
 geçiş"). Paper kapalı kalır. H1 dilimi 10-01 → 12-31, tek bakış 2027-01-01 (kod kilidi).
 
+**2026-10-06 (7. oturum) — CLAUDE.md #11, gürültü testi, OPEN-66 kapandı (A1+B), #30, 5m tasarımı:**
+- **CLAUDE.md #11** yeni akış: her mantıksal değişiklik dal → commit → push → PR → merge, testler geçmeden
+  merge yok; force push / `reset --hard` / `rebase` / `branch -D` yasak. `.claude/settings.json` deny
+  listesinde `git push --force`/`-f` ve `git branch -D` yok — kullanıcı onayı bekliyor, değiştirilmedi.
+- **#28/#29 gürültü testi** (`scripts/bootstrap_fark.py`, sembol-ay eşleşik bootstrap, 186 blok, 10.000):
+  brüt farkı −9,38 $, %95 −26,39 … +7,43 → **sıfırı kapsıyor**; OB bölgesi v0.9'da (high–low) kalır.
+  #28'in kendi brüt aralığı da (−26,9 … +42,3) sıfırı kapsıyordu (`measurements/fark_28_29.md`).
+- **Spec v0.10 — `OPEN-66` kapandı:** A1+B (ardışık aynı yönlü OB'lerin hepsi geçersiz + OB yalnızca yapı
+  kıran hareketin başlangıcıysa geçerli). Ölçüt kesinlik (kullanıcı), **tablo görüldükten sonra seçildi** —
+  spec'te not. Kod `ob.py:seri_isaretle`, `bos_time` (her mumda o anda bilinen swing; nedensel),
+  `ob_kurallari`; `entry.ob_eligible`; `loader.ob_swingleri` (zone'larla aynı swing tanımı); ekleme yolu
+  dizileri `ob_bos`/`ob_gecersiz`; canlı `replay.kapanis`. Nedensel uygulamayla v4 kesinliği aynı: 22/24.
+  Testler: OPEN-66 4 yeni; elle kurulan OB fikstürlerine `bos_at`. **D1/paper:** sentetik veride F1
+  kapısından geçen işlem çok seyrek (20 günde tohum 1–40'ta ≤ 1) → F1 verisi 30 gün + tohum 18, eşik 2;
+  `eklemeli` kolu (tohum 6, 40+ işlem) A1+B dahil birebir parite.
+- **#30** (`SONUCLAR.md`): 97,73 $ (−%2,3), **155 işlem** (0,83/sembol-ay; #29 843), kazanma %58,1,
+  R +0,66 / −0,94, brüt +0,27, sürtünme 2,55, kriter 3 6/11. #29'a brüt farkı gürültü
+  (`measurements/fark_29_30.md`).
+- **5m giriş tasarımı** `docs/LTF_GIRIS.md` (kod yok): akış, yerleşim, look-ahead, 9 açık soru;
+  `R-RISK-02` (stop her zaman `1`) ile çakışıyor.
+
 **2026-10-06 (6. oturum) — v4 puanı GEÇTİ, OB adayları seçilmedi, #29:**
 - **Git akışı:** kullanıcının isteğiyle her commit ayrı commit → push → PR → merge (PR #44–#51).
   CLAUDE.md #11 metni hâlâ eski yasağı yazıyor.
@@ -322,6 +343,7 @@ look-ahead'dendi. F1 zaten dondurulmuştu; karar değişmiyor.
 | Bulgu | Sonuç |
 |---|---|
 | **v0.9 OB = mumun tamamı: v4'te etiketle uyum değişmedi** | 63 etiketli OB'de mitigasyon durumu aynı; doğru 29 / yanlış 34 aynen üretiliyor; canlı OB 52 → 46 |
+| **#30 A1+B: işlem 843 → 155, brüt ≈ 0** | 97,73 $, kazanma %58,1, kriter 3 6/11; brüt farkları (#28/#29, #29/#30) bootstrap'ta gürültü |
 | **#29 v0.9 brüt negatif** | OB high–low ile brüt −1,52 (#28 gövdeyle +7,86), 87,40 $, kriter 3 6/11 |
 | **v4: B2 + `son_supuren` GEÇTİ** | çift isabet 8/12 (%67, eşik %28); yanlış alarm 7/18 |
 | **#28 brüt pozitif (örneklem içi)** | B2 + `son_supuren`: +7,86 brüt, net −3,09; kriter 3 6/11. v4 doğrulaması bekliyor |
@@ -409,9 +431,8 @@ look-ahead'dendi. F1 zaten dondurulmuştu; karar değişmiyor.
 
 ## Sıradaki
 
-0. **Kullanıcı kararı:** v0.9 OB bölgesi (high–low) #29'da brütü −1,52'ye çekti (#28 gövdeyle +7,86).
-   Bölge kuralı kalsın mı? `OPEN-66` (ardışık OB'ler) için ön kayıtlı adayların hiçbiri tabanı geçmedi —
-   kesinlik mi uyum mu ölçüt olmalı? CLAUDE.md #11'in yeni metni.
+0. **Kullanıcı:** `docs/LTF_GIRIS.md` açık soruları (9) → sonra 5m girişin kodu ve #31.
+   `.claude/settings.json` deny listesine `git push --force`, `git push -f`, `git branch -D` eklensin mi.
 1. **Kullanıcı — yönetici PowerShell:** kayıtçı açılış görevleri `-Kok göç\pc\data` ile
    (`SERVER.md` geçiş tablosu 3. satır); funding / ohlcv30m / earliest için PC görevleri (4. satır).
 2. **2026-10-11:** son çekim + birleştirme (`SERVER.md` geçiş tablosu 6. satır), sonuç `goc.md`.
