@@ -31,7 +31,8 @@ import numpy as np
 
 from src.data import collect
 from src.features.fvg import detect_fvgs, replay
-from src.features.ob import detect_order_blocks, pierce_time, replay_obs
+from src.features.ob import detect_order_blocks, ob_kurallari, pierce_time, replay_obs
+from src.zones import detect as zone_detect
 from src.features.structure import htf_bias
 from src.zones.detect import detect_zones
 from src.zones.model import Zone
@@ -64,6 +65,8 @@ class SymbolData:
     ob_known: np.ndarray = field(default_factory=lambda: np.array([], dtype="datetime64[ns]"))  # OB.known_at
     ob_pierce: np.ndarray = field(default_factory=lambda: np.array([], dtype="datetime64[ns]"))
     ob_alive: np.ndarray = field(default_factory=lambda: np.array([], dtype=bool))
+    ob_bos: np.ndarray = field(default_factory=lambda: np.array([], dtype="datetime64[ns]"))  # OPEN-66 (B)
+    ob_gecersiz: np.ndarray = field(default_factory=lambda: np.array([], dtype="datetime64[ns]"))  # OPEN-66 (A1)
     # R-ZONE-10 · 4h yapisal yon. `bias_known` yonun **kullanilabilir** oldugu an
     # (teyit mumunun kapanisi); karar aninda yalnizca `bias_known <= t` olan son satir
     # gorulebilir (CLAUDE.md #3). `OPEN-29` yapisal gecersizlik adayi bunu okur.
@@ -111,6 +114,7 @@ def build_from_frames(symbol: str, d30, d1) -> SymbolData:
     """
     obs = detect_order_blocks(d30, symbol, DETECT_TF)
     replay_obs(obs, d30)
+    ob_kurallari(obs, d30, ob_swingleri(d30, symbol))
     fvgs = detect_fvgs(d30, symbol, DETECT_TF)
     replay(fvgs, d30)
     zones = [z for z in detect_zones(d30, symbol, DETECT_TF)
@@ -137,6 +141,12 @@ def build_from_frames(symbol: str, d30, d1) -> SymbolData:
     return sd
 
 
+def ob_swingleri(d30, symbol: str) -> list:
+    """`OPEN-66` (B) · zone'larla **aynı** swing tanımı (`src.zones.detect.detect_swings`,
+    modül üzerinden okunur: swing adayı değiştiren koşu ikisini birlikte değiştirir)."""
+    return zone_detect.detect_swings(d30, symbol, DETECT_TF)
+
+
 def set_ob_arrays(sd: SymbolData, d30) -> None:
     """Ekleme aramasının vektörel dizinleri + `R-ADD-06` delinme anı. `ob_alive` korunur:
     yeni OB'ler canlı eklenir, tüketilmiş olan tüketilmiş kalır."""
@@ -151,6 +161,10 @@ def set_ob_arrays(sd: SymbolData, d30) -> None:
     sd.ob_bull = np.array([o.direction == "BULLISH" for o in obs], dtype=bool)
     sd.ob_known = np.array([np.datetime64(o.known_at.tz_localize(None)) for o in obs],
                            dtype="datetime64[ns]")
+    sd.ob_bos = np.array([uzak if o.bos_at is None else np.datetime64(o.bos_at.tz_localize(None))
+                          for o in obs], dtype="datetime64[ns]")  # OPEN-66 (B)
+    sd.ob_gecersiz = np.array([uzak if o.gecersiz_at is None else np.datetime64(o.gecersiz_at.tz_localize(None))
+                               for o in obs], dtype="datetime64[ns]")  # OPEN-66 (A1)
     sd.ob_pierce = np.array([
         uzak if sd.pierce_at[o.ob_id] is None
         else np.datetime64(sd.pierce_at[o.ob_id].tz_localize(None)) for o in obs

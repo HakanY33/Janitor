@@ -105,7 +105,7 @@ def test_known_at_htf_bias():
 def ob_(impulse: int) -> OrderBlock:
     return OrderBlock(ob_id="o", symbol=SYM, timeframe=TF, direction=BEARISH, top=178.0,  # SHORT zone
                       bottom=172.0, created_at=T0 + (impulse - 1) * TD,
-                      impulse_at=T0 + impulse * TD)
+                      impulse_at=T0 + impulse * TD, bos_at=T0 + (impulse + 1) * TD)
 
 
 def short_zone(**kw) -> Zone:

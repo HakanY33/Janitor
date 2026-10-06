@@ -781,6 +781,8 @@ class Backtest:
             sd.ob_alive
             & (sd.ob_bull == (pos.side == LONG))
             & (sd.ob_known <= t64)
+            & (sd.ob_bos <= t64)  # OPEN-66 (B)
+            & (sd.ob_gecersiz > t64)  # OPEN-66 (A1)
             & (sd.ob_bottom <= high)
             & (sd.ob_top >= low)
         )

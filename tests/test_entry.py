@@ -41,6 +41,7 @@ def ob(direction=BEARISH, top=178.0, bottom=172.0, impulse=2, mitigated=None) ->
         ob_id="ob1", symbol=SYM, timeframe=TF, direction=direction, top=top, bottom=bottom,
         created_at=ts(impulse - 1), impulse_at=ts(impulse),
         mitigated_at=None if mitigated is None else ts(mitigated),
+        bos_at=ts(impulse + 1),  # OPEN-66 (B): bilindiği anda yapı kırılmış — bu testlerin konusu değil
     )
 
 

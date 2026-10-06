@@ -15,9 +15,9 @@ import numpy as np
 import pandas as pd
 
 from src.backtest.engine import Backtest, Result
-from src.backtest.loader import DETECT_TF, SymbolData, set_bias, set_ob_arrays
+from src.backtest.loader import DETECT_TF, SymbolData, ob_swingleri, set_bias, set_ob_arrays
 from src.features.fvg import detect_fvgs, replay
-from src.features.ob import detect_order_blocks, replay_obs
+from src.features.ob import detect_order_blocks, ob_kurallari, replay_obs
 from src.zones.detect import detect_zones
 
 TD = pd.Timedelta(DETECT_TF)
@@ -43,6 +43,7 @@ def kapanis(bt: Backtest, symbol: str, d30: pd.DataFrame, baslangic: pd.Timestam
     eski = {o.ob_id for o in sd.obs}
     sd.obs.extend(o for o in detect_order_blocks(d30, symbol, DETECT_TF) if o.ob_id not in eski)
     replay_obs([o for o in sd.obs if o.mitigated_at is None], d30)
+    ob_kurallari(sd.obs, d30, ob_swingleri(d30, symbol))
     eski = {f.fvg_id for f in sd.fvgs}
     sd.fvgs.extend(f for f in detect_fvgs(d30, symbol, DETECT_TF) if f.fvg_id not in eski)
     replay([f for f in sd.fvgs if f.filled_at is None], d30)

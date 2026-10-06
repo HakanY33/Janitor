@@ -23,9 +23,9 @@ from src.backtest.costs import CostModel
 from src.backtest.engine import Backtest
 from src.backtest.loader import build_from_frames
 from src.live.paper import Durum, PaperCore
-from tests.test_parity_d1 import F1, MALIYET, SYM, mumlar
+from tests.test_parity_d1 import F1, F1_ASGARI, F1_VERI, MALIYET, SYM
 
-D30, D1 = mumlar(gun=20)  # v0.8: 10 günde F1 kapısından ≥ 5 işlem geçmiyor (test_parity_d1)
+D30, D1 = F1_VERI  # v0.10: F1 kapısından geçen işlem seyrek — gerekçe test_parity_d1
 MOTOR = {"ENTRY", "ENTRY_REJECTED", "EXIT"}
 
 
@@ -73,7 +73,7 @@ def kosular(tmp_path_factory):
 
 def test_D1_paper_yolu_backtest_ile_birebir(kosular):
     (bt, bt_log), (p, p_log), _ = kosular
-    assert len(bt.trades) >= 5, "sentetik veri işlem üretmiyor — test boş"
+    assert len(bt.trades) >= F1_ASGARI, "sentetik veri işlem üretmiyor — test boş"
     assert [asdict(t) for t in p.trades] == [asdict(t) for t in bt.trades]
     assert p.counters == bt.counters
     assert [json_satir(x) for x in p_log if x["event"] in MOTOR] == \

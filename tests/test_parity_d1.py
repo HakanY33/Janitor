@@ -50,6 +50,10 @@ def mumlar(gun: int = 20, seed: int = 6) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 D30, D1 = mumlar()
+# v0.10 (OPEN-66 A1+B): geçerli OB rastgele yürüyüşte çok seyrek — F1 kapısından 20 günde tohum
+# 1–40'ta en fazla 1 işlem geçiyor. F1 için 30 gün + tohum 18 (2 işlem); A1+B'nin işlem dolu
+# paritesini `eklemeli` kolu taşır (tohum 6, OB kenarından giriş, 40+ işlem).
+F1_VERI, F1_ASGARI = mumlar(gun=30, seed=18), 2
 MALIYET = {SYM: Fees(Decimal("0.0005"), Decimal("0.0002"), Decimal("0.01"))}
 
 F1 = dict(k=Decimal("0.25"), t_kritik=Decimal("0.08"), uyari_blocks_adds=False,
@@ -59,17 +63,19 @@ EKLEMELI = dict(k=Decimal("0.25"), t_kritik=Decimal("0.08"), uyari_blocks_adds=F
                 limit_orders=True, max_adds=3, reduce_once=True, stop_loss_cap=Decimal("0"))
 
 
-def kos(kw: dict, canli: bool):
+def kos(kw: dict, canli: bool, veri=(D30, D1)):
     cm = CostModel(fees=MALIYET, funding={}, slippage_bps=Decimal("2"))
+    d30, d1 = veri
     if canli:
-        return oynat(Backtest([bos_sembol(SYM)], cm, **kw), {SYM: D30}, {SYM: D1})
-    return Backtest([build_from_frames(SYM, D30, D1)], cm, **kw).run()
+        return oynat(Backtest([bos_sembol(SYM)], cm, **kw), {SYM: d30}, {SYM: d1})
+    return Backtest([build_from_frames(SYM, d30, d1)], cm, **kw).run()
 
 
-@pytest.mark.parametrize("ad,kw", [("F1", F1), ("eklemeli", EKLEMELI)])
-def test_D1_oynatma_backtest_ile_birebir(ad, kw):
-    bt, cn = kos(kw, canli=False), kos(kw, canli=True)
-    assert len(bt.trades) >= 5, "sentetik veri işlem üretmiyor — test boş"
+@pytest.mark.parametrize("ad,kw,veri,asgari", [("F1", F1, F1_VERI, F1_ASGARI),
+                                                ("eklemeli", EKLEMELI, (D30, D1), 5)])
+def test_D1_oynatma_backtest_ile_birebir(ad, kw, veri, asgari):
+    bt, cn = kos(kw, canli=False, veri=veri), kos(kw, canli=True, veri=veri)
+    assert len(bt.trades) >= asgari, "sentetik veri işlem üretmiyor — test boş"
     assert [asdict(t) for t in cn.trades] == [asdict(t) for t in bt.trades]
     assert cn.counters == bt.counters
     assert cn.equity_curve == bt.equity_curve
