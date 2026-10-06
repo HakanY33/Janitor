@@ -11,7 +11,9 @@ tarayıcı anahtarında. **v4 akışı (kullanıcı, 2026-10-05):** motorun OTE 
 mumlarından, spec v0.8 tanımıyla (`ob_listesi`); her biri doğru / yanlış, kaçırılan OB 30m mumuna
 tıklanarak eklenir (tıklanan mum = 1. mum). OB etiketleri ayrı alanlarda: `ob` ({OB kimliği:
 dogru | yanlis}), `ob_eksik`, `ob_acildi` (OB'lerin açıldığı an); indirilen dosyada `ob_liste`
-gösterilen OB'lerin kopyasıdır.
+gösterilen OB'lerin kopyasıdır. **Çapa koruması (2026-10-06):** `0`, `1`'den önce ve zıt tipte
+(tepe ↔ dip) olmalı; değilse tıklama kaydedilmez. "Etiketleri yükle" indirilen dosyayı tarayıcıya
+geri yükler (tarayıcıdaki etiketlerin yerine geçer).
 
 50 an: v1/v2'nin 30 işlemi (karar anı = giriş anı) + 20 rastgele an (eğitim dilimi, tohum
 `TOHUM`, aynı sembolde bot işleminin giriş−1 gün … çıkış+1 gün aralığına düşmeyen 30m sınırı).
@@ -122,7 +124,7 @@ def uret(pkl: Path, v4: bool = False) -> None:
         rast = rastgele_anlar(trades, p["bitis"], d30ler, TOHUM_V4, RASTGELE_V4, onceki)
         return _yaz(OUT.with_name("v4"), "v4", _rastgele(rast, d30ler, 0, ob=True), pkl, p, TOHUM_V4,
                     f"{RASTGELE_V4} rastgele an (doğrulama seti, v3'ün 50 anıyla aynı sembolde ±1 gün "
-                    "çakışmaz). <b>Sıra:</b> önce OTE çapaları ya da “setup yok”; sonra “OB'leri göster” "
+                    "çakışmaz). <b>Sıra:</b> önce OTE çapaları ya da “setup yok” — <b>bu adım OB için değil, OTE'nin 0 ve 1 likidite noktaları</b>; sonra “OB'leri göster” "
                     "(OTE kilitlenir), her OB'yi doğru / yanlış işaretle, kaçırılan OB'yi “kaçırılan OB "
                     "ekle” ile 30m'de 1. mumuna tıklayarak ekle. Kaynak satırındaki spec/kod anların örneklendiği "
                     "koşunundur; OB kutuları sayfa üretiminde spec v0.8 OB tanımıyla (OPEN-64) hesaplandı")
@@ -206,11 +208,14 @@ anında biter: yalnızca kapanmış mumlar; sonrası yok, işlem sonucu yok. Saa
 <div id="ilerleme"></div>
 <div class="ust">
   <button id="geri">← önceki</button><select id="liste"></select><button id="ileri">sonraki →</button>
-  <span style="flex:1"></span><button id="indir">Etiketleri indir</button>
+  <span style="flex:1"></span><label>Etiketleri yükle <input type="file" id="yukle" accept=".json"></label>
+  <button id="indir">Etiketleri indir</button>
 </div>
 <div class="kart">
   <div id="baslik" style="font-weight:600"></div>
   <div id="g4" class="grafik"></div><div id="g30" class="grafik alt"></div>
+  <div class="soluk" style="margin-top:8px"><b>OTE adımı:</b> Bu adım OB için değil — OTE'nin 0 ve 1
+    likidite noktaları. 0, 1'den önce ve zıt tipte (tepe ↔ dip) olmalı.</div>
   <div class="secenek">
     <label id="botsec"><input type="radio" name="secim" value="bot_dogru"> botun çapaları doğru</label>
     <label><input type="radio" name="secim" value="farkli"> farklı çapa (tıklayarak)</label>
@@ -219,6 +224,7 @@ anında biter: yalnızca kapanmış mumlar; sonrası yok, işlem sonucu yok. Saa
   <div class="ust">
     <button id="m0">0 seç</button><button id="m1">1 seç</button><button id="temizle">çapaları temizle</button>
     <span class="capa" id="c0"></span><span class="capa" id="c1"></span>
+    <b id="uyari" style="color:var(--s1)"></b>
   </div>
   <textarea id="not" placeholder="serbest not"></textarea>
   <div id="obbolum" style="margin-top:10px; border-top:1px solid var(--cizgi); padding-top:8px">
@@ -249,8 +255,17 @@ function etiket(a) {
 }
 const kilitli = a => !!(a.ob && etiket(a).ob_acildi);  // OB'ler açıldıysa OTE değişmez
 const obTamam = a => kilitli(a) && a.ob.every(o => etiket(a).ob[o.id]);
+// OTE çapa koruması: 0, 1'den önce ve zıt tipte; `k` çapasına `c` yazılırsa ihlal metni, yoksa ""
+function capaHata(e, k, c) {
+  const o = e["capa_" + (k === "0" ? "1" : "0")];
+  if (!o || !c) return "";
+  const [c0, c1] = k === "0" ? [c, o] : [o, c];
+  if (c0.ts >= c1.ts) return "reddedildi: 0, 1'den önce olmalı";
+  if (c0.tip === c1.tip) return "reddedildi: 0 ve 1 zıt tipte olmalı (tepe ↔ dip)";
+  return "";
+}
 const tamam = id => !!(E[id] && (E[id].secim === "bot_dogru" || E[id].secim === "setup_yok" ||
-                       (E[id].secim === "farkli" && E[id].capa_0 && E[id].capa_1)));
+                       (E[id].secim === "farkli" && E[id].capa_0 && E[id].capa_1 && !capaHata(E[id], "1", E[id].capa_1))));
 
 function isaretler(a, tf) {
   const e = etiket(a), adim = tf === "4h" ? 14400 : 1800, m = [];
@@ -316,8 +331,11 @@ function ciz() {
       }
       if (kilitli(a)) return;
       const y = s.coordinateToPrice(p.point.y), tip = y >= (r[2] + r[3]) / 2 ? "tepe" : "dip";
-      e["capa_" + mod] = {ts: r[0], saat: utc(r[0]), fiyat: tip === "tepe" ? r[2] : r[3], tip, tf};
-      e.secim = "farkli"; kaydet(); ciz();
+      const c = {ts: r[0], saat: utc(r[0]), fiyat: tip === "tepe" ? r[2] : r[3], tip, tf};
+      const h = capaHata(e, mod, c);
+      document.getElementById("uyari").textContent = h;
+      if (h) return;
+      e["capa_" + mod] = c; e.secim = "farkli"; kaydet(); ciz();
     });
     g.timeScale().fitContent();
     grafikler.push(g);
@@ -361,7 +379,7 @@ function ciz() {
     `${j === i ? "simdi" : ""}">${x.n}</span>`).join("");
 }
 
-const git = j => { i = (j + ANLAR.length) % ANLAR.length; ciz(); };
+const git = j => { i = (j + ANLAR.length) % ANLAR.length; document.getElementById("uyari").textContent = ""; ciz(); };
 document.getElementById("liste").innerHTML =
   ANLAR.map((a, j) => `<option value="${j}">#${a.n} ${a.symbol.split("/")[0]} ${a.karar_ts}${a.tur === "bot" ? "" : " (rastgele)"}</option>`).join("");
 document.getElementById("liste").onchange = ev => git(+ev.target.value);
@@ -391,6 +409,11 @@ document.addEventListener("keydown", ev => {
   if (ev.key === "ArrowLeft") git(i - 1); else if (ev.key === "ArrowRight") git(i + 1);
   else if (ev.key === "0" || ev.key === "1") { mod = ev.key; ciz(); }
 });
+document.getElementById("yukle").onchange = async ev => {
+  const f = ev.target.files[0]; if (!f) return;
+  try { E = Object.fromEntries(JSON.parse(await f.text()).map(({ob_liste, ...e}) => [e.id, e])); }
+  catch (err) { document.getElementById("uyari").textContent = "yüklenemedi: " + err.message; return; }
+  kaydet(); ciz(); };
 document.getElementById("indir").onclick = () => {
   const veri = ANLAR.map(a => ({...etiket(a), ...(a.ob ? {ob_liste: a.ob} : {})}));
   const url = URL.createObjectURL(new Blob([JSON.stringify(veri, null, 1)], {type: "application/json"}));
