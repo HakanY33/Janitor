@@ -20,14 +20,14 @@ def test_v4_ob_listesi_karar_aninda_bilineni_gosterir():
 
     ts = pd.date_range("2026-01-01", periods=8, freq="30min", tz="UTC")
     # 0–1 düz · 2: düşüş mumu (1. mum) · 3: yükseliş · 4: 1. mumdan ayrık (3. mum) · 5: uzak ·
-    # 6: 1. mumun gövdesine döner (mitigasyon) · 7: yeni bir talep için 3. mum adayı
+    # 6: 1. mumun bölgesine (high–low) döner (mitigasyon) · 7: yeni bir talep için 3. mum adayı
     o = [100, 100, 100, 99.6, 101, 103, 103, 100]
     h = [101, 101, 100.5, 101, 103, 104, 103.5, 101]
     lo = [99, 99, 99.3, 99.5, 100.8, 102, 99.8, 99]
     c = [100.5, 100.5, 99.6, 100.9, 102.5, 103.5, 100, 100.5]
     d30 = pd.DataFrame({"ts": ts, "open": o, "high": h, "low": lo, "close": c, "volume": 1.0})
     once = ob_listesi(d30, "X", ts[6])  # 6. mum henüz açık: temas bilinmiyor
-    assert [(x["yon"], x["alt"], x["ust"], x["mit"]) for x in once] == [("talep", 99.6, 100, None)]
+    assert [(x["yon"], x["alt"], x["ust"], x["mit"]) for x in once] == [("talep", 99.3, 100.5, None)]
     sonra = ob_listesi(d30, "X", ts[7])
     assert sonra[0]["mit"] == int(ts[7].timestamp())  # 6. mumun kapanışı
     assert ob_listesi(d30, "X", ts[4]) == []  # 3. mum (4) kapanmadan OB yok
