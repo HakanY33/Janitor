@@ -1,6 +1,6 @@
-# Swing seçimi — v3 etiketleri
+# Swing seçimi — v3 etiketleri · eşleştirme `pencere`
 
-Kaynak: `scripts/swing_secim.py`, `docs\inceleme\v3\etiketler.json` (50 an). Ön kayıt `docs/inceleme/v2/adaylar.md` (değiştirilmedi). Yorumlar betiğin başında.
+Kaynak: `scripts/swing_secim.py --eslestirme pencere`, `docs/inceleme/v3/etiketler.json` (50 an). Ön kayıt `docs/inceleme/v2/adaylar.md` (ölçüt değiştirilmedi). Yorumlar betiğin başında.
 
 ## 1 · Etiket doğrulama
 
