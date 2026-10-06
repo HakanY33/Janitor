@@ -12,6 +12,23 @@ Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
 PC'de, sunucuyla paralel (`göç/pc`), **2026-10-11 son çekim** (`SERVER.md` "Sunucu kapanışı — PC'ye
 geçiş"). Paper kapalı kalır. H1 dilimi 10-01 → 12-31, tek bakış 2027-01-01 (kod kilidi).
 
+**2026-10-06 (6. oturum) — v4 puanı GEÇTİ, OB adayları seçilmedi, #29:**
+- **Git akışı:** kullanıcının isteğiyle her commit ayrı commit → push → PR → merge (PR #44–#51).
+  CLAUDE.md #11 metni hâlâ eski yasağı yazıyor.
+- **v4 etiketleri** tamam (`docs/inceleme/v4/etiketler.json`): 30/30, 12 setup / 18 setup yok, 231 OB
+  etiketi (147 doğru, 84 yanlış). r28 ve r29'un OB etiketleri gövde çizimiyle verildi, yeniden bakılmadı.
+- **v4 puanı (bir kez):** `B2` + `son_supuren` **GEÇTİ** — çift isabet 8/12 (%67), eşik %28. Yanlış alarm
+  7/18. OB doğruluğu %64 (`docs/inceleme/v4/puan.md`).
+- **OB adayları** ön kaydı `docs/inceleme/v4/ob_adaylar.md` (hesaptan önce, PR #46). Sonuç
+  `ob_adaylar_sonuc.md` (`scripts/ob_adaylar.py`, 204 OB, r28/r29 hariç): taban A0 (hepsi geçerli)
+  140/204 · A3 (yalnızca ilki) 128 · A2 123 · A1 106 · B (BoS) 100 · A3+B 99 · A2+B 91 · A1+B 84 →
+  **kural seçilmedi** (ön kayıt: tabanı geçmeli), `OPEN-66` açık. Kesinlik (geçerli sayılanlarda doğru
+  oranı) açıklayıcı olarak: A0 %69, A3 %79, A1 %83, A3+B %88, A1+B %92 — kurallar yanlış OB'leri eliyor
+  ama doğruların çoğunu da götürüyor. Tek etiket setine dayanır.
+- **#29** (`SONUCLAR.md`): B2 + `son_supuren` + v0.9, 100 USDT, eğitim → **87,40 $** (−%12,6), 843 işlem,
+  kazanma %51,7, R +0,75 / −0,96, **brüt −1,52** (#28'de +7,86), sürtünme 11,08, kriter 3 6/11.
+  #28'den tek fark OB bölgesi (gövde → high–low): brüt pozitiflik kayboldu. `surtunme_29.md`.
+
 **2026-10-06 (5. oturum) — v4 OTE kısmi sıfırlama + çapa koruması + spec v0.9 (OB = mumun tamamı):**
 - **Git:** 4. oturumun 3 commit'i atıldı (kullanıcı isteğiyle, yerel; `280f59e`, `a3afdf9`, `a42d4c4`).
   `.claude/settings.json` kullanıcı tarafından elle değiştirildi (commit/add izinli); commit'lenmedi.
@@ -305,6 +322,8 @@ look-ahead'dendi. F1 zaten dondurulmuştu; karar değişmiyor.
 | Bulgu | Sonuç |
 |---|---|
 | **v0.9 OB = mumun tamamı: v4'te etiketle uyum değişmedi** | 63 etiketli OB'de mitigasyon durumu aynı; doğru 29 / yanlış 34 aynen üretiliyor; canlı OB 52 → 46 |
+| **#29 v0.9 brüt negatif** | OB high–low ile brüt −1,52 (#28 gövdeyle +7,86), 87,40 $, kriter 3 6/11 |
+| **v4: B2 + `son_supuren` GEÇTİ** | çift isabet 8/12 (%67, eşik %28); yanlış alarm 7/18 |
 | **#28 brüt pozitif (örneklem içi)** | B2 + `son_supuren`: +7,86 brüt, net −3,09; kriter 3 6/11. v4 doğrulaması bekliyor |
 | **Eşleştirme kaybı `anchor_0`'da** | v3: B3 22/44, B2 32/44 "yanlış 0"; aday "son süpüren karşı swing" örneklem içi 15 → 23–25/44 (v4'te doğrulanacak) |
 | **v0.8 OB/FVG kuralları: kayıp küçük, edge yok** | #27 88,42 $, 523 işlem, brüt −4,30; kriter 3 4/11 |
@@ -390,10 +409,9 @@ look-ahead'dendi. F1 zaten dondurulmuştu; karar değişmiyor.
 
 ## Sıradaki
 
-0. **Kullanıcı:** v4 sayfasında "Etiketleri yükle" → `docs/inceleme/v4/etiketler.json`, sonra 14 sıfırlanan
-   anın OTE'sini yeniden etiketle (önce OTE, sonra OB) → indir → aynı dosyanın üstüne. `OPEN-66` cevabı.
-   Sonra **tek komut:** `python -m scripts.v4_puan` → `docs/inceleme/v4/puan.md` (B2 + `son_supuren`
-   GEÇTİ/KALDI, eşik %28; OB doğruluğu ve kaçırılanlar). Bir kez koşulur.
+0. **Kullanıcı kararı:** v0.9 OB bölgesi (high–low) #29'da brütü −1,52'ye çekti (#28 gövdeyle +7,86).
+   Bölge kuralı kalsın mı? `OPEN-66` (ardışık OB'ler) için ön kayıtlı adayların hiçbiri tabanı geçmedi —
+   kesinlik mi uyum mu ölçüt olmalı? CLAUDE.md #11'in yeni metni.
 1. **Kullanıcı — yönetici PowerShell:** kayıtçı açılış görevleri `-Kok göç\pc\data` ile
    (`SERVER.md` geçiş tablosu 3. satır); funding / ohlcv30m / earliest için PC görevleri (4. satır).
 2. **2026-10-11:** son çekim + birleştirme (`SERVER.md` geçiş tablosu 6. satır), sonuç `goc.md`.
