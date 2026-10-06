@@ -39,14 +39,15 @@ import pandas as pd
 from src.features.candles import BODY_LOOKBACK, reference_body
 from src.features.ids import stable_id
 from src.features.fvg import BEARISH, BULLISH, FVG, require_detect_tf
+from src.features.structure import HIGH, LOW, Swing
 
 IMPULSE_MULT = 4.0  # spec §0.1 · gövde/medyan oranının p95'i (OPEN-21) — yalnızca delinme
 PIERCE_CONFIRM_BARS = 2  # "hemen dönme" kaç mumda ölçülür
 
 __all__ = [  # BODY_LOOKBACK/reference_body `candles`'a taşındı, buradan da okunur
     "BODY_LOOKBACK", "IMPULSE_MULT", "PIERCE_CONFIRM_BARS", "AddStrength",
-    "OrderBlock", "detect_order_blocks", "evaluate_strength", "mitigation_time",
-    "pierce_time", "reference_body", "replay_obs",
+    "OrderBlock", "bos_time", "detect_order_blocks", "evaluate_strength", "mitigation_time",
+    "ob_kurallari", "pierce_time", "reference_body", "replay_obs", "seri_isaretle",
 ]
 
 
@@ -64,6 +65,8 @@ class OrderBlock:
     impulse_at: datetime  # 3. mumun (teyit) açılışı — kimlik, bilgi anı değil
     mitigated_at: datetime | None = None  # bölgeye ilk dönülen mumun kapanışı (R-ENTRY-05)
     known_at: datetime | None = field(default=None)  # 3. mumun kapanışı; boşsa türetilir
+    bos_at: datetime | None = None  # OPEN-66 (B) · yapı kırılmasının bilindiği an; yoksa OB geçersiz
+    gecersiz_at: datetime | None = None  # OPEN-66 (A1) · ardışık seriye girdiğinin bilindiği an
 
     def __post_init__(self) -> None:
         if self.known_at is None:
@@ -89,6 +92,58 @@ def detect_order_blocks(df: pd.DataFrame, symbol: str, timeframe: str) -> list[O
             bottom=float(l[i]), created_at=pd.Timestamp(ts[i]),
             impulse_at=pd.Timestamp(ts[k])))
     return out
+
+
+
+def seri_isaretle(obs: list[OrderBlock]) -> None:
+    """`OPEN-66` (A1) · araya ters yönlü OB girmeden gelen aynı yönlü OB'lerin **hepsi** geçersiz.
+
+    Sıra 1. mumun zamanıdır. `gecersiz_at` geçersizliğin **bilindiği** an (CLAUDE.md #3): serinin
+    ikinci ve sonraki OB'leri doğduğu anda (`known_at`), ilki ardılı bilindiğinde geçersizdir.
+    Tek OB'lik seride `None`. Liste büyüdükçe (canlı) baştan çağrılır; damgalar önekle değişmez.
+    """
+    s = sorted(obs, key=lambda o: o.created_at)
+    for o in s:
+        o.gecersiz_at = None
+    for p, q in zip(s, s[1:]):
+        if p.direction == q.direction:
+            p.gecersiz_at = q.known_at if p.gecersiz_at is None else min(p.gecersiz_at, q.known_at)
+            q.gecersiz_at = q.known_at
+
+
+def bos_time(ob: OrderBlock, df: pd.DataFrame, swings: list[Swing]) -> datetime | None:
+    """`OPEN-66` (B) · OB'den başlayan hareketin son karşı swing'i kapanışla kırdığı an.
+
+    Karşı swing: talepte **tepe**, arzda **dip**, pivotu 1. mumdan önce. Her mumda, o mumun
+    kapanışında **bilinen** (`known_at`) swing'lerin en son pivotlusu ölçülür; böylece canlı önek
+    ile tam seri aynı sonucu verir. Kırılma 2. mumdan başlar, kapanışla (fitil yetmez). Fiyat OB
+    bölgesine ilk döndüğünde (mitigasyon mumu, 3. mumdan sonra) hareket biter → `None`.
+    Dönen an kırılma mumunun kapanışı.
+    """
+    tip = HIGH if ob.direction == BULLISH else LOW
+    karsi = [s for s in swings if s.kind == tip and s.ts < ob.created_at]
+    if not karsi:
+        return None
+    td = pd.Timedelta(ob.timeframe)
+    for r in df.iloc[int(df.ts.searchsorted(ob.created_at, side="right")):].itertuples():
+        if r.ts > ob.impulse_at and r.low <= ob.top and r.high >= ob.bottom:
+            return None  # bölgeye döndü: hareket bitti
+        kapanis = r.ts + td
+        bilinen = [s for s in karsi if s.known_at <= kapanis]
+        if not bilinen:
+            continue
+        seviye = max(bilinen, key=lambda s: s.ts).price
+        if (r.close > seviye) if ob.direction == BULLISH else (r.close < seviye):
+            return kapanis
+    return None
+
+
+def ob_kurallari(obs: list[OrderBlock], df: pd.DataFrame, swings: list[Swing]) -> None:
+    """`OPEN-66` A1 + B damgaları. Kırılması bilinen OB yeniden hesaplanmaz (önek değişmez)."""
+    seri_isaretle(obs)
+    for o in obs:
+        if o.bos_at is None:
+            o.bos_at = bos_time(o, df, swings)
 
 
 def pierce_time(

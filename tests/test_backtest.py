@@ -236,6 +236,8 @@ def symbol_data(bars: list[tuple[float, float]], zone: Zone, obs=()) -> SymbolDa
         ob_known=np.array([np.datetime64(o.known_at.tz_localize(None)) for o in obs]),
         ob_pierce=np.full(len(obs), uzak),
         ob_alive=np.ones(len(obs), dtype=bool),
+        ob_bos=np.array([np.datetime64(o.bos_at.tz_localize(None)) for o in obs], dtype="datetime64[ns]"),
+        ob_gecersiz=np.full(len(obs), uzak),
     )
 
 
@@ -244,7 +246,8 @@ def bearish_ob(top: float, bottom: float):
     from src.features.ob import OrderBlock
 
     return OrderBlock(ob_id=f"ob{top}", symbol=SYM, timeframe="30m", direction="BEARISH",
-                      top=top, bottom=bottom, created_at=ts(0), impulse_at=ts(0))
+                      top=top, bottom=bottom, created_at=ts(0), impulse_at=ts(0),
+                      bos_at=ts(0) + pd.Timedelta("30m"))  # OPEN-66 (B): bilindiği anda geçerli
 
 
 # Girer, sonra bandın (170–179) ÖTESİNE çıkar: ekleme yolunun ön koşulu (R-ADD-01 (1)).

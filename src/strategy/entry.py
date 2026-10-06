@@ -51,8 +51,13 @@ def ob_eligible(ob: OrderBlock, zone: Zone, at: datetime) -> bool:
     """R-ENTRY-05 · OB `at` anında giriş adayı mı.
 
     Dört koşul: bilinebilir olmuş · yöne uygun · giriş bandını kesiyor · unmitige.
+    Ve `OPEN-66`: yapı kırılması (B) `at`'te bilinmiş, ardışık seriye (A1) girmemiş.
     """
     if ob.known_at > at:  # OB henüz bilinmiyor (CLAUDE.md #3)
+        return False
+    if ob.bos_at is None or ob.bos_at > at:  # OPEN-66 (B) · yapı kırılmadı (henüz)
+        return False
+    if ob.gecersiz_at is not None and ob.gecersiz_at <= at:  # OPEN-66 (A1) · ardışık
         return False
     if ob.direction != BIAS_TO_DIRECTION[zone.bias]:  # R-ENTRY-02 (1) · yöne uygun
         return False

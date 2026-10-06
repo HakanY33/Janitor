@@ -430,3 +430,69 @@ def test_NEAR_ob_ve_fvg_listesi_raporlanir(capsys):
         print()
         for line in lines:
             print(line)
+
+
+# --- OPEN-66 · ardışık OB'ler (A1) + yapı kırılması (B) ----------------------
+
+def _ob66(i, yon=BULLISH, top=100.5, bottom=99.3):
+    t = pd.date_range("2026-01-01", periods=40, freq="30min", tz="UTC")
+    return OrderBlock(f"o{i}", "X", "30m", yon, top, bottom, t[i], t[i + 2])
+
+
+def test_OPEN_66_A1_ardisik_ayni_yonlu_OBlerin_hepsi_gecersiz_bilindigi_anla():
+    from src.features.ob import seri_isaretle
+
+    a, b, c, d = _ob66(0), _ob66(4), _ob66(8, BEARISH), _ob66(12)
+    seri_isaretle([d, c, b, a])  # sıra girdiden değil 1. mumdan
+    assert a.gecersiz_at == b.known_at  # ilki, ardılı bilinince
+    assert b.gecersiz_at == b.known_at  # ikincisi doğduğu anda
+    assert c.gecersiz_at is None and d.gecersiz_at is None  # ters yön seriyi böler
+
+
+def _swing(kind, price, pivot, bilinen):
+    from src.features.structure import Swing
+    return Swing("s", "X", "30m", kind, price, pivot, bilinen - pd.Timedelta("30min"))
+
+
+def test_OPEN_66_B_kapanisla_kirilma_fitil_yetmez_bolgeye_donus_biter():
+    from src.features.ob import bos_time
+    from src.features.structure import HIGH
+
+    t = pd.date_range("2026-01-01", periods=8, freq="30min", tz="UTC")
+    ob = OrderBlock("o", "X", "30m", BULLISH, 100.5, 99.3, t[1], t[3])
+    tepe = [_swing(HIGH, 103.0, t[0] - pd.Timedelta("1h"), t[0])]
+    df = lambda c, lo=None: pd.DataFrame({"ts": t[:len(c)], "open": c, "high": [x + 0.2 for x in c],
+                                          "low": lo or [x - 0.2 for x in c], "close": c})
+    assert bos_time(ob, df([100, 100, 101, 102, 103.5]), tepe) == t[4] + pd.Timedelta("30min")
+    assert bos_time(ob, df([100, 100, 101, 102, 102.9]), tepe) is None  # yalnızca fitil 103.1
+    assert bos_time(ob, df([100, 100, 101, 102, 101, 104], lo=[0, 0, 0, 0, 100.4, 103.8]), tepe) is None
+    assert bos_time(ob, df([100, 100, 101, 102, 103.5]), []) is None  # karşı swing yok
+
+
+def test_OPEN_66_B_kirilma_anindaki_bilinen_swing_olculur_lookahead_yok():
+    """Daha yakın tepe (102) ancak t[5]'te bilinir: t[4]'te bilinen 101'in kırılması geçerlidir."""
+    from src.features.ob import bos_time
+    from src.features.structure import HIGH
+
+    t = pd.date_range("2026-01-01", periods=8, freq="30min", tz="UTC")
+    ob = OrderBlock("o", "X", "30m", BULLISH, 100.5, 99.3, t[2], t[4])
+    tepeler = [_swing(HIGH, 101.0, t[0], t[0]), _swing(HIGH, 102.0, t[1], t[6])]
+    c = [100, 100, 100, 100.8, 101.5, 101.6]
+    d = pd.DataFrame({"ts": t[:6], "open": c, "high": [x + 0.1 for x in c], "low": [x - 0.1 for x in c], "close": c})
+    assert bos_time(ob, d, tepeler) == t[4] + pd.Timedelta("30min")
+    assert bos_time(ob, d, tepeler[1:]) is None  # 102 kırılmadı
+
+
+def test_OPEN_66_ob_eligible_bos_ve_seri_damgalarina_uyar():
+    from src.strategy.entry import ob_eligible
+
+    ob = _ob66(0)
+    sonra = ob.known_at + pd.Timedelta("2h")
+    z = type("Z", (), {"bias": "LONG", "level_070": 100.0, "level_079": 99.5})()
+    ob.bos_at = None
+    assert not ob_eligible(ob, z, sonra)  # kırılma yok
+    ob.bos_at = ob.known_at + pd.Timedelta("1h")
+    assert not ob_eligible(ob, z, ob.known_at)  # kırılma henüz bilinmiyor
+    assert ob_eligible(ob, z, sonra)
+    ob.gecersiz_at = sonra
+    assert not ob_eligible(ob, z, sonra)  # seriye girdi
