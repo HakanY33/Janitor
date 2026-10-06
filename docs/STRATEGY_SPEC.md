@@ -2,12 +2,17 @@
 
 | | |
 |---|---|
-| **Versiyon** | v0.8 |
-| **Durum** | OTE modeli kapalı ve kodlanabilir. Açık parametre kalmadı; eşikler backtest'le kalibre edilecek. |
+| **Versiyon** | v0.9 |
+| **Durum** | OTE modeli kapalı ve kodlanabilir. Açık: `OPEN-66` (ardışık aynı yönlü OB'ler). Eşikler backtest'le kalibre edilecek. |
 | **Kapsam** | Kripto vadeli (perpetual), cross marjin, paper trading |
-| **Son güncelleme** | 2026-10-02 |
+| **Son güncelleme** | 2026-10-06 |
 
 > **UYARI — 30m look-ahead (düzeltildi 2026-09-29).** Commit 3fb2ff4 ve öncesindeki kod, zone/OB/FVG damgalarını (mumun açılışı) bilgi anı olarak kullanıyordu: her nesne bir 30m mum erken görünüyordu. Bu spec'te ve `docs/measurements/`'ta o koda dayanan **her ölçüm sayısı** bu hatayı taşır; mutlak değerler geçersizdir. Düzeltilmiş yeniden ölçüm: `docs/measurements/damga.md`. Kural: her HTF nesnesi `known_at` = mumun kapanışı taşır; bir mumdan çıkan hiçbir bilgi o mum kapanmadan kullanılamaz (CLAUDE.md #3).
+
+**v0.8'den değişenler (2026-10-06, kullanıcı kuralı):** OB bölgesi 1. mumun **tamamı** (high–low,
+fitiller dahil), gövde değil (§0.1 OB). Tespit ve geçerlilik değişmedi; değişen bölge sınırları ve
+onlara bağlı mitigasyon, delinme ve `R-ENTRY-02` emir kenarı. Ardışık aynı yönlü OB'ler: `OPEN-66`
+(kullanıcıya soruldu, cevap bekleniyor — kural yok).
 
 **v0.7'den değişenler (2026-10-05, kullanıcı kuralları):** `OPEN-64` kapandı (OB yeni tanım:
 3 mumluk yapı, 1. mum OB; geçerlilik 2. ve 3. mumdan) · `OPEN-65` kapandı (FVG tek başına giriş
@@ -94,7 +99,7 @@ Terimler burada tek anlama sabitlenir. Kod aynı isimleri kullanır.
 | **Leg (Bacak)** | Bir swing low'dan swing high'a (veya tersi) uzanan hareket. Fib'in çizildiği aralık. Uç tespiti `R-ZONE-02`. |
 | **Likidite bölgesi** | Leg'in başladığı/bittiği, önceki swing'in aşıldığı bölge. |
 | **İmpuls** | Normalden belirgin büyük gövdeli, tek yönlü hareket mumu. Ölçüt: gövde > `IMPULSE_MULT` × son 20 mumun **medyan** gövdesi. **`IMPULSE_MULT = 4.0`** (`OPEN-21` kapandı). Delinme (`R-ADD-06`) buna dayanır; OB tanımı v0.8'den beri dayanmaz (`OPEN-64`). |
-| **OB (Order Block)** | (kullanıcı, 2026-10-05, `OPEN-64`) Düşüşten önceki **son yükseliş mumu** (arz, `BEARISH`) ya da yükselişten önceki **son düşüş mumu** (talep, `BULLISH`) — **1. mum**; bölge onun **gövdesi**. **Geçerlilik:** (a) **3. mum 1. mumla temas etmez** (mum aralıkları, fitil dahil, kesişmez: arzda 3. mumun high'ı < 1. mumun low'u; talepte 3. mumun low'u > 1. mumun high'ı); (b) **2. mum sarkmaz**: talepte 2. mumun low'u 1. mumun low'unun altına, arzda 2. mumun high'ı 1. mumun high'ının üstüne çıkmaz. "Son" olması için 2. mum 1. mumun yönünde değildir (arzda 2. mum yükseliş mumu değil). Büyüklük eşiği (impuls) yok — **kullanıcı onayı 2026-10-05: kaldırılmış hâliyle kalır** (kullanıcı tanımı; eski `IMPULSE_MULT` şartı OB'ye geri gelmez, yalnızca delinmede yaşar). Damgalar: `created_at` = 1. mumun açılışı, `impulse_at` = 3. mumun açılışı (kimlik). **Bilgi anı `known_at` = 3. mumun kapanışı.** |
+| **OB (Order Block)** | (kullanıcı, 2026-10-05, `OPEN-64`) Düşüşten önceki **son yükseliş mumu** (arz, `BEARISH`) ya da yükselişten önceki **son düşüş mumu** (talep, `BULLISH`) — **1. mum**; bölge mumun **tamamı** (high–low, fitiller dahil; kullanıcı 2026-10-06, v0.9 — v0.8'de gövdeydi). **Geçerlilik:** (a) **3. mum 1. mumla temas etmez** (mum aralıkları, fitil dahil, kesişmez: arzda 3. mumun high'ı < 1. mumun low'u; talepte 3. mumun low'u > 1. mumun high'ı); (b) **2. mum sarkmaz**: talepte 2. mumun low'u 1. mumun low'unun altına, arzda 2. mumun high'ı 1. mumun high'ının üstüne çıkmaz. "Son" olması için 2. mum 1. mumun yönünde değildir (arzda 2. mum yükseliş mumu değil). Büyüklük eşiği (impuls) yok — **kullanıcı onayı 2026-10-05: kaldırılmış hâliyle kalır** (kullanıcı tanımı; eski `IMPULSE_MULT` şartı OB'ye geri gelmez, yalnızca delinmede yaşar). Damgalar: `created_at` = 1. mumun açılışı, `impulse_at` = 3. mumun açılışı (kimlik). **Bilgi anı `known_at` = 3. mumun kapanışı.** |
 | **FVG** | Üç mumluk yapıda 1. mumun high'ı ile 3. mumun low'u arasındaki dokunulmamış boşluk (ters yön için simetrik). `created_at` = 3. mumun açılışı; boşluk ancak o mum kapanınca bilinir: **`known_at` = 3. mumun kapanışı**. |
 | **Mitigasyon** | Fiyatın bir FVG/OB bölgesine ilk temas etmesi. Damgası olayın gerçekleştiği mumun **kapanışıdır**. **FVG mitigasyonda silinir** (kullanıcı, 2026-10-05, `OPEN-65`): fiyat bölgeye girdiği an boşluk tükenmiştir; ayrı bir "dolum" (karşı sınırın geçilmesi) beklenmez — kodda `filled_at = mitigated_at`. |
 | **"OB içinde FVG"** | Kesişim yeterlidir, tam kapsama aranmaz (`R-ADD-05`). |
@@ -779,6 +784,7 @@ kapatılabilir; varsayılan hepsi açık. Kapatma kararın girdisi olarak loglan
 | `OPEN-63` | Asgariyi karşılamayan kısmi TP | **Kapandı 2026-10-02 (kullanıcı)** — mevcut davranış kalır: emir gönderilmez, `rejected_min_close` sayılır, pozisyon tam kalır, zone `TP1_HIT`'e geçtiği için stop maliyete çekilir. |
 | `OPEN-64` | OB tanımı (inceleme #25, #30: "3. mum temas etmiş, OB geçerli sayılmamalıydı") | **Kapandı 2026-10-05 (kullanıcı)** — §0.1 OB: 3 mumluk yapı, 1. mum OB; 3. mum 1. mumla temas etmez, 2. mum 1. mumun ucunu aşmaz. İmpuls eşiği OB tanımından çıktı. Kod `src/features/ob.py:detect_order_blocks`. |
 | `OPEN-65` | FVG'nin rolü (inceleme: "FVG'ler alınmak istenir", hacimsiz FVG) | **Kapandı 2026-10-05 (kullanıcı)** — FVG tek başına giriş sebebi değil (`R-ENTRY-02` (2) ve kapıdan çıktı), yalnızca `R-ADD-05` güç bayrağı; bölgeye ilk girişte silinir. Kod `src/features/fvg.py:FVG.on_bar`, `src/backtest/engine.py:_hedef`. |
+| `OPEN-66` | Art arda gelen aynı yönlü OB'ler (kullanıcı notları, 2026-10-06) | **Açık** — kullanıcıya soruldu, cevap bekleniyor. Kod her geçerli 3 mumluk yapıyı ayrı OB sayar (mevcut davranış, değiştirilmedi). |
 | `OPEN-16` | Günlük yeni-pozisyon durdurma eşiği | Backtest'le kalibre (başlangıç %10) |
 | `OPEN-17` | Likidasyon tamponu eşikleri | Backtest'le kalibre (başlangıç %50 / %15) |
 | `OPEN-12` | Harmonik oran tablosu + stop kanadı | v2 modülü |

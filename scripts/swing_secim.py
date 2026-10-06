@@ -261,6 +261,39 @@ def alarm(zs, d1, karar) -> bool:
     return False
 
 
+def aday_olc(ad: str, eslestirme: str, setup, yok, V: dict, son_tarih: dict) -> dict:
+    """Ön kayıt ölçütleri, tek aday: çift isabet, tek çapa geri çağırma, yanlış alarm, gecikme.
+
+    `setup`: [(etiket, (Capa 0, Capa 1))] · `yok`: setup yok etiketleri · `V`: sembol →
+    (30m, 1m) · `son_tarih`: etiket id → ilk 0.50 teması (`ilk_050`) ya da None.
+    `v4_puan` aynı fonksiyonu kullanır: v3 ve v4 ölçütü tek koddan.
+    """
+    fn = ADAYLAR[ad]
+    semboller = sorted(V)
+    sw = {s: fn(V[s][0], s) for s in semboller}
+    zs = {s: zonlar(V[s][0], s, sw[s], eslestirme) for s in semboller}
+    cift, r0, r1, gec, isabet = 0, 0, 0, [], []
+    for r, (c0, c1) in setup:
+        s = r["symbol"]
+        r0 += any(eslesir(x.ts, TIP[x.kind], c0) for x in sw[s])
+        r1 += any(eslesir(x.ts, TIP[x.kind], c1) for x in sw[s])
+        son = son_tarih[r["id"]]
+        uy = [z for z in zs[s] if eslesir(z.anchor_0_time, z_tip0(z), c0)
+              and eslesir(z.anchor_1_time, "dip" if z_tip0(z) == "tepe" else "tepe", c1)
+              and (son is None or z.known_at <= son)]
+        if uy:
+            cift += 1
+            isabet.append(r["id"])
+            gec.append(min((z.known_at - z.anchor_1_time) / pd.Timedelta("1h") for z in uy))
+    fa = {tur: sum(alarm(zs[r["symbol"]], V[r["symbol"]][1], pd.Timestamp(r["karar_ts"], tz="UTC"))
+                   for r in yok if r["tur"] == tur) for tur in ("bot", "rastgele")}
+    ay = sum((V[s][0].ts.iloc[-1] - V[s][0].ts.iloc[0]) / pd.Timedelta("30D") for s in semboller)
+    return dict(cift=cift, r0=r0, r1=r1, fa_b=fa["bot"], fa_r=fa["rastgele"],
+                gec=statistics.median(gec) if gec else float("nan"), isabet=isabet,
+                zone_ay=sum(len(z) for z in zs.values()) / ay,
+                swing_ay=sum(len(x) for x in sw.values()) / ay)
+
+
 def degerlendir(eslestirme: str = ESLESTIRME, adaylar: list[str] | None = None,
                 out: Path = OUT) -> str:
     """Ön kayıt ölçütleri + seçim kuralı. `adaylar` verilmezse yedisi; `eslestirme` R-ZONE-10 seçeneği."""
@@ -301,31 +334,7 @@ def degerlendir(eslestirme: str = ESLESTIRME, adaylar: list[str] | None = None,
     sonra = [i for i, t in son_tarih.items() if t is None]
     sonuc = {}
     for ad in adaylar or list(ADAYLAR):
-        fn = ADAYLAR[ad]
-        sw = {s: fn(V[s][0], s) for s in semboller}
-        zs = {s: zonlar(V[s][0], s, sw[s], eslestirme) for s in semboller}
-        cift, r0, r1, gec, isabet = 0, 0, 0, [], []
-        for r, (c0, c1) in setup:
-            s = r["symbol"]
-            r0 += any(eslesir(x.ts, TIP[x.kind], c0) for x in sw[s])
-            r1 += any(eslesir(x.ts, TIP[x.kind], c1) for x in sw[s])
-            son = son_tarih[r["id"]]
-            uy = [z for z in zs[s] if eslesir(z.anchor_0_time, z_tip0(z), c0)
-                  and eslesir(z.anchor_1_time, "dip" if z_tip0(z) == "tepe" else "tepe", c1)
-                  and (son is None or z.known_at <= son)]
-            if uy:
-                cift += 1
-                isabet.append(r["id"])
-                gec.append(min((z.known_at - z.anchor_1_time) / pd.Timedelta("1h") for z in uy))
-        fa_b = sum(alarm(zs[r["symbol"]], V[r["symbol"]][1], pd.Timestamp(r["karar_ts"], tz="UTC"))
-                   for r in yok if r["tur"] == "bot")
-        fa_r = sum(alarm(zs[r["symbol"]], V[r["symbol"]][1], pd.Timestamp(r["karar_ts"], tz="UTC"))
-                   for r in yok if r["tur"] == "rastgele")
-        ay = sum((V[s][0].ts.iloc[-1] - V[s][0].ts.iloc[0]) / pd.Timedelta("30D") for s in semboller)
-        sonuc[ad] = dict(cift=cift, r0=r0, r1=r1, fa_b=fa_b, fa_r=fa_r,
-                         gec=statistics.median(gec) if gec else float("nan"), isabet=isabet,
-                         zone_ay=sum(len(z) for z in zs.values()) / ay,
-                         swing_ay=sum(len(x) for x in sw.values()) / ay)
+        sonuc[ad] = aday_olc(ad, eslestirme, setup, yok, V, son_tarih)
         print(ad, {k: v for k, v in sonuc[ad].items() if k != "isabet"}, flush=True)
 
     n = len(setup)

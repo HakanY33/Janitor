@@ -65,6 +65,7 @@ def kos(bakiye: Decimal = Decimal("10000"), yol: Path | None = None) -> None:
         "bitis": {d.symbol: d.ts[-1] for d in data},
         "baslangic": {d.symbol: d.ts[0] for d in data},
         "bakiye": bakiye, "counters": res.counters,
+        "defter": dict(res.costs.breakdown),  # kalem defteri (komisyon/slippage/funding, kaleme göre)
     }
     yol = yol or (PKL if bakiye == Decimal("10000") else PKL.with_name(f"f1_{bakiye}.pkl"))
     yol.parent.mkdir(parents=True, exist_ok=True)

@@ -156,27 +156,27 @@ def test_FVG_store_yalnizca_dolmamislari_dondurur(tmp_path):
 
 # --- OB · tespit -------------------------------------------------------------
 
-# Talep: 1. mum düşüş (gövde 99.6–100, aralık 99.3–100.5) · 2. mum yükseliş, dibi 99.5 ≥ 99.3 ·
+# Talep: 1. mum düşüş (gövde 99.6–100, aralık 99.3–100.5 = OB bölgesi) · 2. mum yükseliş, dibi 99.5 ≥ 99.3 ·
 # 3. mum dibi 100.8 > 100.5 (1. mumla temas yok). Gövdeler küçük: büyüklük eşiği yok.
 TALEP = [(100, 100.5, 99.3, 99.6), (99.6, 101, 99.5, 100.9), (101, 103, 100.8, 102.5)]
-# Arz: 1. mum yükseliş (100–100.4, aralık 99.5–100.7) · 2. mum düşüş, tepesi 100.6 ≤ 100.7 ·
+# Arz: 1. mum yükseliş (100–100.4, aralık 99.5–100.7 = OB bölgesi) · 2. mum düşüş, tepesi 100.6 ≤ 100.7 ·
 # 3. mum tepesi 99.4 < 99.5.
 ARZ = [(100, 100.7, 99.5, 100.4), (100.4, 100.6, 99, 99.2), (99.2, 99.4, 97, 97.5)]
 
 
-def test_OPEN_64_OB_talep_yukselisten_onceki_son_dusus_mumunun_govdesi():
+def test_OPEN_64_OB_talep_yukselisten_onceki_son_dusus_mumu():
     ob, = obs_of(flat_bars() + TALEP)
-    assert (ob.direction, ob.top, ob.bottom) == (BULLISH, 100, 99.6)
+    assert (ob.direction, ob.top, ob.bottom) == (BULLISH, 100.5, 99.3)
 
 
-def test_OPEN_64_OB_arz_dususten_onceki_son_yukselis_mumunun_govdesi():
+def test_OPEN_64_OB_arz_dususten_onceki_son_yukselis_mumu():
     ob, = obs_of(flat_bars() + ARZ)
-    assert (ob.direction, ob.top, ob.bottom) == (BEARISH, 100.4, 100)
+    assert (ob.direction, ob.top, ob.bottom) == (BEARISH, 100.7, 99.5)
 
 
-def test_OPEN_64_OB_sinirlar_govdeden_gelir_fitil_disarida():
+def test_OPEN_64_OB_bolge_mumun_tamami_fitiller_dahil():
     ob, = obs_of(flat_bars() + TALEP)
-    assert (ob.top, ob.bottom) == (100, 99.6)  # 100.5 / 99.3 fitilleri OB'ye girmez
+    assert (ob.top, ob.bottom) == (100.5, 99.3)  # gövde 99.6–100 değil (spec v0.9)
 
 
 def test_OPEN_64_OB_ucuncu_mum_birinci_mumla_temas_ederse_gecersiz():
@@ -230,7 +230,7 @@ def test_OB_referans_govde_kendi_mumunu_saymaz():
 # --- R-ADD-06 · hacimli delinme ---------------------------------------------
 
 PIERCE_HEAD = flat_bars() + [
-    (100, 100.5, 99.3, 99.6),  # OB gövdesi 99.6 – 100
+    (100, 100.5, 99.3, 99.6),  # OB bölgesi 99.3 – 100.5
     (99.6, 106, 99.6, 105),  # 2. mum
     (105, 107, 104, 106),  # 3. mum: 1. mumla temas yok (OPEN-64)
 ]
@@ -240,7 +240,7 @@ def pierced(tail: Rows):
     """OB'yi kurar, kuyruk mumlarıyla delinme zamanını arar. İlk kuyruk mumu = ts[len(HEAD)].
 
     Kuyruktaki büyük gövdeli geçiş mumu kendi ters yönlü OB'sini üretir; ölçülen,
-    listenin ilki olan talep bloğudur (99.6 – 100).
+    listenin ilki olan talep bloğudur (99.3 – 100.5).
     """
     rows = PIERCE_HEAD + tail
     df = candles(rows)
@@ -256,7 +256,8 @@ def test_R_ADD_06_buyuk_govdeli_mumla_tam_gecis_delinmedir():
 
 def test_R_ADD_06_kucuk_govdeli_gecis_delinme_degil():
     """Sürünerek geçiş hacim değildir: geçiş mumlarının ortalama gövdesi eşiğin altında."""
-    tail = [(100.4, 100.5, 100, 100.1), (100.1, 100.2, 99.8, 99.9), (99.9, 100, 99.5, 99.6)]
+    tail = [(100.4, 100.5, 100, 100.1), (100.1, 100.2, 99.6, 99.7), (99.7, 99.8, 99.2, 99.3),
+            (99.3, 99.4, 99.0, 99.1), (99.1, 99.2, 98.9, 99.0)]
     assert pierced(tail)[0] is None
 
 

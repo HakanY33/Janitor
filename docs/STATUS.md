@@ -2,7 +2,7 @@
 
 Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
 
-**Son güncelleme:** 2026-10-05
+**Son güncelleme:** 2026-10-06
 
 ---
 
@@ -11,6 +11,43 @@ Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
 **Görev:** Sunucu **2026-10-12**'de kapanıyor, yeni sunucu yok (kullanıcı 2026-10-05). Kayıtçılar
 PC'de, sunucuyla paralel (`göç/pc`), **2026-10-11 son çekim** (`SERVER.md` "Sunucu kapanışı — PC'ye
 geçiş"). Paper kapalı kalır. H1 dilimi 10-01 → 12-31, tek bakış 2027-01-01 (kod kilidi).
+
+**2026-10-06 (5. oturum) — v4 OTE kısmi sıfırlama + çapa koruması + spec v0.9 (OB = mumun tamamı):**
+- **Git:** 4. oturumun 3 commit'i atıldı (kullanıcı isteğiyle, yerel; `280f59e`, `a3afdf9`, `a42d4c4`).
+  `.claude/settings.json` kullanıcı tarafından elle değiştirildi (commit/add izinli); commit'lenmedi.
+  CLAUDE.md #11 metni hâlâ eski yasağı yazıyor — kullanıcı kararı bekliyor.
+- **v4 etiketleri** `docs/inceleme/v4/etiketler.json` (kullanıcının 10-05 indirmesi): 14 anda (r02 r03 r06
+  r07 r09 r12 r13 r14 r15 r16 r17 r18 r20 r22) OTE alanına OB işaretlenmişti (`0`, `1`'den sonra) →
+  yalnızca bu 14'ün `secim`/`capa_0`/`capa_1`'i sıfırlandı; 16 an ve 63 OB etiketi aynen. Bu 14'te OB
+  etiketi ve `ob_acildi` yoktu. Not: leg r03 %8,4, r17 %5,7, r18 %2,2 (< %2 değil). **Puanlama koşulmadı.**
+- **Arayüz** (`inceleme_v3.py`, v4 yeniden üretildi): çapa koruması `capaHata` — 0 1'den önce ve zıt
+  tipte, değilse tıklama reddedilir (kırmızı uyarı); `tamam` da bunu ister. "Etiketleri yükle" (dosya →
+  tarayıcı, tarayıcıdakinin yerine). OTE açıklaması: "Bu adım OB için değil — OTE'nin 0 ve 1 likidite
+  noktaları." Koruma node ile gerçek etiketlere karşı denendi: tam bu 14 anı yakalıyor.
+- **Spec v0.9:** OB bölgesi 1. mumun tamamı (high–low, fitiller dahil), gövde değil (`ob.py`, 3 test
+  yeniden yazıldı, R-ADD-06 sürünme testi yeni bölgeye göre). Tespit değişmedi → OB kimlik/numaraları
+  aynı. **`OPEN-66`** ardışık aynı yönlü OB'ler: açık, kullanıcı cevabı bekleniyor.
+  v4 (açıklayıcı): 363 OB (değişmedi), 361'inin sınırı genişledi; karar anında canlı (mitige değil)
+  52 → 46. 63 etiketli OB'de mitigasyon durumu hiç değişmedi: doğru 29 (canlı 2, mitige 27), yanlış 34
+  (canlı 8, mitige 26) — yeni kural 34 "yanlış"ın hiçbirini elemiyor, 29 "doğru"nun hepsini tutuyor.
+  `etiketler.json`'daki `ob_liste` kullanıcının gördüğü **gövde** sınırlarını taşır (anlık görüntü).
+  **#28 ve önceki koşular v0.8 kodundan;** v0.9 ile yeniden koşu yok. `test_inceleme_v3` v4 OB testi de
+  yeni bölgeye göre güncellendi. **Testler 498** (tam koşu 497 + düzeltilen 1).
+
+**2026-10-05 (4. oturum) — v4 puanlama + #28 sürtünme dökümü (strateji koduna dokunulmadı):**
+- **`scripts/v4_puan.py`** (tek komut, `docs/inceleme/v4/puan.md`): (a) B2 + `son_supuren` ön kayıt
+  ölçütleri, eşik %28 → GEÇTİ/KALDI; etiketsiz an varsa karar vermez (hata). (b) OB doğruluğu,
+  kaçırılan OB (motorda olan 1. mum ayrıca), doğru ↔ yanlış özellikleri (yön, genişlik, mitigasyon,
+  yaş, 2. mum gövdesi ve 1–3 boşluğu / medyan gövde). `tests/test_v4_puan.py` (7, sentetik).
+  Ölçüm döngüsü `swing_secim.aday_olc`'a ayrıldı — v3 raporları sayıca birebir aynı (doğrulandı).
+  **Gerçek v4 etiketleri yok, bakılmadı.**
+- **#28 sürtünme dökümü** `docs/measurements/surtunme_28.md` (`scripts/surtunme_dokum.py`; paket artık
+  kalem defteri `defter` taşıyor, #28 yeniden koşuldu, parmak izi aynı `d95d65d4311d378e`): sürtünme
+  10,94 = komisyon 9,85 + funding 1,09; slippage 2,13 brütün içinde. Komisyonun %50'si stop
+  işlemlerinde (321 işlem, 7,0 bps), %37 TP1+breakeven, %13 nihai TP. Maker %46 (giriş 34, TP1 9,
+  nihai TP 3) · taker %54 (stop 36, breakeven 18). Komisyon/işlem leg'den neredeyse bağımsız
+  (0,0126–0,0137 $); en çok ödeyen %10'un 75/76'sı stop (taker), leg medyanı tümüyle aynı (6,8 / 6,5).
+  Testler 498.
 
 **2026-10-05 (3. oturum) — eşleştirme kuralı + #28 + v4 OB arayüzü:**
 - **R-ZONE-10 seçeneği `son_supuren`** (kullanıcı kuralı: 0 = 1'den önceki, kendisi de likidite almış
@@ -267,6 +304,7 @@ look-ahead'dendi. F1 zaten dondurulmuştu; karar değişmiyor.
 
 | Bulgu | Sonuç |
 |---|---|
+| **v0.9 OB = mumun tamamı: v4'te etiketle uyum değişmedi** | 63 etiketli OB'de mitigasyon durumu aynı; doğru 29 / yanlış 34 aynen üretiliyor; canlı OB 52 → 46 |
 | **#28 brüt pozitif (örneklem içi)** | B2 + `son_supuren`: +7,86 brüt, net −3,09; kriter 3 6/11. v4 doğrulaması bekliyor |
 | **Eşleştirme kaybı `anchor_0`'da** | v3: B3 22/44, B2 32/44 "yanlış 0"; aday "son süpüren karşı swing" örneklem içi 15 → 23–25/44 (v4'te doğrulanacak) |
 | **v0.8 OB/FVG kuralları: kayıp küçük, edge yok** | #27 88,42 $, 523 işlem, brüt −4,30; kriter 3 4/11 |
@@ -352,9 +390,10 @@ look-ahead'dendi. F1 zaten dondurulmuştu; karar değişmiyor.
 
 ## Sıradaki
 
-0. **Kullanıcı:** v4 sayfasında 30 anı etiketle (önce OTE, sonra OB) → `docs/inceleme/v4/etiketler.json`.
-   Sonra B2 + `son_supuren` bir kez ölçülür (`swing_secim.py`'ye v4 yolu eklenecek; ölçüt aynı);
-   OB etiketleri ayrıca raporlanır (yeni OB tanımının isabeti).
+0. **Kullanıcı:** v4 sayfasında "Etiketleri yükle" → `docs/inceleme/v4/etiketler.json`, sonra 14 sıfırlanan
+   anın OTE'sini yeniden etiketle (önce OTE, sonra OB) → indir → aynı dosyanın üstüne. `OPEN-66` cevabı.
+   Sonra **tek komut:** `python -m scripts.v4_puan` → `docs/inceleme/v4/puan.md` (B2 + `son_supuren`
+   GEÇTİ/KALDI, eşik %28; OB doğruluğu ve kaçırılanlar). Bir kez koşulur.
 1. **Kullanıcı — yönetici PowerShell:** kayıtçı açılış görevleri `-Kok göç\pc\data` ile
    (`SERVER.md` geçiş tablosu 3. satır); funding / ohlcv30m / earliest için PC görevleri (4. satır).
 2. **2026-10-11:** son çekim + birleştirme (`SERVER.md` geçiş tablosu 6. satır), sonuç `goc.md`.
@@ -384,7 +423,7 @@ look-ahead'dendi. F1 zaten dondurulmuştu; karar değişmiyor.
 | `src/execution/` | `adapter.py` `ExecutionAdapter` arayüzü, `SimAdapter` (backtest doluş modeli) |
 | `src/live/` | `replay.py` artımlı tespit (`kapanis`) + oynatma (`oynat`) — D1 · `paper.py` `PaperCore`, `Durum` (SQLite), `PaperAdapter`, `JsonlGunluk` |
 | `scripts/paper.py` | Paper ağ kabuğu: WS 1m (zamanlama), REST (mum), bariyer, kill, kalp atışı |
-| `scripts/` | `inceleme.py` v1 paketi + `--kos --bakiye` · `inceleme_v2.py` etiketleme v2 · `inceleme_v3.py` etiketleme v3 (karar anında biten) + `--v4` doğrulama seti · `swing_secim.py` swing adayları (A/B/C/D), etiket doğrulama, `--kos ADAY [--ek _v08]` F1/100 USDT, `--ozet PKL` · `eslestirme_teshis.py` v3 eşleştirme teşhisi (açıklayıcı) · `pc_kayit.ps1 -Kok` PC kayıtçısı · `etiket_capalar.py` v2 etiket → çapa tablosu · `h1_test.py` H1 analizi (kilitli) · `birlestir.py` göç birleştirmesi · `pc_kayit.ps1` PC kayıtçı döngüsü · `h2_kesif.py` H2 keşif · `kalp_ozet.py` paper kalp atışı özeti · `paper.py` `Dongu.izle` R-KILL-01 toparlanması · `damga.py` düzeltilmiş kaldıraç zinciri · `diagnose.py` · `sweep.py` · `entry_variants.py` · `terminate.py` · `reconcile.py` · `branches.py` · `levers.py` A/B/C/D · `tp_placement.py` D1-D4 TP yerleşimi · `add_reject_e.py` stop kaybı tavanı · `spread_logger.py` canlı emir defteri · `robustness.py` breakeven ücreti + komisyon dağılımı + `R-ZONE-08` iç validasyon · `f_kollari.py` F1/F2 · `slippage_stres.py` OPEN-32 (d) · `maker_stres.py` OPEN-36 · `post_only.py` OPEN-37 · `ayrilmis.py` kriter 1 · `neden.py` eğitim/ayrılmış açıklayıcı · `trades_logger.py` işlem akışı · `bg.py` |
+| `scripts/` | `inceleme.py` v1 paketi + `--kos --bakiye` · `inceleme_v2.py` etiketleme v2 · `inceleme_v3.py` etiketleme v3 (karar anında biten) + `--v4` doğrulama seti · `swing_secim.py` swing adayları (A/B/C/D), etiket doğrulama, `--kos ADAY [--ek _v08]` F1/100 USDT, `--ozet PKL` · `eslestirme_teshis.py` v3 eşleştirme teşhisi (açıklayıcı) · `v4_puan.py` v4 ön kayıtlı puan + OB · `surtunme_dokum.py PKL` sürtünme dökümü · `pc_kayit.ps1 -Kok` PC kayıtçısı · `etiket_capalar.py` v2 etiket → çapa tablosu · `h1_test.py` H1 analizi (kilitli) · `birlestir.py` göç birleştirmesi · `pc_kayit.ps1` PC kayıtçı döngüsü · `h2_kesif.py` H2 keşif · `kalp_ozet.py` paper kalp atışı özeti · `paper.py` `Dongu.izle` R-KILL-01 toparlanması · `damga.py` düzeltilmiş kaldıraç zinciri · `diagnose.py` · `sweep.py` · `entry_variants.py` · `terminate.py` · `reconcile.py` · `branches.py` · `levers.py` A/B/C/D · `tp_placement.py` D1-D4 TP yerleşimi · `add_reject_e.py` stop kaybı tavanı · `spread_logger.py` canlı emir defteri · `robustness.py` breakeven ücreti + komisyon dağılımı + `R-ZONE-08` iç validasyon · `f_kollari.py` F1/F2 · `slippage_stres.py` OPEN-32 (d) · `maker_stres.py` OPEN-36 · `post_only.py` OPEN-37 · `ayrilmis.py` kriter 1 · `neden.py` eğitim/ayrılmış açıklayıcı · `trades_logger.py` işlem akışı · `bg.py` |
 | `docs/measurements/` | Ölçüm tarihçeleri — spec'te yalnızca tek satırlık referans var. `damga.md` dışındakiler look-ahead taşır |
 
 Spec kuralı gerekiyorsa baştan okuma: `grep -n "R-ADD-04" docs/STRATEGY_SPEC.md`

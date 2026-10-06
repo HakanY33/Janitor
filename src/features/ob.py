@@ -5,7 +5,8 @@ R-ADD-05 ("güçlü dönüt"), R-ADD-06 (hacim ve delinme).
 
 **Tanım** (kullanıcı, 2026-10-05, spec §0.1, `OPEN-64`): düşüşten önceki **son yükseliş
 mumu** (`BEARISH`, arz) ya da yükselişten önceki **son düşüş mumu** (`BULLISH`, talep) —
-**1. mum**; bölge onun **gövdesi**, fitil girmez. Geçerlilik iki komşu mumdan:
+**1. mum**; bölge mumun **tamamı** (high–low, fitiller dahil; kullanıcı 2026-10-06, v0.9).
+Geçerlilik iki komşu mumdan:
 
 ```
 talep (BULLISH, long)          arz (BEARISH, short)
@@ -51,7 +52,7 @@ __all__ = [  # BODY_LOOKBACK/reference_body `candles`'a taşındı, buradan da o
 
 @dataclass
 class OrderBlock:
-    """Bir OB. `top`/`bottom` gövde sınırları (open/close), fitil dışarıda."""
+    """Bir OB. `top`/`bottom` 1. mumun high/low'u — fitiller dahil (spec v0.9)."""
 
     ob_id: str
     symbol: str
@@ -61,7 +62,7 @@ class OrderBlock:
     bottom: float
     created_at: datetime  # 1. mumun (OB) açılışı — kimlik
     impulse_at: datetime  # 3. mumun (teyit) açılışı — kimlik, bilgi anı değil
-    mitigated_at: datetime | None = None  # gövdeye ilk dönülen mumun kapanışı (R-ENTRY-05)
+    mitigated_at: datetime | None = None  # bölgeye ilk dönülen mumun kapanışı (R-ENTRY-05)
     known_at: datetime | None = field(default=None)  # 3. mumun kapanışı; boşsa türetilir
 
     def __post_init__(self) -> None:
@@ -70,7 +71,7 @@ class OrderBlock:
 
 
 def detect_order_blocks(df: pd.DataFrame, symbol: str, timeframe: str) -> list[OrderBlock]:
-    """Spec §0.1 OB (`OPEN-64`) · 3 mumluk yapı, 1. mumun gövdesi. Bilgi anı 3. mumun kapanışı."""
+    """Spec §0.1 OB (`OPEN-64`) · 3 mumluk yapı, bölge 1. mumun high–low'u. Bilgi anı 3. mumun kapanışı."""
     require_detect_tf(timeframe)
     o, h, l, c, ts = (df[k].to_numpy() for k in ("open", "high", "low", "close", "ts"))
     out: list[OrderBlock] = []
@@ -84,8 +85,8 @@ def detect_order_blocks(df: pd.DataFrame, symbol: str, timeframe: str) -> list[O
             continue
         out.append(OrderBlock(
             ob_id=stable_id("ob", symbol, timeframe, ts[i], ts[k]), symbol=symbol,
-            timeframe=timeframe, direction=direction, top=float(max(o[i], c[i])),
-            bottom=float(min(o[i], c[i])), created_at=pd.Timestamp(ts[i]),
+            timeframe=timeframe, direction=direction, top=float(h[i]),
+            bottom=float(l[i]), created_at=pd.Timestamp(ts[i]),
             impulse_at=pd.Timestamp(ts[k])))
     return out
 
@@ -157,15 +158,15 @@ def pierce_time(
 
 
 def mitigation_time(ob: OrderBlock, df: pd.DataFrame) -> datetime | None:
-    """R-ENTRY-05 · fiyatın OB gövdesine **ilk temas** ettiği an; temas yoksa `None`.
+    """R-ENTRY-05 · fiyatın OB bölgesine **ilk temas** ettiği an; temas yoksa `None`.
 
     Mitigasyon §0.1'de "bölgeye ilk temas" olarak tanımlı — delinme (`pierce_time`)
-    değildir: delinme gövdenin tamamen geçilmesi, mitigasyon ise yalnızca dokunulması.
+    değildir: delinme bölgenin tamamen geçilmesi, mitigasyon ise yalnızca dokunulması.
     R-ENTRY-05 "fiyat bir kez uğradıysa bölge tüketilmiş sayılır" der, bu yüzden
     girişte aranan ölçüt dokunmadır.
 
     Yalnızca `impulse_at`'ten **sonraki** mumlar sayılır: OB o ana kadar bilinmiyordu
-    ve impuls mumunun kendisi zaten gövdeden çıkan harekettir (CLAUDE.md #3).
+    ve impuls mumunun kendisi zaten bölgeden çıkan harekettir (CLAUDE.md #3).
     """
     for r in df.itertuples():
         if r.ts <= ob.impulse_at:
