@@ -2,12 +2,20 @@
 
 | | |
 |---|---|
-| **Versiyon** | v0.10 |
+| **Versiyon** | v0.11 |
 | **Durum** | OTE modeli kapalı ve kodlanabilir. Açık parametre kalmadı; eşikler backtest'le kalibre edilecek. |
 | **Kapsam** | Kripto vadeli (perpetual), cross marjin, paper trading |
-| **Son güncelleme** | 2026-10-06 |
+| **Son güncelleme** | 2026-10-07 |
 
 > **UYARI — 30m look-ahead (düzeltildi 2026-09-29).** Commit 3fb2ff4 ve öncesindeki kod, zone/OB/FVG damgalarını (mumun açılışı) bilgi anı olarak kullanıyordu: her nesne bir 30m mum erken görünüyordu. Bu spec'te ve `docs/measurements/`'ta o koda dayanan **her ölçüm sayısı** bu hatayı taşır; mutlak değerler geçersizdir. Düzeltilmiş yeniden ölçüm: `docs/measurements/damga.md`. Kural: her HTF nesnesi `known_at` = mumun kapanışı taşır; bir mumdan çıkan hiçbir bilgi o mum kapanmadan kullanılamaz (CLAUDE.md #3).
+
+**v0.10'dan değişenler (2026-10-07, kullanıcı kuralları — `docs/LTF_GIRIS.md` soruları):**
+OB kaynakları **5m, 30m, 4h** (her biri kendi zaman diliminde, A1+B kendi yapısında; 5m'de OTE/zone
+yok) · OB rengi açık kural (§0.1 OB) · eksik mum kuralı (§0.1 OB) · `R-ENTRY-02` iki giriş türü:
+**OB girişi** (öncelikli, stop OB'nin ötesi) ve **OTE girişi** (0.70, stop `1`); bekleyen emir zone
+ölene kadar yaşar · `R-RISK-02` OB girişinin stopu · **ekleme açık** (§3): OTE girişli pozisyonda
+giriş ile `1` arasındaki geçerli OB, çarpan **1-1**, en fazla **3** (`R-ADD-01`, `R-ADD-03`) ·
+boyut kuralı (%1 marjin × maks kaldıraç) uygulanamadı → `OPEN-67`.
 
 **v0.9'dan değişenler (2026-10-06, kullanıcı kararı):** `OPEN-66` kapandı — OB geçerliliğine iki
 koşul: (c) ardışık aynı yönlü OB'lerin hepsi geçersiz, (d) OB yalnızca yapı kıran (BoS) hareketin
@@ -103,7 +111,7 @@ Terimler burada tek anlama sabitlenir. Kod aynı isimleri kullanır.
 | **Leg (Bacak)** | Bir swing low'dan swing high'a (veya tersi) uzanan hareket. Fib'in çizildiği aralık. Uç tespiti `R-ZONE-02`. |
 | **Likidite bölgesi** | Leg'in başladığı/bittiği, önceki swing'in aşıldığı bölge. |
 | **İmpuls** | Normalden belirgin büyük gövdeli, tek yönlü hareket mumu. Ölçüt: gövde > `IMPULSE_MULT` × son 20 mumun **medyan** gövdesi. **`IMPULSE_MULT = 4.0`** (`OPEN-21` kapandı). Delinme (`R-ADD-06`) buna dayanır; OB tanımı v0.8'den beri dayanmaz (`OPEN-64`). |
-| **OB (Order Block)** | (kullanıcı, 2026-10-05, `OPEN-64`) Düşüşten önceki **son yükseliş mumu** (arz, `BEARISH`) ya da yükselişten önceki **son düşüş mumu** (talep, `BULLISH`) — **1. mum**; bölge mumun **tamamı** (high–low, fitiller dahil; kullanıcı 2026-10-06, v0.9 — v0.8'de gövdeydi). **Geçerlilik:** (a) **3. mum 1. mumla temas etmez** (mum aralıkları, fitil dahil, kesişmez: arzda 3. mumun high'ı < 1. mumun low'u; talepte 3. mumun low'u > 1. mumun high'ı); (b) **2. mum sarkmaz**: talepte 2. mumun low'u 1. mumun low'unun altına, arzda 2. mumun high'ı 1. mumun high'ının üstüne çıkmaz. "Son" olması için 2. mum 1. mumun yönünde değildir (arzda 2. mum yükseliş mumu değil). Büyüklük eşiği (impuls) yok — **kullanıcı onayı 2026-10-05: kaldırılmış hâliyle kalır** (kullanıcı tanımı; eski `IMPULSE_MULT` şartı OB'ye geri gelmez, yalnızca delinmede yaşar). Damgalar: `created_at` = 1. mumun açılışı, `impulse_at` = 3. mumun açılışı (kimlik). **Bilgi anı `known_at` = 3. mumun kapanışı.** **(c) Ardışık (v0.10, `OPEN-66` A1):** 1. mum zamanına göre sırada, araya ters yönlü OB girmeden gelen aynı yönlü OB'lerin **hepsi** geçersiz; serinin 2. ve sonraki OB'si doğduğu anda, ilki ardılı bilindiğinde geçersizleşir. **(d) Yapı kırılması (v0.10, `OPEN-66` B):** OB, ondan başlayan hareket **son karşı swing'i** (talepte tepe, arzda dip; pivotu 1. mumdan önce; swing tanımı zone'larla aynı, R-ZONE-10) bir mumun **kapanışıyla** kırarsa geçerli olur — fitil yetmez; her mumda o mumun kapanışında bilinen swing'lerin en son pivotlusu ölçülür; kırılma 2. mumdan başlar ve fiyat OB bölgesine ilk dönmeden (mitigasyon) olmalıdır. Geçerlilik anı kırılma mumunun kapanışıdır; kırılma olmadan OB giriş ve ekleme adayı değildir. |
+| **OB (Order Block)** | (kullanıcı, 2026-10-05, `OPEN-64`) Düşüşten önceki **son yükseliş mumu** (arz, `BEARISH`) ya da yükselişten önceki **son düşüş mumu** (talep, `BULLISH`) — **1. mum**; bölge mumun **tamamı** (high–low, fitiller dahil; kullanıcı 2026-10-06, v0.9 — v0.8'de gövdeydi). **Geçerlilik:** (a) **3. mum 1. mumla temas etmez** (mum aralıkları, fitil dahil, kesişmez: arzda 3. mumun high'ı < 1. mumun low'u; talepte 3. mumun low'u > 1. mumun high'ı); (b) **2. mum sarkmaz**: talepte 2. mumun low'u 1. mumun low'unun altına, arzda 2. mumun high'ı 1. mumun high'ının üstüne çıkmaz. "Son" olması için 2. mum 1. mumun yönünde değildir (arzda 2. mum yükseliş mumu değil). Büyüklük eşiği (impuls) yok — **kullanıcı onayı 2026-10-05: kaldırılmış hâliyle kalır** (kullanıcı tanımı; eski `IMPULSE_MULT` şartı OB'ye geri gelmez, yalnızca delinmede yaşar). Damgalar: `created_at` = 1. mumun açılışı, `impulse_at` = 3. mumun açılışı (kimlik). **Bilgi anı `known_at` = 3. mumun kapanışı.** **(c) Ardışık (v0.10, `OPEN-66` A1):** 1. mum zamanına göre sırada, araya ters yönlü OB girmeden gelen aynı yönlü OB'lerin **hepsi** geçersiz; serinin 2. ve sonraki OB'si doğduğu anda, ilki ardılı bilindiğinde geçersizleşir. **(d) Yapı kırılması (v0.10, `OPEN-66` B):** OB, ondan başlayan hareket **son karşı swing'i** (talepte tepe, arzda dip; pivotu 1. mumdan önce; swing tanımı zone'larla aynı, R-ZONE-10) bir mumun **kapanışıyla** kırarsa geçerli olur — fitil yetmez; her mumda o mumun kapanışında bilinen swing'lerin en son pivotlusu ölçülür; kırılma 2. mumdan başlar ve fiyat OB bölgesine ilk dönmeden (mitigasyon) olmalıdır. Geçerlilik anı kırılma mumunun kapanışıdır; kırılma olmadan OB giriş ve ekleme adayı değildir. **(e) Renk (v0.11, kullanıcı):** talep (yükseliş öncesi) OB'nin 1. mumu **düşüş** mumu (kapanış < açılış), arz (düşüş öncesi) OB'nin 1. mumu **yükseliş** mumu (kapanış > açılış); doji OB değildir. Tespit v0.8'den beri buna uyuyor; v4'ün 363 OB'sinde ihlal 0. **Kaynaklar (v0.11, kullanıcı):** OB **5m, 30m ve 4h**'de tespit edilir, her biri **kendi zaman diliminde** (aynı 3 mum tanımı, `known_at` kendi 3. mumunun kapanışı; 4h OB'nin `known_at`'i 4h mum kapanışı). (c) ve (d) her zaman diliminde kendi yapısında uygulanır: (d)'nin swing'leri o zaman diliminin `B2` swing'leridir (R-ZONE-10'un seçimi) ve **yalnızca yapı kırılımını ölçmek için** kullanılır. 5m'de OTE/zone tespiti yoktur, yalnızca OB. 5m mumları 1m'den, 4h mumları 30m'den UTC sınırlı yeniden örneklenir. **Eksik mum (v0.11, muhafazakâr):** kaynak mumu eksik olan 5m/4h mumu OB deseninin parçası olamaz ve kapanışıyla yapı kıramaz; high/low'u eldeki mumlardan alınır (bölgeye temas — mitigasyon, delinme — yine görülür). Kod `src/backtest/loader.py:ornekle`, `src/features/ob.py`. |
 | **FVG** | Üç mumluk yapıda 1. mumun high'ı ile 3. mumun low'u arasındaki dokunulmamış boşluk (ters yön için simetrik). `created_at` = 3. mumun açılışı; boşluk ancak o mum kapanınca bilinir: **`known_at` = 3. mumun kapanışı**. |
 | **Mitigasyon** | Fiyatın bir FVG/OB bölgesine ilk temas etmesi. Damgası olayın gerçekleştiği mumun **kapanışıdır**. **FVG mitigasyonda silinir** (kullanıcı, 2026-10-05, `OPEN-65`): fiyat bölgeye girdiği an boşluk tükenmiştir; ayrı bir "dolum" (karşı sınırın geçilmesi) beklenmez — kodda `filled_at = mitigated_at`. |
 | **"OB içinde FVG"** | Kesişim yeterlidir, tam kapsama aranmaz (`R-ADD-05`). |
@@ -344,11 +352,15 @@ Cross. İzole yasak.
 
 **Temas anında girilir. Mum kapanışı beklenmez.** Ön koşul: zone `PRIMED` durumunda olmalı.
 
-1. Giriş bandında yöne uygun **OB** varsa → OB'den giriş (limit emir konabilir)
+1. Giriş bandında yöne uygun geçerli **OB** (5m, 30m ya da 4h) varsa → **OB girişi**: emir OB'nin
+   fiyatın **ilk dokunacağı** kenarında (SHORT alt, LONG üst kenar; bant dışına taşmaz), fiyat OB'ye
+   değdiği an dolar. **Stop OB'nin ötesi** (SHORT: OB'nin high'ı, LONG: low'u; `R-RISK-02`). Birden
+   çok aday varsa ilk dokunulacak kenarınki. **OTE girişiyle birlikte varsa OB önceliklidir**
+   (v0.11, kullanıcı).
 2. ~~Bantta FVG varsa → doldurulması beklenebilir~~ **Kaldırıldı (v0.8, `OPEN-65`):** FVG tek
    başına giriş sebebi değildir, emir fiyatını da belirlemez. Yalnızca `R-ADD-05` güç bayrağıdır
    (`had_fvg` loglanır).
-3. Gösterge yoksa → **0.70 teması** geçerli giriştir
+3. Gösterge yoksa → **0.70 teması** geçerli giriştir (**OTE girişi**, stop `1`)
 4. **Hacimliyse** → kaçırmamak için doğrudan 0.70 teması, bekleme yok
 
 **Gösterge kapısı** (backtest kolu `require_indicator`, D/E3/F1): "bantta uygun gösterge yoksa
@@ -367,7 +379,12 @@ temastan **önce** defterdeyse mümkündür: temas mum kapanınca bilinir.
   da doldurur (bekleyen limit), fiyat yine emir fiyatıdır. Zone'u öldüren mum
   (`1` çapası) emri de geçmişse emir dolmuş **ve** aynı mumda nihai stoptan çıkılmış
   sayılır — `§8` "stop önce" kuralının bekleyen emre uygulanışı.
-- Backtest bu davranışı **birebir** uygular. Canlı ile aynı `step` fonksiyonudur.
+- **Emrin ömrü (v0.11, kullanıcı):** bekleyen giriş emri zone ölene kadar (`0` ya da `1`
+  teması, `R-ZONE-05`) yaşar. `0.70` temasından sonra `0.50`'ye dönüş emri iptal etmez —
+  `TOUCHED` durumunun `0.50`'de geçişi yoktur. Emrin fiyatı her kapanışta yeniden hesaplanır
+  (yukarıda): OB tüketilirse OTE fiyatına döner.
+- Backtest bu davranışı **birebir** uygular. Canlı ile aynı `step` fonksiyonudur. **Canlı tespit
+  henüz yalnızca 30m kapanışında** (`src/live/replay.py`): 5m/4h OB'lerle paper çalışmaz, hata verir.
 
 ### R-ENTRY-06 · Sürtünme tabanı `SETTLED` (kullanıcı kuralı 2026-10-02)
 
@@ -435,6 +452,12 @@ marjin   = notional / kaldıraç      (türetilmiş değer, hedef değil)
 > Bu tablo eski "%1 / %0.5 / %5" ifadesinin birebir karşılığı — BTC'de 125x kaldıraçla
 > %1 marjin zaten 1.25 kat notional demekti. Zihinsel modelin değişmiyor, birim değişiyor.
 
+**Kullanıcı kuralı (2026-10-07): kasanın %1'i marjin, coinin en yüksek kaldıracı, cross** —
+`notional = 0,01 × equity × maks kaldıraç`. **Uygulanamadı (`OPEN-67`):** BingX maks kaldıracı
+anahtarsız uçta vermiyor (`quote/contracts` v2/v3 ve `tradingRules` alanlarında yok, ccxt
+`limits.leverage` boş; kademe ucu `maintMarginRatio` API anahtarı istiyor). CLAUDE.md #5 elle
+tablo yasaklıyor → boyut ölçümlerde değişmedi (`K × equity`, koşularda `K = 0,25`).
+
 ### R-ENTRY-04 · Kaldıraç `SETTLED`
 
 **Her zaman coinin desteklediği maksimum. Asla düşürülmez.**
@@ -444,10 +467,10 @@ Risk ayarı gerekiyorsa notional (`K`) üzerinden yapılır, kaldıraç üzerind
 
 ## 3. Ekleme
 
-> **v1'de ekleme kapalıdır.** `R-ADD-*` kuralları yerinde kalır ve kodda çalışır
-> durumdadır; v1 **varsayılan yapılandırması** `max_adds = 0`'dır
-> (`src/backtest/engine.py · MAX_ADDS`). Bu bir yapılandırma kararıdır, kural silme
-> değildir.
+> **v0.11 (2026-10-07, kullanıcı): ekleme açık** — en fazla 3 ekleme, çarpan 1-1
+> (`MAX_ADDS = 3`, `ADD_CARPAN = 1`). Yalnızca **OTE'den girilmiş** pozisyona.
+>
+> ~~v1'de ekleme kapalıdır~~ (v0.10'a kadar: `max_adds = 0`). Aşağıdaki gerekçe o kararındır.
 >
 > **Gerekçe** (`docs/measurements/f_kollari.md`, taban E3B, 20 sembol): ekleme işlemin
 > **sonucunu değiştirmiyor**, yalnızca kaybedeni büyütüyor. Ekleme kapatıldığında nihai
@@ -458,7 +481,10 @@ Risk ayarı gerekiyorsa notional (`K`) üzerinden yapılır, kaldıraç üzerind
 > edilen nokta", `OPEN-27`) ekleme yeniden ölçülür.
 
 ### R-ADD-01 · İzin koşulları `SETTLED`
-1. Fiyat giriş bandının ötesinde (pozisyon eksi bölgede)
+1. **(v0.11)** Pozisyon **OTE girişiyle** açıldı (OB girişli pozisyona ekleme yok) ve **giriş ile
+   `1` arasında** (kesişim yeterli) geçerli bir OB var — 5m, 30m ya da 4h; §0.1 (a)–(e), unmitige
+   (`R-ENTRY-05`). Fiyatın bu OB'ye değdiği mum ekleme noktasıdır. (v0.10: "fiyat giriş bandının
+   ötesinde".)
 2. Alt TF'lerin birinde yöne uygun **OB** tespit edildi
 3. OB'den dönüt alındı (R-ADD-05)
 4. Nihai stop (`1`) henüz ihlal edilmedi
@@ -514,7 +540,12 @@ leg geometrisine göre çok farklı stop mesafeleri üretir ve tek başına risk
 
 ### R-ADD-03 · Ekleme boyutu `SETTLED` — CONFLICT-02 çözüldü
 
-Çarpanlar: **1-1, 1-3, 1-5, 1-10** (mevcut pozisyonun katları).
+**v0.11 (kullanıcı): çarpan 1-1, pozisyon başına en fazla 3 ekleme.** Her ekleme mevcut pozisyon
+kadardır (3 ekleme → girişin 8 katı). `ADD-REJECT-E` her eklemede geçerlidir; ekleme sonrası
+maliyete dönüşte küçültme (`R-ADD-04`) aynen. Aşağıdaki çarpan seçimi v0.10'undur (kod
+`add_carpan=None`, yalnızca eski ölçümler).
+
+Çarpanlar (v0.10): **1-1, 1-3, 1-5, 1-10** (mevcut pozisyonun katları).
 
 Çarpan, maliyeti "fiyatın en fazla gideceği tahmin edilen nokta"nın ötesine çekecek
 şekilde seçilir. Temkinli taraf tercih edilir.
@@ -595,7 +626,11 @@ kaybı** ölçen `ADD-REJECT-E`'dir (`R-ADD-02`).
 
 ### R-RISK-02 · Nihai stop `SETTLED`
 
-**Her zaman `1` seviyesi.** Borsaya emir olarak gönderilmez, bot içinde tutulur ve
+**OTE girişinde `1` seviyesi.** **OB girişinde (v0.11) OB'nin ötesi** (`R-ENTRY-02` (1)): SHORT'ta
+OB'nin high'ı, LONG'da low'u; bu seviye `1`'in ötesindeyse stop `1`'dir. Zone'un `1` teması her
+durumda pozisyonu kapatır. OB stopu TP1'e kadar geçerlidir; TP1'den sonra breakeven (`R-EXIT-01`).
+Aynı "ulaştı" ölçütü, intrabar, seviyeden (aşağıda); doluş mumu stopa da ulaştıysa aynı mumda
+çıkılır (§8 stop önce). `ADD-REJECT-E` OB girişinde bu stopla ölçülür. Borsaya emir olarak gönderilmez, bot içinde tutulur ve
 **pozisyon açıldığı andan itibaren daima aktiftir.**
 
 **Felaket stopu (`OPEN-52`, kapandı 2026-09-29).** İç stop **birincildir**. Canlıda
@@ -789,6 +824,7 @@ kapatılabilir; varsayılan hepsi açık. Kapatma kararın girdisi olarak loglan
 | `OPEN-64` | OB tanımı (inceleme #25, #30: "3. mum temas etmiş, OB geçerli sayılmamalıydı") | **Kapandı 2026-10-05 (kullanıcı)** — §0.1 OB: 3 mumluk yapı, 1. mum OB; 3. mum 1. mumla temas etmez, 2. mum 1. mumun ucunu aşmaz. İmpuls eşiği OB tanımından çıktı. Kod `src/features/ob.py:detect_order_blocks`. |
 | `OPEN-65` | FVG'nin rolü (inceleme: "FVG'ler alınmak istenir", hacimsiz FVG) | **Kapandı 2026-10-05 (kullanıcı)** — FVG tek başına giriş sebebi değil (`R-ENTRY-02` (2) ve kapıdan çıktı), yalnızca `R-ADD-05` güç bayrağı; bölgeye ilk girişte silinir. Kod `src/features/fvg.py:FVG.on_bar`, `src/backtest/engine.py:_hedef`. |
 | `OPEN-66` | Art arda gelen aynı yönlü OB'ler (kullanıcı notları, 2026-10-06) | **Kapandı 2026-10-06 (kullanıcı)** — §0.1 OB (c) + (d) = aday `A1+B`. Ön kayıtlı ölçüm (`docs/inceleme/v4/ob_adaylar.md`, sonuç `ob_adaylar_sonuc.md`, 204 etiketli OB) **uyum** ölçütüyle hiçbir adayı seçmedi (taban hepsi geçerli 140/204; A1+B 84/204). **Ölçüt tablo görüldükten sonra kesinliğe (geçerli sayılanlarda doğru oranı) çevrildi** — kullanıcının gerekçesi: hedef az ama isabetli işlem; yanlış OB kabul etmek, doğru OB kaçırmaktan pahalı. Bu ölçütle A1+B en yüksek: 22/24 (%92; taban %69). Bedeli: 140 doğru OB'nin 118'i elenir. Seçim tek etiket setine dayanır ve ölçüt değişikliği sonuca bakılarak yapıldı → örneklem içi, bağımsız doğrulaması yok. Kod `src/features/ob.py:seri_isaretle`, `bos_time`, `ob_kurallari`; `src/strategy/entry.py:ob_eligible`. |
+| `OPEN-67` | Boyut: %1 marjin × maks kaldıraç (kullanıcı, 2026-10-07) | **Açık** — maks kaldıraç yalnızca kimlikli uçta (`swapV1PrivateGetMaintMarginRatio`). Anahtar (salt okunur) verilirse `fees.json`'a çekilip önbelleklenir ve kural birebir uygulanır. O zamana kadar `K × equity`. `R-ENTRY-03`. |
 | `OPEN-16` | Günlük yeni-pozisyon durdurma eşiği | Backtest'le kalibre (başlangıç %10) |
 | `OPEN-17` | Likidasyon tamponu eşikleri | Backtest'le kalibre (başlangıç %50 / %15) |
 | `OPEN-12` | Harmonik oran tablosu + stop kanadı | v2 modülü |

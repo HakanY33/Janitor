@@ -1,7 +1,20 @@
 # Alt zaman dilimi girişi (5m) — tasarım
 
-**Durum:** yalnızca tasarım, kod yok (kullanıcı, 2026-10-06). Spec'e girmedi; aşağıdaki açık
-sorular kapanmadan uygulanmaz. Taban: spec v0.10 (#30 kurgusu: B2 + `son_supuren`, OB = 1. mumun
+**Durum (2026-10-07):** kullanıcı soruları cevapladı ve varsayılanların çoğunu değiştirdi →
+**spec v0.11'e girdi ve kodlandı** (`STRATEGY_SPEC.md` §0.1 OB, `R-ENTRY-02`, `R-RISK-02`,
+`R-ADD-01/03`, `OPEN-67`). Ölçüm #31 + çıkarma kolları `docs/measurements/ltf_31.md`. Aşağıdaki
+metin 2026-10-06 tasarımıdır; cevaplar en altta.
+
+**Cevaplar (kullanıcı, 2026-10-07):** (1) "bantta geçerli OB varsa" → mevcut kesişim kuralı (§0.1)
+ve `R-ENTRY-05`; OB'nin zone `PRIMED`'den önce doğmuş olması engel değil (yeni koşul eklenmedi,
+mevcut okuma — kullanıcı ayrıca belirtmedi). Tasarımdaki "yalnızca
+5m" yerine OB kaynakları 5m + 30m + 4h; OTE girişi (0.70) de kalır, ikisi birden varsa OB önceliklidir.
+(2) her zaman dilimi kendi B2 swing'leriyle (yalnızca BoS için). (3)–(4) stop OB'nin high/low'u,
+tampon yok; `1` her durumda kapatır; OTE girişinde stop `1`. (5) ilk dokunulacak kenar. (6) emir
+zone ölene kadar yaşar, 0.50'ye dönüş iptal etmez. (7) %1 marjin × maks kaldıraç — maks kaldıraç
+anahtarsız alınamıyor, `OPEN-67`. (8) ekleme açık: OTE girişinde giriş–`1` arası OB, 1-1, en fazla
+3, `ADD-REJECT-E`, `R-ADD-04`. (9) boşluk muhafazakâr: eksik kaynak mumlu 5m/4h mumu OB/BoS'a
+katılmaz (ajan kararı, kullanıcı sorulmadan istedi). Taban: spec v0.10 (#30 kurgusu: B2 + `son_supuren`, OB = 1. mumun
 high–low'u, `OPEN-66` A1+B).
 
 ## Amaç

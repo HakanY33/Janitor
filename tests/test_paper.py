@@ -61,13 +61,16 @@ def paper(yol, cokme: int | None = None):
 
 @pytest.fixture(scope="module")
 def kosular(tmp_path_factory):
-    bt_log: list[dict] = []
-    bt = Backtest([build_from_frames(SYM, D30, D1)], maliyet(), **F1)
-    bt.log = bt_log.append
-    res_bt = bt.run()
-    d = tmp_path_factory.mktemp("paper")
-    res_p, log_p = paper(d / "surekli.db")
-    res_c, log_c = paper(d / "cokme.db", cokme=len(D1) // 2 + 7)
+    from src.backtest import loader
+    with pytest.MonkeyPatch.context() as mp:  # modül kapsamı: conftest'in fonksiyon yaması burada yok
+        mp.setattr(loader, "OB_TFS", ("30m",))  # canlı tespit yalnızca 30m (src/live/replay.py)
+        bt_log: list[dict] = []
+        bt = Backtest([build_from_frames(SYM, D30, D1)], maliyet(), **F1)
+        bt.log = bt_log.append
+        res_bt = bt.run()
+        d = tmp_path_factory.mktemp("paper")
+        res_p, log_p = paper(d / "surekli.db")
+        res_c, log_c = paper(d / "cokme.db", cokme=len(D1) // 2 + 7)
     return (res_bt, bt_log), (res_p, log_p), (res_c, log_c)
 
 

@@ -52,6 +52,8 @@ class Position:
     adds: int = 0
     tp1_done: bool = False  # R-EXIT-01 · ilk TP alındı, stop maliyete çekildi
     entry_bias: str = "NONE"  # R-ZONE-10 · girişte bilinen 4h yapısal yön (OPEN-29)
+    giris: str = "OTE"  # R-ENTRY-02 v0.11 · OTE (0.70) | OB (OB kenarı)
+    stop: float | None = None  # OB girişinin stopu (OB'nin ötesi); None = zone'un `1`'i (R-RISK-02)
     reduce_armed: bool = False  # R-ADD-04 · ekleme oldu, maliyete dönüş küçültme tetikler
     reduces: int = 0  # kaç kez K tabanına indirildi
     reduced_at: datetime | None = None  # ilk küçültmenin zamanı

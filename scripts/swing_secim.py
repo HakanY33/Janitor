@@ -55,7 +55,7 @@ TIP = {HIGH: "tepe", LOW: "dip"}
 # --- adaylar ----------------------------------------------------------------
 
 def _etiketle(ham: list[tuple[int, str, float, int]], df: pd.DataFrame, symbol: str,
-              aday: str) -> list[Swing]:
+              aday: str, tf: str = "30m") -> list[Swing]:
     """(pivot i, tip, fiyat, teyit j) → Swing; `label`/`swept` `detect_swings` ile aynı kural."""
     ts = df.ts.to_numpy()
     son: dict[str, Swing] = {}
@@ -66,7 +66,7 @@ def _etiketle(ham: list[tuple[int, str, float, int]], df: pd.DataFrame, symbol: 
         label = None if o is None else (("HH" if swept else "LH") if kind == HIGH
                                         else ("LL" if swept else "HL"))
         s = Swing(swing_id=stable_id("swing", symbol, aday, kind, ts[i]), symbol=symbol,
-                  timeframe="30m", kind=kind, price=price, ts=pd.Timestamp(ts[i]),
+                  timeframe=tf, kind=kind, price=price, ts=pd.Timestamp(ts[i]),
                   pivot_confirmed_at=pd.Timestamp(ts[j]), label=label, swept=swept)
         out.append(s)
         son[kind] = s
@@ -78,11 +78,12 @@ def aday_a(df, symbol, n):
     return detect_swings(df, symbol, "30m", n=n)
 
 
-def aday_b(df, symbol, k):
+def aday_b(df, symbol, k, tf: str = "30m"):
     """B · ATR zigzag: koşan uçtan `k × ATR(14)` geri çekilme uçu swing yapar, yön döner.
 
     Teyit = geri çekilmenin gerçekleştiği mum. Aynı mumda yeni uç ve geri çekilme varsa
-    yalnızca uç güncellenir (mum içi sıra bilinmez).
+    yalnızca uç güncellenir (mum içi sıra bilinmez). `tf`: mumların zaman dilimi (`known_at` =
+    teyit mumunun kapanışı); v0.11'den beri 5m ve 4h OB'lerin yapı kırılımı için de çağrılır.
     """
     a, h, l = atr(df).to_numpy(), df.high.to_numpy(), df.low.to_numpy()
     ham, yon, hi, lo = [], None, None, None
@@ -94,23 +95,23 @@ def aday_b(df, symbol, k):
             lo = j if lo is None or l[j] < l[lo] else lo
             if hi < j and l[j] <= h[hi] - k * a[j]:
                 ham.append((hi, HIGH, float(h[hi]), j)); yon = "D"
-                lo = hi + 1 + int(np.argmin(l[hi + 1:j + 1]))
+                lo = hi + 1 + int(np.nanargmin(l[hi + 1:j + 1]))
             elif lo < j and h[j] >= l[lo] + k * a[j]:
                 ham.append((lo, LOW, float(l[lo]), j)); yon = "U"
-                hi = lo + 1 + int(np.argmax(h[lo + 1:j + 1]))
+                hi = lo + 1 + int(np.nanargmax(h[lo + 1:j + 1]))
         elif yon == "U":
             if h[j] > h[hi]:
                 hi = j
             elif l[j] <= h[hi] - k * a[j]:
                 ham.append((hi, HIGH, float(h[hi]), j)); yon = "D"
-                lo = hi + 1 + int(np.argmin(l[hi + 1:j + 1]))
+                lo = hi + 1 + int(np.nanargmin(l[hi + 1:j + 1]))
         else:
             if l[j] < l[lo]:
                 lo = j
             elif h[j] >= l[lo] + k * a[j]:
                 ham.append((lo, LOW, float(l[lo]), j)); yon = "U"
-                hi = lo + 1 + int(np.argmax(h[lo + 1:j + 1]))
-    return _etiketle(ham, df, symbol, f"B{k}")
+                hi = lo + 1 + int(np.nanargmax(h[lo + 1:j + 1]))
+    return _etiketle(ham, df, symbol, f"B{k}", tf)
 
 
 def aday_c(df, symbol, L, M=4):
