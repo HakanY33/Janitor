@@ -2,7 +2,7 @@
 
 Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
 
-**Son güncelleme:** 2026-10-07
+**Son güncelleme:** 2026-10-07 (2. oturum)
 
 ---
 
@@ -11,6 +11,27 @@ Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
 **Görev:** Sunucu **2026-10-12**'de kapanıyor, yeni sunucu yok (kullanıcı 2026-10-05). Kayıtçılar
 PC'de, sunucuyla paralel (`göç/pc`), **2026-10-11 son çekim** (`SERVER.md` "Sunucu kapanışı — PC'ye
 geçiş"). Paper kapalı kalır. H1 dilimi 10-01 → 12-31, tek bakış 2027-01-01 (kod kilidi).
+
+**2026-10-07 (2. oturum) — #31 taban değil (taban #30), doğrulama coinleri, inceleme paketi, ızgara ön kaydı:**
+- **Kullanıcı:** taban **#30** kalır; (d) taban yapılmaz.
+- **Doğrulama coinleri** `docs/dogrulama_coinleri_2026-10-07.md`: 20 coin, 2026-10-07 hacim sırası
+  44–76 (kullanılan 40 + kripto dışı atlandı): BCH NMR VIRTUAL API3 HBAR XPL GRASS TRUMP LIGHTER GRIFFAIN
+  NIL NIGHT PARTI STX POL BEAT LYN AIO AIN BITLIGHT. **Kilit:** `collect._safe` (her disk okuma/yazma)
+  ve `fetch_ohlcv` bu sembollerde `DogrulamaKilidi`; liste bozuksa her erişim durur. Son doğrulama
+  bu coinler × 2026-09-11 sonrası; kilit o koşudan önce ayrı PR'la açılır. **Kayıtçılar bu coinleri
+  çekmiyor** (yalnızca 40 sembol) — eklenirse kilit kayıtçıyı da durdurur.
+- **#31 analizleri** `measurements/analiz_31.md` (`scripts/analiz_31.py`, açıklayıcı): günde ort. 9,8
+  işlem (20 sembol), sembol başına haftada ~4,5, tutma medyanı 3,2 saat (%24'ü < 1 saat); portföyde
+  1m mumlarının **%95'inde** açık pozisyon; ETH'de hiç işlem yok. Zone başına en fazla 1 işlem (tekrar
+  giriş yok). **v4 30 an:** motorda bekleyen (aktif, 0.70'e değmemiş) zone 8/30, bantta 11/30, ikisinden
+  biri 19/30 — kullanıcı 12/30. **4h yön:** OTE girişlerinin %27'si uyumlu (brüt −5,43), %36 ters
+  (+4,28), %37 belirsiz (−25,50); tek koşu, bootstrap yok.
+- **Strateji inceleme paketi** `docs/inceleme/strateji/index.html` (`scripts/inceleme_strateji.py`):
+  #31 OTE girişlerinden en kötü 10 + tohum 20261007 ile rastgele 10, karışık sıra, grup/PnL gizli;
+  4h + 30m, çıkış görünür; girerdim / girmezdim + sebep + not → `etiketler.json`. Edge'de çizim denendi.
+- **Izgara ön kaydı** `docs/izgara_tf.md` (koşulmadı): OTE {4h, 1h, 30m, 15m} × OB {aynı, bir alt,
+  iki alt} = 12 hücre, #30 kuralları; 30m × 30m #30 parite kapısı; koşu ~1–1,5 saat + kod.
+  **Testler 534.**
 
 **2026-10-07 — spec v0.11 (5m girişi, kullanıcı kuralları) + #31 ve 4 çıkarma kolu:**
 - **Spec v0.11:** OB kaynakları 5m/30m/4h (kendi dilimlerinde, A1+B o dilimin B2 swing'leriyle;
@@ -360,6 +381,7 @@ look-ahead'dendi. F1 zaten dondurulmuştu; karar değişmiyor.
 
 | Bulgu | Sonuç |
 |---|---|
+| **#31: bot neredeyse hep pozisyonda** | 1m mumlarının %95'inde açık pozisyon, günde ~10 işlem; v4'te motorun setup'ı 19/30 an, kullanıcının 12/30 |
 | **#31 v0.11: OTE girişi geri açılınca kayıp büyüdü** | 36,90 $ (3.317 işlem, brüt −32,97); yalnızca OB girişi 82,97 $ (656). 5m/4h OB ve ekleme kolları brütte gürültü |
 | **v0.9 OB = mumun tamamı: v4'te etiketle uyum değişmedi** | 63 etiketli OB'de mitigasyon durumu aynı; doğru 29 / yanlış 34 aynen üretiliyor; canlı OB 52 → 46 |
 | **#30 A1+B: işlem 843 → 155, brüt ≈ 0** | 97,73 $, kazanma %58,1, kriter 3 6/11; brüt farkları (#28/#29, #29/#30) bootstrap'ta gürültü |
@@ -450,7 +472,8 @@ look-ahead'dendi. F1 zaten dondurulmuştu; karar değişmiyor.
 
 ## Sıradaki
 
-0. **Kullanıcı:** #31 sonuçları (`measurements/ltf_31.md`) → hangi kol taban olur. `OPEN-67`: salt
+0. **Kullanıcı:** `docs/inceleme/strateji/` etiketleri (20 işlem) → `etiketler.json`. Sonra ızgara
+   (`izgara_tf.md`): Bonferroni karar ölçütünü onayla; kod + parite + 12 hücre. `OPEN-67`: salt
    okunur BingX anahtarı verilirse maks kaldıraç çekilir, boyut kuralı birebir uygulanır.
    `.claude/settings.json` deny listesine `git push --force`, `git push -f`, `git branch -D` eklensin mi.
 1. **Kullanıcı — yönetici PowerShell:** kayıtçı açılış görevleri `-Kok göç\pc\data` ile
