@@ -143,7 +143,7 @@ def rapor(out: Path) -> None:
          "100 USDT, #30 kurgusu (B2 + `son_supuren`, A1+B, K = 0,25, limit, ADD-REJECT-E %3). "
          "Brüt = fiyat PnL'i (slippage içinde), sürtünme = komisyon + funding. R: net PnL / ilk girişin "
          "stopta riski (OB girişinde OB'nin ötesi). Bootstrap: brüt farkı (kol − #31), sembol-ay "
-         f"eşleşik, {N:,} yineleme, tohum {TOHUM} (`scripts/bootstrap_fark.py`).", "",
+         f"eşleşik, {str(N)[:-3]}.{str(N)[-3:]} yineleme, tohum {TOHUM} (`scripts/bootstrap_fark.py`).", "",
          "| Kol | 100 $ → | İşlem | Kazanma | R kaz. / kayb. | Brüt | Sürtünme | Net | Kriter 3 "
          "| Brüt farkı vs #31 (%95) |", "|---|---:|---:|---:|---|---:|---:|---:|---|---|"]
     b31 = bloklar(pkl("31"))
@@ -166,10 +166,13 @@ def rapor(out: Path) -> None:
     for k, (ad, _, _) in KOLLAR.items():
         o = O[k]
         s.append(f"| {ad} | {o['ob_giris']} | {o['ob_tf']} | {o['eklemeli']} | {o['ekleme']} | "
-                 f"%{(o['maks_dd'] or 0) * 100:.1f} | {o['likidasyon']} | `{P[k]['hash']}` |")
+                 f"%{(o['maks_dd'] or 0) * 100:.1f} | {o['likidasyon']} | `{P[k]['hash']}` |".replace(".", ","))
     c = P["31"]["counters"]
     s += ["", "#31 sayaçları (ret): " + ", ".join(f"`{a}` {v}" for a, v in sorted(c.items())
-                                               if ("reject" in a or "rejected" in a) and v), ""]
+                                               if ("reject" in a or "rejected" in a) and v), "",
+          "**OB rengi (§0.1 (e)):** tespit 1. mumun rengini v0.8'den beri şart koşuyor (talep c < o, arz "
+          "c > o, doji yok). v4'ün 363 OB'sinde ihlal **0** (147 doğru, 84 yanlış, 132 etiketsiz — "
+          "hepsi kurala uyuyor): v4'te yanlış denen OB'lerin nedeni renk değil.", ""]
     out.write_text("\n".join(s) + "\n", encoding="utf-8")
     print(out)
     print(json.dumps(O, ensure_ascii=False, indent=1, default=str))
