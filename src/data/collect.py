@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 
 import ccxt
@@ -34,7 +35,30 @@ def exchange(name: str = "bingx") -> ccxt.Exchange:
     return ex
 
 
+# Son doğrulama sembolleri: geliştirme boyunca ne okunur ne indirilir. Tek kaynak docs'taki liste.
+DOGRULAMA_LISTESI = Path(__file__).resolve().parents[2] / "docs" / "dogrulama_coinleri_2026-10-07.md"
+
+
+class DogrulamaKilidi(RuntimeError):
+    """Doğrulama sembolünün verisine geliştirme sırasında erişim."""
+
+
+def dogrulama_sembolleri() -> frozenset[str]:
+    """Doküman yoksa ya da liste bozuksa hata — kilit sessizce açılmaz (CLAUDE.md #8)."""
+    s = frozenset(re.findall(r"`([A-Z0-9]+/USDT:USDT)`", DOGRULAMA_LISTESI.read_text(encoding="utf-8")))
+    if len(s) != 20:
+        raise DogrulamaKilidi(f"{DOGRULAMA_LISTESI}: 20 sembol bekleniyordu, {len(s)} bulundu")
+    return s
+
+
+def _kilit(symbol: str) -> None:
+    if symbol in dogrulama_sembolleri():
+        raise DogrulamaKilidi(f"{symbol} doğrulama sembolü — geliştirme sırasında veri yüklenmez")
+
+
 def _safe(symbol: str) -> str:
+    """Disk yolu adı. Her okuma/yazma buradan geçer → doğrulama kilidi burada."""
+    _kilit(symbol)
     return symbol.replace("/", "-").replace(":", "-")
 
 
@@ -45,6 +69,7 @@ def fetch_ohlcv(
 
     Kapanmamış son mum atılır (CLAUDE.md #3: look-ahead yasak).
     """
+    _kilit(symbol)
     step = int(pd.Timedelta(timeframe).total_seconds() * 1000)
     now = ex.milliseconds()
     until = min(until or now, now)
