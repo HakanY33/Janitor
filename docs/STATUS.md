@@ -2,7 +2,7 @@
 
 Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
 
-**Son güncelleme:** 2026-10-06
+**Son güncelleme:** 2026-10-07
 
 ---
 
@@ -11,6 +11,24 @@ Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
 **Görev:** Sunucu **2026-10-12**'de kapanıyor, yeni sunucu yok (kullanıcı 2026-10-05). Kayıtçılar
 PC'de, sunucuyla paralel (`göç/pc`), **2026-10-11 son çekim** (`SERVER.md` "Sunucu kapanışı — PC'ye
 geçiş"). Paper kapalı kalır. H1 dilimi 10-01 → 12-31, tek bakış 2027-01-01 (kod kilidi).
+
+**2026-10-07 — spec v0.11 (5m girişi, kullanıcı kuralları) + #31 ve 4 çıkarma kolu:**
+- **Spec v0.11:** OB kaynakları 5m/30m/4h (kendi dilimlerinde, A1+B o dilimin B2 swing'leriyle;
+  5m 1m'den, 4h 30m'den `loader.ornekle`); OB rengi açık kural; eksik kaynak mumlu 5m/4h mumu OB/BoS'a
+  katılmaz. `R-ENTRY-02`: OB girişi (öncelikli, ilk dokunulan kenar, stop OB'nin ötesi) + OTE (0.70,
+  stop `1`), emir zone ölene kadar (`TOUCHED`'da 0.50 geçişi zaten yoktu). Ekleme açık: OTE girişinde
+  giriş–`1` arası geçerli OB, 1-1, en fazla 3 (`MAX_ADDS=3`, `ADD_CARPAN=1`). Kod `engine.py`
+  (`ENTRY_OB_070`, `Position.stop/giris`, `Trade.stop_price/giris/ob_tf`), `ob.py` (`bos_time`/
+  `pierce_time` numpy'ye — gerçek veride birebir aynı, 5m'de saatler → saniyeler), `swing_secim.aday_b(tf)`.
+- **Boyut (%1 marjin × maks kaldıraç) uygulanamadı → `OPEN-67`:** BingX maks kaldıracı anahtarsız
+  uçta yok (`quote/contracts` v2/v3, `tradingRules`; kademe `maintMarginRatio` kimlikli). K = 0,25 kaldı.
+- **OB rengi:** tespit zaten uyuyordu; v4'ün 363 OB'sinde ihlal 0 (84 "yanlış"ın nedeni renk değil).
+- **Canlı:** `replay.kapanis` 5m/4h OB ile hata verir (yalnızca 30m tespit) — paper kapalı, step 7 işi.
+  Testler `conftest`'te v0.10 çarpanı + yalnızca 30m ile; v0.11 `tests/test_ltf_giris.py` (21). **Testler 527.**
+- **#31** (`measurements/ltf_31.md`): **36,90 $**, 3.317 işlem, brüt −32,97, sürtünme 30,13, kriter 3
+  3/11. Kollar: (a) ekleme kapalı 42,43 · (b) 4h kapalı 36,89 · (c) 5m kapalı 41,30 · (d) yalnızca OB
+  girişi **82,97** (656 işlem, kazanma %12,8, R +7,02/−1,61, kriter 3 1/11). Brüt farklarının hepsi
+  bootstrap'ta sıfırı kapsıyor. OTE girişini geri açmak işlemi 155 → 3.317'ye çıkardı ve kaybı büyüttü.
 
 **2026-10-06 (7. oturum) — CLAUDE.md #11, gürültü testi, OPEN-66 kapandı (A1+B), #30, 5m tasarımı:**
 - **CLAUDE.md #11** yeni akış: her mantıksal değişiklik dal → commit → push → PR → merge, testler geçmeden
@@ -342,6 +360,7 @@ look-ahead'dendi. F1 zaten dondurulmuştu; karar değişmiyor.
 
 | Bulgu | Sonuç |
 |---|---|
+| **#31 v0.11: OTE girişi geri açılınca kayıp büyüdü** | 36,90 $ (3.317 işlem, brüt −32,97); yalnızca OB girişi 82,97 $ (656). 5m/4h OB ve ekleme kolları brütte gürültü |
 | **v0.9 OB = mumun tamamı: v4'te etiketle uyum değişmedi** | 63 etiketli OB'de mitigasyon durumu aynı; doğru 29 / yanlış 34 aynen üretiliyor; canlı OB 52 → 46 |
 | **#30 A1+B: işlem 843 → 155, brüt ≈ 0** | 97,73 $, kazanma %58,1, kriter 3 6/11; brüt farkları (#28/#29, #29/#30) bootstrap'ta gürültü |
 | **#29 v0.9 brüt negatif** | OB high–low ile brüt −1,52 (#28 gövdeyle +7,86), 87,40 $, kriter 3 6/11 |
@@ -431,7 +450,8 @@ look-ahead'dendi. F1 zaten dondurulmuştu; karar değişmiyor.
 
 ## Sıradaki
 
-0. **Kullanıcı:** `docs/LTF_GIRIS.md` açık soruları (9) → sonra 5m girişin kodu ve #31.
+0. **Kullanıcı:** #31 sonuçları (`measurements/ltf_31.md`) → hangi kol taban olur. `OPEN-67`: salt
+   okunur BingX anahtarı verilirse maks kaldıraç çekilir, boyut kuralı birebir uygulanır.
    `.claude/settings.json` deny listesine `git push --force`, `git push -f`, `git branch -D` eklensin mi.
 1. **Kullanıcı — yönetici PowerShell:** kayıtçı açılış görevleri `-Kok göç\pc\data` ile
    (`SERVER.md` geçiş tablosu 3. satır); funding / ohlcv30m / earliest için PC görevleri (4. satır).

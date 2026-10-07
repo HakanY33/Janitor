@@ -237,7 +237,7 @@ def symbol_data(bars: list[tuple[float, float]], zone: Zone, obs=()) -> SymbolDa
         ob_pierce=np.full(len(obs), uzak),
         ob_alive=np.ones(len(obs), dtype=bool),
         ob_bos=np.array([np.datetime64(o.bos_at.tz_localize(None)) for o in obs], dtype="datetime64[ns]"),
-        ob_gecersiz=np.full(len(obs), uzak),
+        ob_gecersiz=np.full(len(obs), uzak), ob_mitig=np.full(len(obs), uzak),
     )
 
 

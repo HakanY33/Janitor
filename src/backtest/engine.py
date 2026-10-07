@@ -96,7 +96,7 @@ FUNDING_INTERVAL = pd.Timedelta("8h")
 oldugu icin tahsilat gercek takvimine tasindi. Toplam maliyet ayni, zamanlamasi dogru:
 funding 8 saatte bir nakit akisidir ve equity'yi o anda etkiler."""
 _FUNDING_NP = np.timedelta64(FUNDING_INTERVAL.value, "ns")
-_KOVA_NS = pd.Timedelta(DETECT_TF).value  # gösterge önbelleği kovası (`_gosterge`)
+_KOVA_NS = pd.Timedelta("5m").value  # gösterge önbelleği kovası (`_gosterge`): en küçük OB dilimi (v0.11)
 
 TERMINATE_NONE = "none"
 TERMINATE_TIME = "time"
@@ -127,12 +127,14 @@ KALEM = {"TP1": "tp1", "FINAL_TP": "tp_nihai", "REDUCE": "kucultme",
 sonlandırma) `cikis` kalemine düşer. Kalemler ayrı çünkü limit kolunda aynı `cikis`
 içinde maker (TP) ve taker (stop) komisyonu karışıyordu."""
 
-MAX_ADDS: int | None = 0
-"""v1 varsayilan yapilandirmasi · **ekleme kapali** (spec §3 "v1'de ekleme kapalidir").
-`R-ADD-*` kurallari silinmedi; `None` verilince aynen calisirlar. Gerekce:
-`docs/measurements/f_kollari.md` — ekleme sonucu degistirmiyor, kaybedeni buyutuyor.
-Kurulus aninda okunur (`STOP_LOSS_CAP` gibi): testler ekleme yolunu sinamak icin
-sabiti gecici olarak `None` yapar."""
+MAX_ADDS: int | None = 3
+"""`R-ADD-03` · pozisyon başına en fazla 3 ekleme (v0.11, kullanıcı: ekleme açık). v0.10'a kadar
+v1 varsayılanı `0`'dı (ekleme kapalı, `docs/measurements/f_kollari.md`). `None` = sınır yok.
+Kuruluş anında okunur (`STOP_LOSS_CAP` gibi): testler sabiti geçici olarak `None` yapar."""
+
+ADD_CARPAN = Decimal("1")
+"""`R-ADD-03` · ekleme çarpanı 1-1 (v0.11, kullanıcı): her ekleme mevcut pozisyon kadar.
+`None` verilirse v0.10'un seçim kuralı (`_select_multiplier`) — yalnızca eski ölçümler için."""
 
 _VARSAYILAN = object()
 
@@ -191,6 +193,9 @@ ENTRY_070 = EntryRule("0.70 ilk temas", "level", Decimal("0.70"))
 ENTRY_075 = EntryRule("0.75 teması", "level", Decimal("0.75"))
 ENTRY_079 = EntryRule("0.79 teması", "level", Decimal("0.79"))
 ENTRY_IND = EntryRule("OB varsa oradan, yoksa 0.79", "indicator", Decimal("0.79"))
+ENTRY_OB_070 = EntryRule("OB varsa oradan, yoksa 0.70", "indicator", Decimal("0.70"))
+"""`R-ENTRY-02` v0.11 · OB girişi (bantta geçerli 5m/30m/4h OB, ilk dokunulan kenar, stop OB'nin
+ötesi) önceliklidir; yoksa OTE girişi (0.70, stop `1`)."""
 
 ENTRY_VARIANTS = (ENTRY_070, ENTRY_075, ENTRY_079, ENTRY_IND)
 
@@ -230,6 +235,9 @@ class Trade:
     entry_bias: str = "NONE"  # R-ZONE-10 · giriste bilinen 4h yapisal yon
     touch_count: int = 0      # R-ZONE-01 · dolum anindaki bant temasi sayisi
     leg_pct: float = 0.0      # |capa_1 - capa_0| / capa_0 — leg buyuklugu
+    giris: str = "OTE"        # R-ENTRY-02 v0.11 · OTE (0.70, stop 1) | OB (OB kenarı, stop OB ötesi)
+    stop_price: float | None = None  # ilk girişin stopu (R hesabı); None = zone'un `1`'i
+    ob_tf: str | None = None  # OB girişinde OB'nin zaman dilimi
 
 
 @dataclass
@@ -273,6 +281,7 @@ class Backtest:
         taker_vol_frac: float = 0.0,
         taker_kinds: frozenset[str] = frozenset({"giris", "tp1", "tp_nihai"}),
         entry_fill: str = "tick1",
+        add_carpan=_VARSAYILAN,
     ):
         if terminate not in TERMINATION_RULES:
             raise ValueError(f"bilinmeyen sonlandirma kurali: {terminate}")
@@ -306,6 +315,7 @@ class Backtest:
         # yok, `0` = ekleme hic yok (F1 kolu). R-ADD-01/03 ekleme sayisina sinir
         # koymuyor; salinimin maliyeti olculdugu icin var.
         self.max_adds = MAX_ADDS if max_adds is _VARSAYILAN else max_adds
+        self.add_carpan = ADD_CARPAN if add_carpan is _VARSAYILAN else add_carpan
         # F2 kolu · asgari leg esigi: `|capa_1 - capa_0| / capa_0` bu degerin **altinda
         # veya esit** olan zone giris uretmez. Spec'te yok, olcmek icin; `0` = kapali.
         # Leg geometrisi zone tespitinde sabitlenir — karar aninda bilinir (CLAUDE.md #3).
@@ -402,6 +412,8 @@ class Backtest:
             "rejected_kill": 0,  # R-KILL-01 açıkken emir fiyatına ulaşan zone
             # Borsa kısıtı (adım, asgari miktar/tutar) karşılanmadı: giriş / kısmi kapanış
             "rejected_min_order": 0, "rejected_min_close": 0,
+            "entries_ob": 0,  # R-ENTRY-02 v0.11 · OB girişi (geri kalanı OTE)
+            "add_reject_giris": 0,  # R-ADD-01 v0.11 · OB girişli pozisyona ekleme yok
         }
         self._day_start_equity = float(start_balance)
         self._day_blocked = False
@@ -415,14 +427,14 @@ class Backtest:
             self.counters[f"taker_{tur}"] += 1
         return dus
 
-    def _stop_loss(self, z: Zone, qty: Decimal, avg: Decimal) -> Decimal:
-        """`ADD-REJECT-E` · pozisyon nihai stopa (`1`) giderse realize olacak kayıp.
+    def _stop_loss(self, z: Zone, qty: Decimal, avg: Decimal, stop: float | None = None) -> Decimal:
+        """`ADD-REJECT-E` · pozisyon nihai stopa (`1`; OB girişinde OB'nin ötesi) giderse realize olacak kayıp.
 
         Spec formülü `toplam notional × |stop − maliyet| / maliyet`; notional
         `qty × maliyet` olduğu için `qty × |stop − maliyet|`e sadeleşir. Sadeleşmiş
         hâli kullanılır — bölme artığı yok ve ölçü doğrudan paradır.
         """
-        return qty * abs(Decimal(str(z.anchor_1_price)) - avg)
+        return qty * abs(Decimal(str(z.anchor_1_price if stop is None else stop)) - avg)
 
     def _breakeven(self, z: Zone, pos: Position) -> float:
         """R-EXIT-01 · ilk TP sonrası maliyete çekilen stop seviyesi.
@@ -499,11 +511,12 @@ class Backtest:
         a, b = self._fib(z, Decimal("0.70")), self._fib(z, Decimal("0.79"))
         return (price - a) / (b - a) if b != a else 0.0
 
-    def _gosterge(self, z: Zone, sd: SymbolData, at: pd.Timestamp) -> tuple[bool, bool, float]:
+    def _gosterge(self, z: Zone, sd: SymbolData, at: pd.Timestamp) -> tuple:
         """`at`'te bantta uygun OB / FVG var mı ve emir fiyatı (R-ENTRY-02, R-ENTRY-05).
 
-        Gösterge damgalarının hepsi (`known_at`, `mitigated_at`, `filled_at`) 30m
-        kapanışıdır: sonuç bir 30m kovası içinde değişmez. Kova başına bir kez hesaplanır —
+        Dönen: (had_ob, had_fvg, emir fiyatı, OB girişinin stopu ya da None, OB ya da None).
+        Gösterge damgalarının hepsi (`known_at`, `mitigated_at`, `filled_at`) 5m'in katı bir
+        kapanıştır (5m/30m/4h, v0.11): sonuç bir 5m kovası içinde değişmez. Kova başına bir kez hesaplanır —
         yaklaşım değil, birebir aynı sonuç. ponytail: hizasız damga gelirse önbellek yanılır;
         `known_at` her zaman TF kapanışı olduğu sürece geçerli. **Canlıda şart:** kovanın
         30m kapanışındaki artımlı tespit, o kovadaki ilk değerlendirmeden önce bitmeli
@@ -516,7 +529,7 @@ class Backtest:
         obs, fvgs = self._bantta(z, sd)
         had_ob = bool(eligible_obs(obs, z, at))
         had_fvg = bool(eligible_fvgs(fvgs, z, at))
-        sonuc = (had_ob, had_fvg, self._hedef(z, sd, at))
+        sonuc = (had_ob, had_fvg, *self._hedef(z, sd, at))
         self._gosterge_onbellek[z.zone_id] = (kova, *sonuc)
         return sonuc
 
@@ -532,11 +545,15 @@ class Backtest:
             self._bant_onbellek[z.zone_id] = c
         return c[1], c[2]
 
-    def _hedef(self, z: Zone, sd: SymbolData, at: pd.Timestamp) -> float:
-        """Giriş emrinin fiyatı, `at`'te bilinen bilgiyle (varyanta göre)."""
+    def _hedef(self, z: Zone, sd: SymbolData, at: pd.Timestamp) -> tuple:
+        """Giriş emrinin (fiyatı, stopu, OB'si), `at`'te bilinen bilgiyle (varyanta göre).
+
+        OB girişinde (v0.11) stop seçilen OB'nin ötesidir: SHORT'ta high'ı, LONG'da low'u. O
+        seviye `1`'den uzaksa stop `1`'de kalır (`None`): zone'u `1` zaten öldürür.
+        """
         r = self.entry_rule
         if r.kind == "level":
-            return self._fib(z, r.ratio)
+            return self._fib(z, r.ratio), None, None
         # indicator · R-ENTRY-02: önce OB, yoksa çıplak seviye. FVG fiyat belirlemez (OPEN-65).
         # Kenar seçimi: fiyatın **ilk dokunacağı** kenar — SHORT bandı aşağıdan
         # yukarı, LONG yukarıdan aşağı kat eder. Bu hem nedenseldir hem de
@@ -545,12 +562,16 @@ class Backtest:
         band_low, band_high = sorted((self._fib(z, Decimal("0.70")),
                                       self._fib(z, Decimal("0.79"))))
         obs, _ = self._bantta(z, sd)
-        adaylar = [(o.bottom, o.top) for o in eligible_obs(obs, z, at)]
+        adaylar = eligible_obs(obs, z, at)
         if not adaylar:
-            return self._fib(z, r.ratio)
-        kenarlar = [b for b, _ in adaylar] if short else [t for _, t in adaylar]
-        hedef = min(kenarlar) if short else max(kenarlar)
-        return min(max(hedef, band_low), band_high)  # bant dışına taşma
+            return self._fib(z, r.ratio), None, None
+        # İlk dokunulan kenar; eşitlikte listedeki ilki.
+        ob = min(adaylar, key=lambda o: o.bottom) if short else max(adaylar, key=lambda o: o.top)
+        hedef = min(max(ob.bottom if short else ob.top, band_low), band_high)  # bant dışına taşma
+        stop = ob.top if short else ob.bottom
+        if (stop >= z.anchor_1_price) if short else (stop <= z.anchor_1_price):
+            stop = None
+        return hedef, stop, ob
 
     def order_for(self, z: Zone, sd: SymbolData, at: pd.Timestamp) -> tuple[dict | None, str | None]:
         """R-ENTRY-02 · `OPEN-41` · `at` kapanışında bu zone'un bekleyen giriş emri.
@@ -567,7 +588,7 @@ class Backtest:
         if self.kill is not None:  # R-KILL-01 · yeni giriş yok, bekleyen emirler iptal (§6)
             return None, "rejected_kill"
         s = self._snap
-        had_ob, had_fvg, hedef = self._gosterge(z, sd, at)
+        had_ob, had_fvg, hedef, stop, ob = self._gosterge(z, sd, at)
         if self.require_indicator and not had_ob:  # kapı yalnızca OB (v0.8, OPEN-65)
             return None, "no_indicator_skipped"  # R-ENTRY-02 (3) kapali
         if self.min_leg_pct and \
@@ -595,10 +616,10 @@ class Backtest:
         notional = qty * Decimal(str(hedef))
         # ADD-REJECT-E ilk girise de uygulanir (R-ADD-02).
         if self.stop_loss_cap and \
-                self._stop_loss(z, qty, Decimal(str(hedef))) > self.stop_loss_cap * equity:
+                self._stop_loss(z, qty, Decimal(str(hedef)), stop) > self.stop_loss_cap * equity:
             return None, "entry_reject_e"
-        return {"hedef": hedef, "qty": qty, "notional": notional,
-                "had_ob": had_ob, "had_fvg": had_fvg}, None
+        return {"hedef": hedef, "qty": qty, "notional": notional, "had_ob": had_ob,
+                "had_fvg": had_fvg, "stop": stop, "ob": ob}, None
 
     def _surtunme_yetersiz(self, z: Zone, hedef: float) -> bool:
         """R-ENTRY-06 · `hedef` → TP1 mesafesi < `SURTUNME_KAT` × gidiş-dönüş maliyeti.
@@ -662,6 +683,8 @@ class Backtest:
             # "yön **döndü** mü" diye sorar, "yön karşı mı" diye değil. Girişte zaten
             # karşı olan yön bir giriş filtresi sorusudur (R-ENTRY), çıkış değil.
             entry_bias=self._bias_now(sd, t64),
+            # R-ENTRY-02 v0.11 · OB girişinde emir OB kenarındaydı (bantta geçerli OB vardı).
+            giris="OB" if emir["ob"] is not None else "OTE", stop=emir["stop"],
         )
         self.pf.positions[z.symbol] = pos
         self._girilen.add(z.zone_id)
@@ -674,16 +697,24 @@ class Backtest:
             # R-ZONE-08 aday ozellikleri, **dolum aninda** okunur.
             "touch_count": z.touch_count,
             "leg_pct": abs(z.anchor_1_price - z.anchor_0_price) / z.anchor_0_price,
+            "ob_tf": None if emir["ob"] is None else emir["ob"].timeframe,
         }
         self.counters["entries"] += 1
+        self.counters["entries_ob"] += pos.giris == "OB"
         self.counters["entries_with_ob"] += emir["had_ob"]
         self.counters["entries_with_fvg"] += emir["had_fvg"]
         self._karar("ENTRY", z, ts, hedef=hedef, fiyat=price, qty=qty, maker=maker,
                     had_ob=emir["had_ob"], had_fvg=emir["had_fvg"], kill_bar=kill)
+        stop = z.anchor_1_price if pos.stop is None else pos.stop
         if kill:
             self.counters["kill_bar_fills"] += 1
-            self._close(z, pos, self._stop_fiyati(z.symbol, z.anchor_1_price, high, low),
+            self._close(z, pos, self._stop_fiyati(z.symbol, stop, high, low),
                         ts + STATE_BAR, "STOP")
+        elif pos.stop is not None and ((high >= stop) if short else (low <= stop)):
+            # OB girişi · doluş mumu OB'nin ötesine de ulaştı: aynı mumda stop (§8 stop önce).
+            self.counters["kill_bar_fills"] += 1
+            self._close(z, pos, self._stop_fiyati(z.symbol, stop, high, low), ts + STATE_BAR, "STOP")
+            z.transition(S.CLOSED, ts + STATE_BAR)
 
     def _karar(self, event: str, z: Zone, ts, **alanlar) -> None:
         """Karar logu satırı (`ARCHITECTURE.md` §4.1, `OPEN-54`). `self.log` yoksa hiçbir şey.
@@ -766,27 +797,29 @@ class Backtest:
         Red sayaçları **ekleme denemesi başına** artar, taranan OB başına değil:
         aksi hâlde aynı reddi her mumda yeniden sayıp sayaçları şişiriyordu.
         """
-        band_low, band_high = sorted((z.level_070, z.level_079))
         price_f = self.marks[z.symbol]
-        # (1) fiyat giriş bandının ötesinde — pozisyon eksi bölgede
-        if pos.side == SHORT and price_f <= band_high:
-            return
-        if pos.side == LONG and price_f >= band_low:
-            return
         if not len(sd.obs):
             return
 
-        # (2) yöne uygun, bilinen, temas edilen OB (vektörel — sıcak yol)
+        # (1) v0.11 · giriş ile `1` arasında (kesişim), yöne uygun, geçerli (A1+B, unmitige),
+        # bilinen ve bu mumda temas edilen OB — 5m/30m/4h (vektörel — sıcak yol)
+        giris = float(self.entry_ctx.get(z.zone_id, {}).get("entry_price", pos.avg_price))
+        lo, hi = sorted((giris, z.anchor_1_price))
         dokunan = (
             sd.ob_alive
             & (sd.ob_bull == (pos.side == LONG))
             & (sd.ob_known <= t64)
             & (sd.ob_bos <= t64)  # OPEN-66 (B)
             & (sd.ob_gecersiz > t64)  # OPEN-66 (A1)
+            & (sd.ob_mitig > t64)  # R-ENTRY-05 · bu mumdan önce uğranmamış
+            & (sd.ob_bottom < hi) & (sd.ob_top > lo)
             & (sd.ob_bottom <= high)
             & (sd.ob_top >= low)
         )
         if not dokunan.any():
+            return
+        if pos.giris != "OTE":  # R-ADD-01 v0.11 · yalnızca OTE'den girilmiş pozisyona
+            self.counters["add_reject_giris"] += 1
             return
         # ADD-REJECT-C · hacimle delinmiş OB'den dönüt beklenmez (R-ADD-06)
         secilebilir = dokunan & (sd.ob_pierce > t64)
@@ -826,7 +859,8 @@ class Backtest:
                  else self.costs.fill_price(Decimal(str(price_f)), pos.side, opening=True))
         if equity <= 0:
             return
-        carpan = self._select_multiplier(z, pos, price)
+        # R-ADD-03 v0.11 · 1-1. `add_carpan=None` v0.10'un seçim kuralı (eski ölçümler).
+        carpan = self._select_multiplier(z, pos, price) if self.add_carpan is None else self.add_carpan
         if carpan is None:  # hiçbir çarpan maliyeti yeterince çekmiyor → ekleme yok
             self.counters["add_reject_mult"] += 1
             return
@@ -903,7 +937,7 @@ class Backtest:
             fraction = q / pos.qty
         # OPEN-62 · iç stopta seviye ile gerçekleşen çıkış farkı loga yazılır (paper ölçer,
         # canlıda aynı alan gerçek doluştan gelir). Pozisyon değişmeden önce okunur.
-        stop_seviye = (z.anchor_1_price if reason == "STOP"
+        stop_seviye = ((z.anchor_1_price if pos.stop is None else pos.stop) if reason == "STOP"
                        else self._breakeven(z, pos) if reason == "BREAKEVEN" else None)
         self._charge_funding(pos, ts)
         # Limit kolunda TP'ler ve kucultme limit emridir: kendi fiyatindan dolar,
@@ -957,6 +991,7 @@ class Backtest:
             entry_bias=pos.entry_bias,
             touch_count=ctx.get("touch_count", 0),
             leg_pct=ctx.get("leg_pct", 0.0),
+            giris=pos.giris, stop_price=pos.stop, ob_tf=ctx.get("ob_tf"),
         ))
         self.pf.positions.pop(pos.symbol, None)
 
@@ -1266,6 +1301,15 @@ class Backtest:
                 ctx = self.entry_ctx.get(z.zone_id)
                 if ctx is not None:
                     ctx["ambiguous"] = True
+
+        # R-RISK-02 v0.11 · OB girişinin stopu (OB'nin ötesi) `1`'den yakındır; TP1'e kadar geçerli
+        # (sonrasında breakeven). Aynı mumda hedef de görüldüyse stop önce (§8).
+        if pos is not None and pos.stop is not None and not pos.tp1_done and \
+                ((high >= pos.stop) if pos.side == SHORT else (low <= pos.stop)):
+            kapanis = ts + STATE_BAR
+            self._close(z, pos, self._stop_fiyati(z.symbol, pos.stop, high, low), kapanis, "STOP")
+            z.transition(S.CLOSED, kapanis)
+            return
 
         z.on_bar(high, low, ts)
         after = z.state

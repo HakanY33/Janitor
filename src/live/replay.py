@@ -14,6 +14,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from src.backtest import loader
 from src.backtest.engine import Backtest, Result
 from src.backtest.loader import DETECT_TF, SymbolData, ob_swingleri, set_bias, set_ob_arrays
 from src.features.fvg import detect_fvgs, replay
@@ -36,6 +37,10 @@ def kapanis(bt: Backtest, symbol: str, d30: pd.DataFrame, baslangic: pd.Timestam
     `baslangic`: canlı döngünün ilk 1m mumu. Ondan önce izlemeye girmesi gereken zone
     hiç izlenmez — backtest'in `watch_from` süzgeciyle aynı.
     """
+    if loader.OB_TFS != (DETECT_TF,):
+        # ponytail: canlı tespit yalnızca 30m kapanışında. 5m OB'ler 5m kapanışında, 4h'ler 4h
+        # kapanışında tespit edilmeli (v0.11); yapılmadan paper backtest'ten sapar (D1).
+        raise NotImplementedError(f"canlı OB tespiti yalnızca {DETECT_TF}: OB_TFS={loader.OB_TFS}")
     sd = bt.data[symbol]
     bilinen = {z.zone_id for z in sd.zones}
     bt.add_zones(symbol, [z for z in detect_zones(d30, symbol, DETECT_TF)

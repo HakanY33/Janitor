@@ -23,10 +23,14 @@ from decimal import Decimal
 
 import pytest
 
-from src.backtest import engine
+from src.backtest import engine, loader
 
 
 @pytest.fixture(autouse=True)
 def _add_reject_e_kapali(monkeypatch):
     monkeypatch.setattr(engine, "STOP_LOSS_CAP", Decimal("0"))
     monkeypatch.setattr(engine, "MAX_ADDS", None)
+    # v0.11 varsayılanları (1-1 çarpan, 5m/30m/4h OB) kendi testlerinde açıkça verilir
+    # (`tests/test_ltf_giris.py`); eski testler v0.10 çarpan seçimini ve 30m OB'yi sınar.
+    monkeypatch.setattr(engine, "ADD_CARPAN", None)
+    monkeypatch.setattr(loader, "OB_TFS", ("30m",))

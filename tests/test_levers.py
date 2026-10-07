@@ -78,10 +78,11 @@ def test_B_max_adds_tavani_uctuncu_eklemeyi_reddeder():
     assert res.trades[0].adds == 2
 
 
-def test_F1_v1_varsayilani_ekleme_kapali(monkeypatch):
-    """Spec §3: v1'de ekleme kapali. Fixture'in `None`'u geri alininca motor 0 okur."""
+def test_R_ADD_03_v011_varsayilani_uc_ekleme_1_1(monkeypatch):
+    """Spec v0.11 §3: ekleme açık, en fazla 3, çarpan 1-1. Fixture geri alınınca motor bunları okur."""
     monkeypatch.undo()
-    assert Backtest([symbol_data([], short_zone())], free_costs()).max_adds == 0
+    bt = Backtest([symbol_data([], short_zone())], free_costs())
+    assert bt.max_adds == 3 and bt.add_carpan == Decimal("1")
 
 
 def test_F1_max_adds_sifir_ekleme_ve_kucultme_uretmez():

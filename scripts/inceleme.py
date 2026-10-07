@@ -75,7 +75,9 @@ def kos(bakiye: Decimal = Decimal("10000"), yol: Path | None = None) -> None:
 
 
 def r_degeri(t, z) -> float:
-    risk = float(t.entry_qty) * abs(float(t.entry_price) - z.anchor_1_price)
+    """Net PnL / ilk girişin stopta riski. Stop: OB girişinde OB'nin ötesi (v0.11), yoksa `1`."""
+    stop = getattr(t, "stop_price", None)
+    risk = float(t.entry_qty) * abs(float(t.entry_price) - (z.anchor_1_price if stop is None else stop))
     return float(t.pnl) / risk if risk else float("nan")
 
 

@@ -31,7 +31,9 @@ import numpy as np
 
 from src.data import collect
 from src.features.fvg import detect_fvgs, replay
-from src.features.ob import detect_order_blocks, ob_kurallari, pierce_time, replay_obs
+import pandas as pd
+
+from src.features.ob import detect_order_blocks, ob_kurallari, pierce_times, replay_obs
 from src.zones import detect as zone_detect
 from src.features.structure import htf_bias
 from src.zones.detect import detect_zones
@@ -39,6 +41,10 @@ from src.zones.model import Zone
 
 DETECT_TF = "30m"
 STATE_TF = "1m"
+OB_TFS: tuple[str, ...] = ("5m", "30m", "4h")
+"""§0.1 OB kaynakları (v0.11, kullanıcı): her biri kendi zaman diliminde tespit edilir, `known_at`
+kendi mumunun kapanışı; A1+B kendi yapısında. 5m 1m'den, 4h 30m'den yeniden örneklenir. Zone/OTE
+tespiti yalnızca 30m'de (`DETECT_TF`)."""
 TRAIN_FRAC = 0.80
 
 CACHE_ROOT = Path("data/cache/symbols")
@@ -67,6 +73,7 @@ class SymbolData:
     ob_alive: np.ndarray = field(default_factory=lambda: np.array([], dtype=bool))
     ob_bos: np.ndarray = field(default_factory=lambda: np.array([], dtype="datetime64[ns]"))  # OPEN-66 (B)
     ob_gecersiz: np.ndarray = field(default_factory=lambda: np.array([], dtype="datetime64[ns]"))  # OPEN-66 (A1)
+    ob_mitig: np.ndarray = field(default_factory=lambda: np.array([], dtype="datetime64[ns]"))  # mitigated_at
     # R-ZONE-10 · 4h yapisal yon. `bias_known` yonun **kullanilabilir** oldugu an
     # (teyit mumunun kapanisi); karar aninda yalnizca `bias_known <= t` olan son satir
     # gorulebilir (CLAUDE.md #3). `OPEN-29` yapisal gecersizlik adayi bunu okur.
@@ -106,15 +113,19 @@ def _build_symbol(
     return build_from_frames(symbol, tr, d1)
 
 
-def build_from_frames(symbol: str, d30, d1) -> SymbolData:
+def build_from_frames(symbol: str, d30, d1, ob_tfs: tuple[str, ...] | None = None) -> SymbolData:
     """Kapanmış 30m ve 1m mumlarından `SymbolData`. Saf: dosya okumaz.
 
     Backtest bunu tüm dilimle bir kez, canlı döngü (`src/live/replay.py`) her 30m
     kapanışında o ana kadarki önekle çağırır — tespit kodu tektir (`docs/LIVE.md` A2).
     """
-    obs = detect_order_blocks(d30, symbol, DETECT_TF)
-    replay_obs(obs, d30)
-    ob_kurallari(obs, d30, ob_swingleri(d30, symbol))
+    cerceve = ob_cerceveleri(d30, d1, OB_TFS if ob_tfs is None else ob_tfs)
+    obs = []
+    for tf, df in cerceve.items():
+        o = detect_order_blocks(df, symbol, tf)
+        replay_obs(o, df)
+        ob_kurallari(o, df, ob_swingleri(df, symbol, tf))  # A1 + B kendi zaman diliminde
+        obs += o
     fvgs = detect_fvgs(d30, symbol, DETECT_TF)
     replay(fvgs, d30)
     zones = [z for z in detect_zones(d30, symbol, DETECT_TF)
@@ -136,31 +147,67 @@ def build_from_frames(symbol: str, d30, d1) -> SymbolData:
         volume=d1.volume.to_numpy(dtype=float),
         open=d1.open.to_numpy(dtype=float),
     )
-    set_ob_arrays(sd, d30)
+    set_ob_arrays(sd, cerceve)
     set_bias(sd, d30)
     return sd
 
 
-def ob_swingleri(d30, symbol: str) -> list:
-    """`OPEN-66` (B) · zone'larla **aynı** swing tanımı (`src.zones.detect.detect_swings`,
-    modül üzerinden okunur: swing adayı değiştiren koşu ikisini birlikte değiştirir)."""
-    return zone_detect.detect_swings(d30, symbol, DETECT_TF)
+def ornekle(df: pd.DataFrame, tf: str, kaynak_tf: str) -> pd.DataFrame:
+    """Kapanmış `kaynak_tf` mumlarından `tf` mumları, UTC sınırlı (5m: :00, :05 …; 4h: 00, 04 …).
+
+    Look-ahead yok: kova ancak son kaynak mumu kapanınca kapanır; eksik son kova atılır.
+    **Boşluk (v0.11, muhafazakâr):** kaynak mumu eksik kova düşürülmez, açılış/kapanışı `NaN`
+    olur — OB deseninin parçası olamaz, kapanışla yapı kıramaz (`detect_order_blocks`, `bos_time`);
+    high/low eldeki mumlardan, böylece bölgeye temas (mitigasyon, delinme) yine görülür.
+    Hiç mumu olmayan kova tümüyle `NaN`. Izgara sürekli: desen boşluğun üstünden atlayamaz.
+    """
+    n = pd.Timedelta(tf) // pd.Timedelta(kaynak_tf)
+    g = df.set_index("ts").resample(pd.Timedelta(tf), label="left", closed="left")
+    out = g.agg({"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"})
+    say = g["close"].count()
+    eksik = say < n
+    out.loc[eksik, ["open", "close"]] = float("nan")
+    out = out.reset_index()
+    son_kapanis = df.ts.iloc[-1] + pd.Timedelta(kaynak_tf)
+    return out[out.ts + pd.Timedelta(tf) <= son_kapanis].reset_index(drop=True)
 
 
-def set_ob_arrays(sd: SymbolData, d30) -> None:
+def ob_cerceveleri(d30, d1, tfs: tuple[str, ...]) -> dict[str, pd.DataFrame]:
+    """OB tespitinin mum çerçeveleri: 30m olduğu gibi, 5m 1m'den, 4h 30m'den."""
+    kaynak = {"5m": (d1, STATE_TF), "4h": (d30, DETECT_TF)}
+    return {tf: d30 if tf == DETECT_TF else ornekle(kaynak[tf][0], tf, kaynak[tf][1])
+            for tf in tfs}
+
+
+def ob_swingleri(df, symbol: str, tf: str = DETECT_TF) -> list:
+    """`OPEN-66` (B) · zone'larla **aynı** swing tanımı, OB'nin kendi zaman diliminde
+    (`src.zones.detect.detect_swings`, modül üzerinden okunur: swing adayı değiştiren koşu
+    ikisini birlikte değiştirir). 5m/4h swing'leri yalnızca yapı kırılımı içindir (v0.11)."""
+    return zone_detect.detect_swings(df, symbol, tf)
+
+
+def set_ob_arrays(sd: SymbolData, cerceve) -> None:
     """Ekleme aramasının vektörel dizinleri + `R-ADD-06` delinme anı. `ob_alive` korunur:
-    yeni OB'ler canlı eklenir, tüketilmiş olan tüketilmiş kalır."""
+    yeni OB'ler canlı eklenir, tüketilmiş olan tüketilmiş kalır. `cerceve`: zaman dilimi →
+    o dilimin mumları (DataFrame verilirse 30m)."""
+    if isinstance(cerceve, pd.DataFrame):
+        cerceve = {DETECT_TF: cerceve}
     obs = sd.obs
     # R-ADD-06 / ADD-REJECT-C. Bilinen delinme bir daha değişmez (önek değişmez, D0):
     # canlıda her kapanışta yalnızca henüz delinmemiş OB'ler yeniden hesaplanır.
     eski = sd.pierce_at
-    sd.pierce_at = {o.ob_id: eski.get(o.ob_id) or pierce_time(o, d30) for o in obs}
+    yeni = {}
+    for tf, df in cerceve.items():
+        yeni.update(pierce_times([o for o in obs if o.timeframe == tf and eski.get(o.ob_id) is None], df))
+    sd.pierce_at = {o.ob_id: eski.get(o.ob_id) or yeni.get(o.ob_id) for o in obs}
     uzak = np.datetime64("2262-01-01")  # delinmemiş OB: karşılaştırmada hep gelecekte
     sd.ob_top = np.array([o.top for o in obs], dtype=float)
     sd.ob_bottom = np.array([o.bottom for o in obs], dtype=float)
     sd.ob_bull = np.array([o.direction == "BULLISH" for o in obs], dtype=bool)
     sd.ob_known = np.array([np.datetime64(o.known_at.tz_localize(None)) for o in obs],
                            dtype="datetime64[ns]")
+    sd.ob_mitig = np.array([uzak if o.mitigated_at is None else np.datetime64(o.mitigated_at.tz_localize(None))
+                            for o in obs], dtype="datetime64[ns]")  # R-ENTRY-05 (ekleme, v0.11)
     sd.ob_bos = np.array([uzak if o.bos_at is None else np.datetime64(o.bos_at.tz_localize(None))
                           for o in obs], dtype="datetime64[ns]")  # OPEN-66 (B)
     sd.ob_gecersiz = np.array([uzak if o.gecersiz_at is None else np.datetime64(o.gecersiz_at.tz_localize(None))
