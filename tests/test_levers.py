@@ -23,7 +23,7 @@ from src.backtest.costs import CostModel, Fees
 from src.backtest.engine import Backtest
 from src.backtest.portfolio import LONG, SHORT, Position
 from src.zones.model import Zone
-from tests.test_backtest import SYM, bearish_ob, short_zone, symbol_data, ts
+from tests.test_backtest import SYM, bearish_ob, bias_veren, short_zone, symbol_data, ts
 
 # Ekleme yolunun OB'leri: her biri ayrı bir mumda dokunulur, her biri bir ekleme.
 OB1, OB2, OB3 = bearish_ob(187.0, 183.0), bearish_ob(192.0, 188.0), bearish_ob(197.0, 193.0)
@@ -102,6 +102,56 @@ def test_F2_esik_alti_leg_giris_uretmez():
 def test_F2_esik_ustu_leg_girer():
     res = kos(STOP_YOLU, min_leg_pct=0.99)
     assert res.counters["entries"] == 1 and res.counters["leg_skipped"] == 0
+
+
+# --- S1/S2/S3 · piyasa süzgeç adayları (docs/adaylar_piyasa.md, 2026-10-13) --
+
+
+def test_S1_bias_bilinmiyorsa_NONE_sayilir_ve_girilmez():
+    """`_bias_now` varsayılanı `NONE` (hiç `bias_known` yoksa)."""
+    res = kos(STOP_YOLU, reject_bias_none=True)
+    assert res.counters["entries"] == 0 and res.counters["rejected_bias_none"] == 1
+
+
+def test_S1_bias_biliniyorsa_girer():
+    sd = bias_veren(short_zone(), "DOWN", dakika=0)
+    res = Backtest([sd], free_costs(), k=Decimal("0.2"), uyari_blocks_adds=False,
+                   reject_bias_none=True).run()
+    assert res.counters["entries"] == 1 and res.counters["rejected_bias_none"] == 0
+
+
+def test_S2_vol_block_bayragi_giris_zamaninda_acikken_girmez():
+    z = short_zone()
+    sd = symbol_data(STOP_YOLU, z)
+    blok = {SYM: (sd.ts, np.ones(len(sd.ts), dtype=bool))}
+    res = Backtest([sd], free_costs(), k=Decimal("0.2"), uyari_blocks_adds=False,
+                   vol_block=blok).run()
+    assert res.counters["entries"] == 0 and res.counters["rejected_vol"] == 1
+
+
+def test_S2_vol_block_bayragi_kapaliyken_girer():
+    z = short_zone()
+    sd = symbol_data(STOP_YOLU, z)
+    blok = {SYM: (sd.ts, np.zeros(len(sd.ts), dtype=bool))}
+    res = Backtest([sd], free_costs(), k=Decimal("0.2"), uyari_blocks_adds=False,
+                   vol_block=blok).run()
+    assert res.counters["entries"] == 1 and res.counters["rejected_vol"] == 0
+
+
+def test_S3_leg_block_listesindeki_zone_girmez():
+    z = short_zone()
+    res = kos(STOP_YOLU, leg_block=frozenset({z.zone_id}))
+    # `kos` kendi zone'unu kurar (ayni ID uretimi, bkz. Zone.create) — zone_id'yi
+    # res üzerinden alıp eşleştirme garanti.
+    girilen_zone = {t.zone_id for t in res.trades}
+    assert res.counters["entries"] == 0
+    assert res.counters["rejected_leg_zayif"] == 1
+    assert not girilen_zone
+
+
+def test_S3_leg_block_bos_kumeyken_girer():
+    res = kos(STOP_YOLU, leg_block=frozenset())
+    assert res.counters["entries"] == 1 and res.counters["rejected_leg_zayif"] == 0
 
 
 # --- B · küçültme bir kez -----------------------------------------------------

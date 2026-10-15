@@ -277,6 +277,9 @@ class Backtest:
         stop_loss_cap: Decimal | None = None,
         breakeven_fees: bool = True,
         min_leg_pct: float = 0.0,
+        reject_bias_none: bool = False,
+        vol_block: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
+        leg_block: frozenset[str] = frozenset(),
         taker_frac: float = 0.0,
         taker_vol_frac: float = 0.0,
         taker_kinds: frozenset[str] = frozenset({"giris", "tp1", "tp_nihai"}),
@@ -320,6 +323,17 @@ class Backtest:
         # veya esit** olan zone giris uretmez. Spec'te yok, olcmek icin; `0` = kapali.
         # Leg geometrisi zone tespitinde sabitlenir — karar aninda bilinir (CLAUDE.md #3).
         self.min_leg_pct = min_leg_pct
+        # --- piyasa suzgec adaylari (docs/adaylar_piyasa.md, 2026-10-13, olcmek icin) ---
+        # S1: giris aninda 4h yapisal yon NONE ise giris yok (zaten `_bias_now` ile hesaplaniyor).
+        self.reject_bias_none = reject_bias_none
+        # S2: sembol -> (ts64 artan, bool) — o 1m kapanisinda "duz piyasa" kosulu (girişten
+        # onceki 24s hacim < girisin takvim gununden onceki 30 tam gunun gunluk hacim medyani).
+        # Disaridan onceden hesaplanir (scripts/suzgec_31.py); nedensel, look-ahead yok.
+        self.vol_block = vol_block
+        # S3: zayif zigzag esigini gecemeyen zone_id'ler (leg verimliligi <= egitim
+        # populasyonunun medyani). Capa'lar zone olusumunda sabit oldugu icin disaridan
+        # bir kez hesaplanir, karar aninda zaten bilinir.
+        self.leg_block = leg_block
         self._vol: dict[str, float] = {}
         self._acilis: dict[str, float] = {}  # sembol -> bu 1m mumun açılışı
         # `reduce_once`: R-ADD-04 kucultmesi pozisyon basina bir kez tetiklenir ve
@@ -384,6 +398,8 @@ class Backtest:
         self.counters = {
             "entry_candidates": 0, "entries": 0, "entries_with_ob": 0,
             "no_indicator_skipped": 0, "leg_skipped": 0,
+            # docs/adaylar_piyasa.md · S1/S2/S3 aday suzgecleri
+            "rejected_bias_none": 0, "rejected_vol": 0, "rejected_leg_zayif": 0,
             "entries_with_fvg": 0, "rejected_risk01": 0, "rejected_risk05": 0,
             "rejected_risk03": 0, "adds": 0, "add_reject_a": 0, "add_reject_b": 0,
             "add_reject_c": 0, "add_reject_d": 0, "ambiguous_bars": 0,
@@ -594,6 +610,12 @@ class Backtest:
         if self.min_leg_pct and \
                 abs(z.anchor_1_price - z.anchor_0_price) / z.anchor_0_price <= self.min_leg_pct:
             return None, "leg_skipped"  # F2 kolu · esik alti leg
+        if self.reject_bias_none and self._bias_now(sd, np.datetime64(at.tz_localize(None))) == "NONE":
+            return None, "rejected_bias_none"  # S1 · belirsiz trend
+        if self.vol_block and self._vol_blocked(z.symbol, np.datetime64(at.tz_localize(None))):
+            return None, "rejected_vol"  # S2 · duz piyasa
+        if z.zone_id in self.leg_block:
+            return None, "rejected_leg_zayif"  # S3 · zayif zigzag
         if self._surtunme_yetersiz(z, hedef):
             return None, "rejected_surtunme"  # R-ENTRY-06
         if z.symbol in s["pozisyon"]:  # sembol başına tek pozisyon (modelleme tercihi 5)
@@ -999,6 +1021,18 @@ class Backtest:
         """R-ZONE-10 · karar aninda **bilinen** 4h yon; yoksa `NONE`."""
         i = int(np.searchsorted(sd.bias_known, t64, side="right")) - 1
         return "NONE" if i < 0 else str(sd.bias_val[i])
+
+    def _vol_blocked(self, symbol: str, t64: np.datetime64) -> bool:
+        """S2 · `t64` kapanışında "düz piyasa" bayrağı (`docs/adaylar_piyasa.md`)."""
+        d = self.vol_block.get(symbol)
+        if d is None:
+            return False
+        ts_arr, blok = d
+        # `sd.ts` birimi (ms) `t64`'ten (us, `tz_localize(None)`'dan) farklı olabilir;
+        # numpy datetime64 birim uyumsuzluğunda `searchsorted` çok yavaşlar (~10 ms/çağrı,
+        # ölçüldü) — döküm (astype) tek satırla 5 kat büyüklük mertebesinde hızlanır.
+        i = int(np.searchsorted(ts_arr, t64.astype(ts_arr.dtype), side="right")) - 1
+        return bool(blok[i]) if i >= 0 else False
 
     def _termination_reason(self, sd: SymbolData, pos: Position, z: Zone,
                             ts: pd.Timestamp, t64: np.datetime64) -> str | None:
