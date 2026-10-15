@@ -2,7 +2,7 @@
 
 Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
 
-**Son güncelleme:** 2026-10-07 (2. oturum)
+**Son güncelleme:** 2026-10-15
 
 ---
 
@@ -11,6 +11,40 @@ Her oturumun **ilk** okuduğu dosya. Kısa tutulur. Oturum sonunda güncellenir.
 **Görev:** Sunucu **2026-10-12**'de kapanıyor, yeni sunucu yok (kullanıcı 2026-10-05). Kayıtçılar
 PC'de, sunucuyla paralel (`göç/pc`), **2026-10-11 son çekim** (`SERVER.md` "Sunucu kapanışı — PC'ye
 geçiş"). Paper kapalı kalır. H1 dilimi 10-01 → 12-31, tek bakış 2027-01-01 (kod kilidi).
+
+**2026-10-15 — piyasa süzgeçleri S1/S2/S3, #31 üstüne (ızgaradan önce):**
+- **Etiketler** `docs/inceleme/strateji/etiketler.json` (20 işlem, kullanıcının "girerdim"/
+  "girmezdim"i) ve açıklayıcı özet `docs/inceleme/strateji/ozet.md` (`scripts/inceleme_ozet.py`):
+  12 girmezdim → 11 STOP + 1 BREAKEVEN (not: grafik çıkışı gösteriyordu, sonradan bakış — kanıt
+  değil). Karar × 4h yön ve sebep dağılımı da orada.
+- **Ön kayıt** `docs/adaylar_piyasa.md` (eşikler hesaplanmadan önce yazıldı): S1 4h yön `NONE`,
+  S2 düz piyasa (24s hacim < girişin takvim gününden önceki 30 tam günün günlük hacim medyanı,
+  nedensel/kayan), S3 zayıf zigzag (leg verimliliği = `|1-0| / Σ|30m kapanış farkları|` ≤ eğitim
+  popülasyonunun medyanı — **medyan 0,5220**, 13.067 zone). Yedi kombinasyon.
+- **Kod** `src/backtest/engine.py`: üç yeni `Backtest` parametresi (`reject_bias_none`,
+  `vol_block`, `leg_block`), `order_for`'da üç kapı, `_vol_blocked` yardımcı fonksiyonu; 3 yeni
+  sayaç. Hiçbiri spec kuralı değil — F2/ADD-REJECT-E gibi ölçmek için. `tests/test_levers.py`
+  (6 yeni), `tests/test_suzgec_31.py` (4, eşik hesaplarının sentetik testi).
+  **Hata (düzeltildi):** `_vol_blocked` içinde `np.searchsorted`, `sd.ts`'in (`datetime64[ms]`)
+  birimiyle uyuşmayan bir `t64` (`[us]`) karşılaştırınca ~10 ms/çağrıya düşüyordu (ölçülen: döküm
+  olmadan 1000 çağrı 11,8 sn, dökümle 100.000 çağrı 0,24 sn — ~5.000× fark). Tek satır `astype`
+  düzeltmesi, `scripts/suzgec_31.py`'de koşuyu ~4 saatten ~9 dakikaya indirdi.
+  **Operasyonel not:** dört kolu paralel koşturmak (s1/s2/s3/s1s2) belleği zorladı (RAM ~15,4 GB,
+  her süreç kendi 440 MB veri paketini + S2'nin ~88 MB `vol_block`'unu yüklüyor); s2/s1s2 takıldı,
+  öldürülüp **sırayla** yeniden koşuldu. Sıradaki benzer koşular paralel değil, sıralı yapılmalı.
+- **Sonuç** `docs/measurements/suzgec_31.md` (`scripts/suzgec_31.py`): hiçbir kol/kombinasyon
+  kriter 3'ü geçmedi (en iyisi 4/11). Net PnL sıralaması: **S1+S2+S3** (68,12 $, −31,88 net) >
+  S1+S2 > S2+S3 > S1+S3 > S1 > S2 > S3 > #31 taban (36,90 $, −63,10 net) — hepsi en kötü
+  işlemlerden bir kısmını eliyor ama **brüt hâlâ negatif** (−18,78 … −32,97), edge yok. Madde 3
+  (tutarlılık): tek başına en seçici **S1** (12 girmezdimden 7'sini eler, 8 girerdimden yalnızca
+  3'ünü yanlış eler); üçlü kombinasyon girmezdimin 10/12'sini eler ama girerdimin de 7/8'ini —
+  seçicilikten değil, genel olarak çok fazla işlemi elemesinden.
+- **`OPEN-69` (çözülmedi, koşulmadı):** en iyi kolun doğrulama coinlerinde × eğitim dönemi koşusu
+  (ön kayıt, `adaylar_piyasa.md`) `dogrulama_coinleri_2026-10-07.md`'nin kilidine çarpıyor —
+  diskte veri yok, `DogrulamaKilidi` durduruyor, kilit açılsa da planlı çekim eğitim dönemini değil
+  2026-09-11 sonrasını kapsıyor. Kullanıcı onayı bekliyor.
+- **Dikkat:** görev paragrafındaki sunucu kapanışı (2026-10-12) ve PC son çekimi (2026-10-11)
+  tarihleri bu oturum sırasında geçti — durum kontrol edilmedi, bu oturumun kapsamı dışında.
 
 **2026-10-07 (2. oturum) — #31 taban değil (taban #30), doğrulama coinleri, inceleme paketi, ızgara ön kaydı:**
 - **Kullanıcı:** taban **#30** kalır; (d) taban yapılmaz.
@@ -472,10 +506,13 @@ look-ahead'dendi. F1 zaten dondurulmuştu; karar değişmiyor.
 
 ## Sıradaki
 
-0. **Kullanıcı:** `docs/inceleme/strateji/` etiketleri (20 işlem) → `etiketler.json`. Sonra ızgara
-   (`izgara_tf.md`): Bonferroni karar ölçütünü onayla; kod + parite + 12 hücre. `OPEN-67`: salt
-   okunur BingX anahtarı verilirse maks kaldıraç çekilir, boyut kuralı birebir uygulanır.
-   `.claude/settings.json` deny listesine `git push --force`, `git push -f`, `git branch -D` eklensin mi.
+0. **Kullanıcı — `OPEN-69`:** doğrulama coin verisi (eğitim dönemi için) nasıl sağlanacak —
+   kilit açılıp borsadan geçmişe dönük çekim mi, yoksa doğrulama adımı tamamen ertelensin mi?
+   Sonra ızgara (`izgara_tf.md`): Bonferroni karar ölçütünü onayla; kod + parite + 12 hücre.
+   `OPEN-67`: salt okunur BingX anahtarı verilirse maks kaldıraç çekilir, boyut kuralı birebir
+   uygulanır. `.claude/settings.json` deny listesinden `git checkout:*` kullanıcı onayıyla
+   kaldırıldı (2026-10-13, branch oluşturmak için) — kalıcı mı, geri eklensin mi kullanıcı kararı.
+   deny listesine `git push --force`, `git push -f`, `git branch -D` eklensin mi.
 1. **Kullanıcı — yönetici PowerShell:** kayıtçı açılış görevleri `-Kok göç\pc\data` ile
    (`SERVER.md` geçiş tablosu 3. satır); funding / ohlcv30m / earliest için PC görevleri (4. satır).
 2. **2026-10-11:** son çekim + birleştirme (`SERVER.md` geçiş tablosu 6. satır), sonuç `goc.md`.
@@ -489,7 +526,8 @@ look-ahead'dendi. F1 zaten dondurulmuştu; karar değişmiyor.
 ## Açık maddeler
 
 `OPEN-27` ekleme çarpanı hedefi (şu an `0.79`) · `OPEN-28` KRİTİK'te yarılama ·
-`R-ZONE-08` aday sıralaması (adaylar ölçüldü, dayanıklı çıkan yok) · `ADD-REJECT-A` · `OPEN-31` `R-ENTRY-02` (3) kaldırılsın mı · `OPEN-32` doluş varsayımı spec'te tanımsız · `OPEN-34` boyutu risk tavanından türetme · `OPEN-36` maker doluş oranı · `OPEN-37` post-only giriş · `OPEN-38` gerçek doluş ölçümü (ertelendi) · `OPEN-39` kriter 2 bağlayıcı küme
+`R-ZONE-08` aday sıralaması (adaylar ölçüldü, dayanıklı çıkan yok) · `ADD-REJECT-A` · `OPEN-31` `R-ENTRY-02` (3) kaldırılsın mı · `OPEN-32` doluş varsayımı spec'te tanımsız · `OPEN-34` boyutu risk tavanından türetme · `OPEN-36` maker doluş oranı · `OPEN-37` post-only giriş · `OPEN-38` gerçek doluş ölçümü (ertelendi) · `OPEN-39` kriter 2 bağlayıcı küme ·
+`OPEN-69` doğrulama coinlerinde eğitim dönemi verisi yok, `DogrulamaKilidi` + geçmişe dönük çekim kullanıcı onayı bekliyor (`docs/adaylar_piyasa.md`)
 
 ---
 
